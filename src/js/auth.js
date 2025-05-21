@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (userRole === 'funcionario') {
                     if (currentPage !== 'funcionario') {
                         console.log("Redirecionando funcionário para funcionario.html de", currentPage);
-                        executeRedirect('funcionario.');
+                        executeRedirect('funcionario');
                         return;
                     }
                 } else {
