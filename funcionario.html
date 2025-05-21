@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<<<<<<< HEAD
+    <title>Barraca de Pastel 24h - Funcionário</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="src/css/style.css">
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navbar -->
+    <nav class="bg-gradient-to-r from-orange-500 to-orange-600 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <img class="h-10 w-auto" src="public/logo.svg" alt="Barraca de Pastel">
+                    </div>
+                    <div class="ml-4 text-white font-semibold text-lg">
+                        Barraca de Pastel 24h
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-white">
+                        <span id="userName" class="font-medium"></span>
+                        <span id="userRole" class="text-orange-100 text-sm ml-2"></span>
+                    </div>
+                    <button id="logoutButton" class="px-4 py-2 text-sm bg-white text-orange-600 rounded-lg hover:bg-orange-50 transition-colors flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Sair
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-6">
+        <!-- Status Card -->
+        <div class="bg-white rounded-xl shadow-md p-6 mb-6 animate__animated animate__fadeIn">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h1 class="text-2xl font-bold text-gray-800">Controle de Turno</h1>
+                    <p class="text-gray-600 mt-1">Gerencie seu turno e registre as vendas</p>
+                </div>
+                <div class="flex space-x-4">
+                    <button id="abrirTurnoBtn" class="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Abrir Turno
+                    </button>
+                    <button id="fecharTurnoBtn" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                        Fechar Turno
+                    </button>
+                </div>
+            </div>
+
+            <div id="statusTurno" class="mt-4 p-4 bg-gray-50 rounded-lg text-center">
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+                    <span class="text-gray-600">Nenhum turno aberto</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Turno Form -->
+        <div id="turnoForm" class="hidden space-y-6 animate__animated animate__fadeIn">
+            <!-- Dados Gerais -->
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Dados do Turno</h2>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="barraca" class="block text-sm font-medium text-gray-700 mb-1">BARRACA</label>
+                        <select id="barraca" name="barraca" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="Terminal">Terminal</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="mes" class="block text-sm font-medium text-gray-700 mb-1">Mês</label>
+                        <select id="mes" name="mes" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="Janeiro">Janeiro</option>
+                            <option value="Fevereiro">Fevereiro</option>
+                            <option value="Março">Março</option>
+                            <option value="Abril">Abril</option>
+                            <option value="Maio">Maio</option>
+                            <option value="Junho">Junho</option>
+                            <option value="Julho">Julho</option>
+                            <option value="Agosto">Agosto</option>
+                            <option value="Setembro">Setembro</option>
+                            <option value="Outubro">Outubro</option>
+                            <option value="Novembro">Novembro</option>
+                            <option value="Dezembro">Dezembro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="data" class="block text-sm font-medium text-gray-700 mb-1">DATA</label>
+                        <input type="date" id="data" name="data" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+                    <div>
+                        <label for="responsavel" class="block text-sm font-medium text-gray-700 mb-1">Responsável</label>
+                        <input type="text" id="responsavel" name="responsavel" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label for="hora" class="block text-sm font-medium text-gray-700 mb-1">Hora</label>
+                        <input type="time" id="hora" name="hora" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                    </div>
+                    <div>
+                        <label for="periodo" class="block text-sm font-medium text-gray-700 mb-1">PERÍODO</label>
+                        <select id="periodo" name="periodo" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500">
+                            <option value="Manhã">Manhã</option>
+                            <option value="Tarde">Tarde</option>
+                            <option value="Noite">Noite</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabs de Produtos -->
+            <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                <div class="border-b border-gray-200">
+                    <nav class="flex -mb-px">
+                        <button class="tab-button active px-6 py-3 text-sm font-medium text-orange-600 border-b-2 border-orange-500" data-tab="pasteis">
+                            Pastéis
+                        </button>
+                        <button class="tab-button px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="caldo">
+                            Caldo de Cana
+                        </button>
+                        <button class="tab-button px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="refrigerantes">
+                            Refrigerantes
+                        </button>
+                        <button class="tab-button px-6 py-3 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="gelo">
+                            Gelo
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Conteúdo das Tabs -->
+                <div class="p-6">
+                    <!-- Tab Pastéis -->
+                    <div id="pasteis" class="tab-content">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sabores</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sobra</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descarte</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendido</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço Unit.</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (R$)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tabelaPastel">
+                                    <!-- As linhas serão preenchidas dinamicamente pelo JS -->
+                                </tbody>
+                                <tfoot class="bg-gray-50">
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pasteis Comuns</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisComuns_valor">R$ 0,00</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Pasteis Especiais</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalPasteisEspeciais_valor">R$ 0,00</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Casquinhas</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCasquinhas_valor">R$ 0,00</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total geral de pasteis C + E</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGeralPasteis_valor">R$ 0,00</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab Caldo de Cana -->
+                    <div id="caldo" class="tab-content hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Itens</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sobra</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descarte</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendido</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço Unit.</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (R$)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tabelaCaldo">
+                                    <!-- As linhas serão preenchidas dinamicamente pelo JS -->
+                                </tbody>
+                                <tfoot class="bg-gray-50">
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalCaldo_valor">R$ 0,00</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab Refrigerantes -->
+                    <div id="refrigerantes" class="tab-content hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Itens</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sobra</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descarte</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendido</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço Unit.</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (R$)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tabelaRefrigerantes">
+                                    <!-- As linhas serão preenchidas dinamicamente pelo JS -->
+                                </tbody>
+                                <tfoot class="bg-gray-50">
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalRefrigerantes_valor">R$ 0,00</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab Gelo -->
+                    <div id="gelo" class="tab-content hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Itens</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sobra</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Descarte</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consumo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendido</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preço Unit.</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total (R$)</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200" id="tabelaGelo">
+                                    <!-- As linhas serão preenchidas dinamicamente pelo JS -->
+                                </tbody>
+                                <tfoot class="bg-gray-50">
+                                    <tr>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_entrada">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_sobra">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_descarte">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_consumo">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_vendido">0</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500">-</td>
+                                        <td class="px-6 py-3 text-left text-xs font-medium text-gray-500" id="totalGelo_valor">R$ 0,00</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botões de Ação -->
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="salvarTurnoBtn" class="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Salvar Turno
+                </button>
+                <button id="cancelarTurnoBtn" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="src/js/auth.js"></script>
+    <script src="src/js/funcionario.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Inicializa a autenticação
+            initAuth();
+            
+            // Configura os tabs
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all buttons
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('active', 'text-orange-600', 'border-orange-500');
+                        btn.classList.add('text-gray-500');
+                    });
+                    
+                    // Add active class to clicked button
+                    button.classList.add('active', 'text-orange-600', 'border-orange-500');
+                    button.classList.remove('text-gray-500');
+                    
+                    // Hide all tab contents
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    // Show selected tab content
+                    const tabId = button.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.remove('hidden');
+                });
+            });
+            
+            // Configura eventos dos botões
+            document.getElementById('abrirTurnoBtn').addEventListener('click', () => {
+                document.getElementById('turnoForm').classList.remove('hidden');
+                document.getElementById('statusTurno').innerHTML = `
+                    <div class="flex items-center justify-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-green-500 animate-pulse"></div>
+                        <span class="text-green-600 font-medium">Turno em andamento</span>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('fecharTurnoBtn').addEventListener('click', () => {
+                // Implementar lógica de fechamento de turno
+            });
+            
+            document.getElementById('salvarTurnoBtn').addEventListener('click', () => {
+                // Implementar lógica de salvamento de turno
+            });
+            
+            document.getElementById('cancelarTurnoBtn').addEventListener('click', () => {
+                document.getElementById('turnoForm').classList.add('hidden');
+                document.getElementById('statusTurno').innerHTML = `
+                    <div class="flex items-center justify-center space-x-2">
+                        <div class="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span class="text-gray-600">Nenhum turno aberto</span>
+                    </div>
+                `;
+            });
+=======
+    <title>Funcionário - Controle de Caixa Pastelaria</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Firebase App (Core) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <!-- Firebase Authentication -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <!-- Firebase Firestore -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <!-- Você pode adicionar um CSS customizado se necessário -->
+    <!-- <link rel="stylesheet" href="css/style.css"> -->
+</head>
+<body class="bg-gray-100">
+    <header class="bg-orange-500 text-white p-4 flex justify-between items-center shadow-md sticky top-0 z-50">
+        <h1 class="text-xl font-bold">Controle de Caixa Pastelaria - Funcionário</h1>
+        <div>
+            <span class="mr-4">Olá, <span id="loggedInUserName">Carregando...</span>!</span>
+            <button id="logoutButton" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
+                Sair
+            </button>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4">
+        <div class="bg-white p-6 rounded-lg shadow-lg">
+            <div class="flex flex-col sm:flex-row justify-around mb-6 space-y-4 sm:space-y-0 sm:space-x-4">
+                <button id="btnAbrirTurno" class="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded text-lg shadow-md transition duration-150 ease-in-out">
+                    Abrir Turno
+                </button>
+                <button id="btnFecharTurno" class="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-6 rounded text-lg shadow-md transition duration-150 ease-in-out" disabled>
+                    Fechar Turno
+                </button>
+            </div>
+            <p id="turnoStatus" class="text-center text-blue-600 font-semibold mb-4"></p>
+            <p id="errorMessages" class="text-red-600 text-sm mb-4 text-center font-medium p-2 bg-red-100 border border-red-300 rounded-md hidden"></p>
+
+            <form id="formTurno" class="space-y-6">
+                <!-- Detalhes do Turno -->
+                <fieldset class="border p-4 rounded-md shadow-sm">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Detalhes do Turno</legend>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mt-2">
+                        <div>
+                            <label for="turnoMes" class="block text-sm font-medium text-gray-700">Mês</label>
+                            <input type="text" id="turnoMes" name="turnoMes" class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm" readonly>
+                        </div>
+                        <div>
+                            <label for="turnoData" class="block text-sm font-medium text-gray-700">Data</label>
+                            <input type="date" id="turnoData" name="turnoData" class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm" readonly>
+                        </div>
+                        <div>
+                            <label for="turnoResponsavel" class="block text-sm font-medium text-gray-700">Responsável</label>
+                            <input type="text" id="turnoResponsavel" name="turnoResponsavel" class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm" readonly>
+                        </div>
+                        <div>
+                            <label for="turnoHora" class="block text-sm font-medium text-gray-700">Hora Abertura</label>
+                            <input type="time" id="turnoHora" name="turnoHora" class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-100 shadow-sm" readonly>
+                        </div>
+                        <div>
+                            <label for="turnoPeriodo" class="block text-sm font-medium text-gray-700">Período</label>
+                            <select id="turnoPeriodo" name="turnoPeriodo" class="mt-1 block w-full p-2 border border-gray-300 rounded-md bg-gray-50 shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                                <option value="Manhã">Manhã (06:00 - 13:59)</option>
+                                <option value="Tarde">Tarde (14:00 - 21:59)</option>
+                                <option value="Noite">Noite (22:00 - 05:59)</option>
+                            </select>
+                        </div>
+                    </div>
+                </fieldset>
+
+                <!-- Seção Pastéis -->
+                <fieldset class="border p-4 rounded-md shadow-sm item-section" data-category="pasteis">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Pastéis</legend>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sabor</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Entrada</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sobra</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Descarte</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Consumo Func.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Vendido</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Preço Unit.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Item</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaPasteis" class="bg-white divide-y divide-gray-200">
+                                <!-- Linhas de pastéis serão inseridas aqui pelo JS -->
+                            </tbody>
+                             <tbody id="tabelaCasquinhas" class="bg-white divide-y divide-gray-200 border-t-2 border-orange-300 mt-2 pt-2">
+                                <!-- Linhas de casquinhas serão inseridas aqui pelo JS -->
+                            </tbody>
+                            <tfoot class="bg-gray-100">
+                                <tr class="font-semibold text-gray-700">
+                                    <td class="px-2 py-2 text-right" colspan="5">Total Pastéis Comuns:</td>
+                                    <td id="totalPasteisComunsVendido" class="px-1 py-2 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalPasteisComunsValor" class="px-1 py-2">R$ 0.00</td>
+                                </tr>
+                                <tr class="font-semibold text-gray-700">
+                                    <td class="px-2 py-2 text-right" colspan="5">Total Pastéis Especiais:</td>
+                                    <td id="totalPasteisEspeciaisVendido" class="px-1 py-2 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalPasteisEspeciaisValor" class="px-1 py-2">R$ 0.00</td>
+                                </tr>
+                                 <tr class="font-semibold text-gray-700">
+                                    <td class="px-2 py-2 text-right" colspan="5">Total Casquinhas:</td>
+                                    <td id="totalCasquinhasVendido" class="px-1 py-2 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalCasquinhasValor" class="px-1 py-2">R$ 0.00</td>
+                                </tr>
+                                <tr class="font-bold text-orange-600 text-md">
+                                    <td class="px-2 py-3 text-right" colspan="5">TOTAL GERAL DE PASTÉIS (C+E):</td>
+                                    <td id="totalGeralPasteisVendido" class="px-1 py-3 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalGeralPasteisValor" class="px-1 py-3">R$ 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </fieldset>
+
+                <!-- Seção Caldo de Cana -->
+                <fieldset class="border p-4 rounded-md shadow-sm item-section" data-category="caldo_cana">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Caldo de Cana</legend>
+                    <div class="overflow-x-auto mt-2">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Item</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Entrada</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sobra</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Descarte</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Consumo Func.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Vendido</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Preço Unit.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Item</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaCaldoCana" class="bg-white divide-y divide-gray-200">
+                                <!-- Linhas serão inseridas aqui -->
+                            </tbody>
+                            <tfoot class="bg-gray-100 font-semibold text-md text-orange-600">
+                                <tr>
+                                    <td class="px-2 py-3 text-right" colspan="5">TOTAL CALDO DE CANA:</td>
+                                    <td id="totalCaldoCanaVendido" class="px-1 py-3 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalCaldoCanaValor" class="px-1 py-3">R$ 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </fieldset>
+
+                <!-- Seção Refrigerantes -->
+                <fieldset class="border p-4 rounded-md shadow-sm item-section" data-category="refrigerantes">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Refrigerantes e Bebidas</legend>
+                     <div class="overflow-x-auto mt-2">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Item</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Entrada</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sobra</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Descarte</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Consumo Func.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Vendido</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Preço Unit.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Item</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaRefrigerantes" class="bg-white divide-y divide-gray-200">
+                                <!-- Linhas serão inseridas aqui -->
+                            </tbody>
+                            <tfoot class="bg-gray-100 font-semibold text-md text-orange-600">
+                                <tr>
+                                    <td class="px-2 py-3 text-right" colspan="5">TOTAL REFRIGERANTES E BEBIDAS:</td>
+                                    <td id="totalRefrigerantesVendido" class="px-1 py-3 text-center">0</td>
+                                    <td></td>
+                                    <td id="totalRefrigerantesValor" class="px-1 py-3">R$ 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </fieldset>
+                
+                <!-- Seção Gelo -->
+                <fieldset class="border p-4 rounded-md shadow-sm item-section" data-category="gelo"> <!-- Adicionado item-section e data-category -->
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Gelo</legend>
+                     <div class="overflow-x-auto mt-2">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-100">
+                                <tr>
+                                    <th class="px-2 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Item</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Entrada (Pct)</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Sobra (Pct)</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Vendas (Pct)</th> <!-- Este é específico do Gelo -->
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Consumo Interno (Pct)</th> <!-- Este é específico do Gelo -->
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Preço Pct.</th>
+                                    <th class="px-1 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">Total Venda Gelo</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tabelaGelo" class="bg-white divide-y divide-gray-200">
+                                 <!-- Linha de Gelo será inserida aqui pelo JS -->
+                            </tbody>
+                             <tfoot class="bg-gray-100 font-semibold text-md text-orange-600">
+                                <tr>
+                                    <td class="px-2 py-3 text-right" colspan="6">TOTAL VENDA DE GELO:</td>
+                                    <td id="totalGeloValor" class="px-1 py-3">R$ 0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </fieldset>
+
+                <!-- Botijão de Gás -->
+                <fieldset class="border p-4 rounded-md shadow-sm">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Botijão de Gás</legend>
+                    <div class="flex items-center space-x-4 mt-2">
+                        <label for="trocaGas" class="block text-sm font-medium text-gray-700">Houve troca de botijão neste turno?</label>
+                        <select id="trocaGas" name="trocaGas" class="p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                            <option value="nao">Não</option>
+                            <option value="sim">Sim</option>
+                        </select>
+                    </div>
+                </fieldset>
+
+                <!-- Caixa -->
+                <fieldset class="border p-4 rounded-md shadow-sm">
+                    <legend class="text-lg font-semibold text-gray-700 px-2">Controle de Caixa</legend>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4 mt-2">
+                        <div>
+                            <label for="caixaInicio" class="block text-sm font-medium text-gray-700">Caixa Inicial (R$)</label>
+                            <input type="number" id="caixaInicio" name="caixaInicio" step="0.01" placeholder="0.00"
+                                   class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-md">
+                            <label for="totalVendidoTurnoCalculado" class="block text-sm font-medium text-blue-700">Total Vendido no Turno (Calculado Pelos Itens)</label>
+                            <input type="text" id="totalVendidoTurnoCalculado" name="totalVendidoTurnoCalculado"
+                                   class="mt-1 block w-full p-2 border border-blue-200 rounded-md bg-blue-100 shadow-sm font-semibold text-blue-800" readonly placeholder="R$ 0.00">
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-md font-semibold text-gray-600 mt-6 mb-3 border-t pt-4">Valores Finais por Forma de Pagamento (Fechamento)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                         <div>
+                            <label for="pagamentoDinheiro" class="block text-sm font-medium text-gray-700">Dinheiro (R$)</label>
+                            <input type="number" id="pagamentoDinheiro" name="pagamentoDinheiro" step="0.01" placeholder="0.00"
+                                   class="payment-input mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                        <div>
+                            <label for="pagamentoPixManual" class="block text-sm font-medium text-gray-700">PIX Manual (R$)</label>
+                            <input type="number" id="pagamentoPixManual" name="pagamentoPixManual" step="0.01" placeholder="0.00"
+                                   class="payment-input mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                         <div>
+                            <label for="pagamentoStoneDCV" class="block text-sm font-medium text-gray-700">Stone D/C/V (R$)</label>
+                            <input type="number" id="pagamentoStoneDCV" name="pagamentoStoneDCV" step="0.01" placeholder="0.00"
+                                   class="payment-input mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                        <div>
+                            <label for="pagamentoStoneVoucher" class="block text-sm font-medium text-gray-700">Stone Voucher (R$)</label>
+                            <input type="number" id="pagamentoStoneVoucher" name="pagamentoStoneVoucher" step="0.01" placeholder="0.00"
+                                   class="payment-input mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                         <div>
+                            <label for="pagamentoPagBankDCV" class="block text-sm font-medium text-gray-700">PAGBANK D/C/V (R$)</label>
+                            <input type="number" id="pagamentoPagBankDCV" name="pagamentoPagBankDCV" step="0.01" placeholder="0.00"
+                                   class="payment-input mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                        </div>
+                         <div class="bg-green-50 p-3 rounded-md sm:col-span-2 lg:col-span-1">
+                            <label for="totalRegistradoPagamentos" class="block text-sm font-medium text-green-700">Total Registrado (Soma dos Pagamentos)</label>
+                            <input type="text" id="totalRegistradoPagamentos" name="totalRegistradoPagamentos"
+                               class="mt-1 block w-full p-2 border border-green-200 rounded-md bg-green-100 shadow-sm font-semibold text-green-800" readonly placeholder="R$ 0.00">
+                        </div>
+                    </div>
+
+                     <div class="mt-6 p-4 border rounded-md bg-gray-50 shadow-sm">
+                        <h4 class="text-md font-semibold text-gray-600 mb-3">Ajustes de Caixa (Dinheiro e Moedas)</h4>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div>
+                                <label for="caixaFinalContado" class="block text-sm font-medium text-gray-700">Caixa Final Contado (Dinheiro + Moedas)</label>
+                                <input type="number" id="caixaFinalContado" name="caixaFinalContado" step="0.01" placeholder="0.00"
+                                       class="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500">
+                            </div>
+                            <div class="p-3 rounded-md" id="caixaDiferencaContainer"> <!-- O JS controlará a cor de fundo aqui -->
+                                <label for="caixaDiferenca" class="block text-sm font-medium">Diferença de Caixa Físico</label>
+                                <input type="text" id="caixaDiferenca" name="caixaDiferenca" readonly
+                                       class="mt-1 block w-full p-2 border rounded-md bg-gray-100 shadow-sm font-semibold">
+                                <p id="divergenciaCaixaAlerta" class="text-xs mt-1"></p>
+                            </div>
+                         </div>
+                    </div>
+                </fieldset>
+                
+                 <div id="fechamentoDivergenciaAlertaGeral" class="mt-6 p-4 bg-red-100 border border-red-300 rounded-md text-red-700 font-semibold text-center hidden">
+                     <!-- Mensagem de divergência geral será inserida aqui pelo JS -->
+                 </div>
+
+                <div class="mt-8 text-center">
+                    <!-- Os botões de abrir/fechar turno foram movidos para o topo da página para melhor acesso -->
+                </div>
+            </form>
+        </div>
+    </main>
+
+    <footer class="text-center text-sm text-gray-500 py-4 mt-8">
+        Sistema de Controle de Caixa Pastelaria © 2023
+    </footer>
+
+    <!-- Scripts JavaScript -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/shared.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/funcionario-controller.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Protege a rota, permitindo apenas acesso a usuários com a role 'funcionario'
+            protectRoute(['funcionario']);
+
+            // Aqui você pode adicionar outras inicializações específicas da página do funcionário
+            // se necessário, embora a maior parte da lógica esteja no funcionario-controller.js
+>>>>>>> c666202 (Initial commit)
+        });
+    </script>
+</body>
+</html>
