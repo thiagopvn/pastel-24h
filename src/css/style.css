@@ -458,3 +458,231 @@ a:focus, button:focus {
     font-size: 0.75rem;
     margin-left: 0.25rem;
 }
+
+.turno-anterior-resumo {
+    background-color: #EFF6FF;
+    border-left: 4px solid #2563EB;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    animation: fade-in 0.5s ease-out;
+}
+
+@keyframes fade-in {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.turno-anterior-resumo h4 {
+    margin: 0 0 0.5rem 0;
+    color: #1E40AF;
+    font-weight: 600;
+}
+
+.turno-anterior-resumo p {
+    margin: 0.25rem 0;
+    font-size: 0.875rem;
+}
+
+.turno-anterior-resumo strong {
+    color: #1E3A8A;
+}
+
+/* Estilos para o resumo do turno anterior */
+.resumo-turno-anterior {
+    background-color: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-left: 4px solid #3B82F6;
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    animation: fade-slide-down 0.4s ease-out;
+}
+
+@keyframes fade-slide-down {
+    from { 
+        opacity: 0; 
+        transform: translateY(-15px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
+}
+
+.resumo-turno-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #DBEAFE;
+}
+
+.resumo-turno-title {
+    color: #1E40AF;
+    font-weight: 600;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+}
+
+.resumo-turno-icon {
+    margin-right: 0.5rem;
+    color: #3B82F6;
+}
+
+.resumo-turno-close {
+    background: none;
+    border: none;
+    color: #6B7280;
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+}
+
+.resumo-turno-close:hover {
+    color: #4B5563;
+}
+
+.resumo-turno-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .resumo-turno-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.resumo-turno-section {
+    margin-bottom: 0.5rem;
+}
+
+.resumo-turno-section-title {
+    font-weight: 600;
+    color: #4B5563;
+    margin-bottom: 0.25rem;
+    font-size: 0.9rem;
+}
+
+.resumo-turno-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    font-size: 0.85rem;
+}
+
+.resumo-turno-item-label {
+    color: #6B7280;
+}
+
+.resumo-turno-item-value {
+    font-weight: 500;
+    color: #1F2937;
+}
+
+.resumo-turno-pagamento {
+    background-color: #F9FAFB;
+    border-radius: 0.375rem;
+    padding: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.resumo-turno-pagamento-title {
+    font-weight: 600;
+    color: #4B5563;
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+
+.resumo-turno-pagamento-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+}
+
+/* Estilos para destacar valores */
+.resumo-turno-positive {
+    color: #059669;
+}
+
+.resumo-turno-negative {
+    color: #DC2626;
+}
+
+.resumo-turno-warning {
+    color: #D97706;
+    background-color: #FEF3C7;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.resumo-turno-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
+.resumo-turno-badge-blue {
+    background-color: #DBEAFE;
+    color: #1E40AF;
+}
+
+.resumo-turno-badge-green {
+    background-color: #D1FAE5;
+    color: #065F46;
+}
+
+.resumo-turno-badge-orange {
+    background-color: #FEF3C7;
+    color: #92400E;
+}
+
+/* Animação de pulso para indicar campos transferidos */
+.campo-transferido {
+    background-color: #EFF6FF !important;
+    border-color: #93C5FD !important;
+    box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.5) !important;
+    animation: campo-pulse 2s infinite;
+}
+
+@keyframes campo-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+    }
+}
+
+.marcador-transferencia {
+    position: absolute;
+    right: -8px;
+    top: -8px;
+    background-color: #3B82F6;
+    color: white;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

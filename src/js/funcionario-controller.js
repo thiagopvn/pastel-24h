@@ -565,23 +565,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- AÇÕES DE TURNO ---
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
-            clearError();
-            const caixaInicialVal = parseFloat(caixaInicioInput.value);
-            if (isNaN(caixaInicialVal) || caixaInicialVal < 0) {
-                showError("Caixa Inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
-                caixaInicioInput.focus();
-                caixaInicioInput.classList.add('border-red-500');
-                return;
-            }
-            caixaInicioInput.classList.remove('border-red-500');
+    clearError();
+    const caixaInicialVal = parseFloat(caixaInicioInput.value);
+    if (isNaN(caixaInicialVal) || caixaInicialVal < 0) {
+        showError("Caixa Inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
+        caixaInicioInput.focus();
+        caixaInicioInput.classList.add('border-red-500');
+        return;
+    }
+    caixaInicioInput.classList.remove('border-red-500');
 
-            const dataAtual = getFormattedDate();
-            const periodoSelecionado = turnoPeriodoSelect.value;
-            const turnoIdProposto = `${dataAtual}_${periodoSelecionado}`;
+    const dataAtual = getFormattedDate();
+    const periodoSelecionado = turnoPeriodoSelect.value;
+    const turnoIdProposto = `${dataAtual}_${periodoSelecionado}`;
 
-            showLoadingState(true, "Abrindo turno...");
+    showLoadingState(true, "Abrindo turno...");
 
-            try {
+    try {
                 // Verificação adicional: transação para garantir que não exista outro turno aberto
                 await db.runTransaction(async (transaction) => {
                     // Verificar se o turno proposto já existe
@@ -612,22 +612,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 
                 const user = auth.currentUser;
-                if (!user) {
-                    showError("Usuário não logado. Faça login novamente.");
-                    showLoadingState(false);
-                    btnAbrirTurno.disabled = false;
-                    return;
-                }
-                
-                const responsavelNome = localStorage.getItem('userName') || user.displayName || user.email;
-                const aberturaDataObj = {
-                    mes: getCurrentMonth(),
-                    data: dataAtual,
-                    responsavelId: user.uid,
-                    responsavelNome: responsavelNome,
-                    hora: getFormattedTime(),
-                    periodo: periodoSelecionado,
-                };
+        if (!user) {
+            showError("Usuário não logado. Faça login novamente.");
+            showLoadingState(false);
+            btnAbrirTurno.disabled = false;
+            return;
+        }
+        
+        const responsavelNome = localStorage.getItem('userName') || user.displayName || user.email;
+        const aberturaDataObj = {
+            mes: getCurrentMonth(),
+            data: dataAtual,
+            responsavelId: user.uid,
+            responsavelNome: responsavelNome,
+            hora: getFormattedTime(),
+            periodo: periodoSelecionado,
+        };
 
                 populateTurnoDetails(aberturaDataObj); // Atualiza os campos de Mês, Data, Hora, Período no form
 
@@ -638,149 +638,389 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let itensTransferidosCount = 0;
                 
                 Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
-                    Object.keys(estoqueAnterior.itens[categoryKey] || {}).forEach(itemKey => {
-                        const inputEntrada = document.getElementById(`${itemKey}_entrada`);
-                        if (inputEntrada) {
-                            const sobraAnterior = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
-                            inputEntrada.value = sobraAnterior;
+                Object.keys(estoqueAnterior.itens[categoryKey] || {}).forEach(itemKey => {
+                const inputEntrada = document.getElementById(`${itemKey}_entrada`);
+                if (inputEntrada) {
+                    const sobraAnterior = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                    inputEntrada.value = sobraAnterior;
                             
                             // Marca como transferido para validação e estilo visual
-                            adicionarIndicadorCampoTransferido(inputEntrada, estoqueAnterior.turnoId);
-                            itensTransferidosCount++;
-                        }
-                    });
-                });
+                           adicionarIndicadorCampoTransferido(inputEntrada, estoqueAnterior.turnoId);
+                    itensTransferidosCount++;
+                }
+            });
+        });
                 
                 const inputEntradaGelo = document.getElementById(`gelo_pacote_entrada`);
-                if (inputEntradaGelo && estoqueAnterior.gelo?.gelo_pacote?.sobra) {
-                    inputEntradaGelo.value = estoqueAnterior.gelo.gelo_pacote.sobra;
+        if (inputEntradaGelo && estoqueAnterior.gelo?.gelo_pacote?.sobra) {
+            inputEntradaGelo.value = estoqueAnterior.gelo.gelo_pacote.sobra;
                     
                     // Marca como transferido para validação e estilo visual
                     adicionarIndicadorCampoTransferido(inputEntradaGelo, estoqueAnterior.turnoId);
-                    itensTransferidosCount++;
-                }
+            itensTransferidosCount++;
+        }
                 
                 // TRANSFERÊNCIA AUTOMÁTICA: Se tiver caixa final no turno anterior, usar como caixa inicial
-                if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
-                    caixaInicioInput.value = estoqueAnterior.caixaFinal;
+               if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
+            caixaInicioInput.value = estoqueAnterior.caixaFinal;
                     
                     // Marca como transferido para validação e estilo visual
                     adicionarIndicadorCampoTransferido(caixaInicioInput, estoqueAnterior.turnoId);
+            }
+
+
+                if (estoqueAnterior.turnoId) {
+                adicionarResumoTurnoAnterior(estoqueAnterior.turnoId, estoqueAnterior);
                 }
 
                 const initialItensData = collectItemData(true); // Coleta apenas entradas e preços unitários
 
                 const turnoDataToSave = {
-                    abertura: aberturaDataObj,
-                    status: 'aberto',
-                    caixaInicial: parseFloat(caixaInicioInput.value) || 0,
-                    itens: initialItensData.itens,
-                    gelo: initialItensData.gelo,
-                    turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
-                    dadosTransferidos: {
-                        quantidadeItens: itensTransferidosCount,
-                        caixaTransferido: estoqueAnterior.caixaFinal !== undefined
-                    },
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                };
+            abertura: aberturaDataObj,
+            status: 'aberto',
+            caixaInicial: parseFloat(caixaInicioInput.value) || 0,
+            itens: initialItensData.itens,
+            gelo: initialItensData.gelo,
+            turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
+            dadosTransferidos: {
+                quantidadeItens: itensTransferidosCount,
+                caixaTransferido: estoqueAnterior.caixaFinal !== undefined,
+                formasPagamentoAnterior: Object.keys(estoqueAnterior.formasPagamento || {}).length > 0,
+                trocaGasAnterior: estoqueAnterior.trocaGas === 'sim'
+            },
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        };
 
                 // Salva no Firestore
                 await db.collection('turnos').doc(turnoIdProposto).set(turnoDataToSave);
                 
                 // Salva localmente
-                saveTurnoLocal({
-                    id: turnoIdProposto,
-                    ...turnoDataToSave
-                });
+               saveTurnoLocal({
+            id: turnoIdProposto,
+            ...turnoDataToSave
+        });
                 
-                turnoAbertoLocalmente = true;
-                btnAbrirTurno.disabled = true;
-                btnFecharTurno.disabled = false;
+                 turnoAbertoLocalmente = true;
+        btnAbrirTurno.disabled = true;
+        btnFecharTurno.disabled = false;
                 
                 // Mensagem de status com informação sobre os dados transferidos
                 let statusMsg = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
-                if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
-                    statusMsg += ` Dados transferidos do turno anterior.`;
-                }
-                turnoStatusP.textContent = statusMsg;
-                turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
-                
-                toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
-                
-                // Ativa listener para mudanças remotas
-                setupTurnoListener();
-                
-                calculateAll();
-                
-            } catch (error) {
-                console.error("Erro ao abrir turno: ", error);
-                showError("Falha ao abrir turno: " + error.message + ". Verifique suas permissões ou contate o suporte.");
-                resetFormAndState("Erro ao tentar abrir o turno."); // Reseta se a abertura falhar
-            } finally {
-                 showLoadingState(false);
+        if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
+            statusMsg += ` Dados transferidos: ${itensTransferidosCount} item(ns)`;
+            if (estoqueAnterior.caixaFinal !== undefined) {
+                statusMsg += ` e caixa inicial (R$ ${estoqueAnterior.caixaFinal.toFixed(2)})`;
             }
-        });
+        }
+        turnoStatusP.textContent = statusMsg;
+        turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
+        
+        toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
+        
+        // Ativa listener para mudanças remotas
+        setupTurnoListener();
+        
+        calculateAll();
+                
+           } catch (error) {
+        console.error("Erro ao abrir turno: ", error);
+        showError("Falha ao abrir turno: " + error.message + ". Verifique suas permissões ou contate o suporte.");
+        resetFormAndState("Erro ao tentar abrir o turno."); // Reseta se a abertura falhar
+    } finally {
+         showLoadingState(false);
+    }
+});
+
+        function melhorarVisualizacaoTransferencia() {
+    // Adicionar badge de "transferido" aos campos
+    document.querySelectorAll('[data-transferido-do-turno]').forEach(elemento => {
+        // Verificar se já existe um marcador
+        if (!elemento.parentElement.querySelector('.marcador-transferencia')) {
+            // Adicionar classe para destaque visual
+            elemento.classList.add('campo-transferido');
+            
+            // Garantir que o elemento pai tenha position relative para o posicionamento do badge
+            if (window.getComputedStyle(elemento.parentElement).position === 'static') {
+                elemento.parentElement.style.position = 'relative';
+            }
+            
+            // Criar e adicionar o marcador
+            const marcador = document.createElement('span');
+            marcador.className = 'marcador-transferencia';
+            marcador.innerHTML = '<i class="fas fa-sync-alt" style="font-size: 8px;"></i>';
+            marcador.title = 'Valor transferido do turno anterior';
+            
+            elemento.parentElement.appendChild(marcador);
+            
+            // Adicionar evento para exibir tooltip ao passar o mouse
+            elemento.addEventListener('mouseover', () => {
+                const tooltip = document.createElement('div');
+                tooltip.className = 'bg-blue-800 text-white text-xs px-2 py-1 rounded absolute z-10 -mt-10';
+                tooltip.textContent = 'Campo transferido do turno anterior';
+                tooltip.style.left = '50%';
+                tooltip.style.transform = 'translateX(-50%)';
+                tooltip.id = 'tooltip-transferencia';
+                
+                // Remover tooltip existente se houver
+                const existingTooltip = document.getElementById('tooltip-transferencia');
+                if (existingTooltip) existingTooltip.remove();
+                
+                elemento.parentElement.appendChild(tooltip);
+            });
+            
+            elemento.addEventListener('mouseout', () => {
+                const tooltip = document.getElementById('tooltip-transferencia');
+                if (tooltip) tooltip.remove();
+            });
+        }
+    });
+}
+
     }
     
     async function getEstoqueInicial(dataTurnoAtual, periodoTurnoAtual) {
-        let dataAnterior = dataTurnoAtual;
-        let periodoAnterior;
+    let dataAnterior = dataTurnoAtual;
+    let periodoAnterior;
 
-        const diaAtualDate = new Date(dataTurnoAtual.replace(/-/g, '/')); // Safari friendly date
+    const diaAtualDate = new Date(dataTurnoAtual.replace(/-/g, '/')); // Safari friendly date
 
-        if (periodoTurnoAtual === "Manhã") {
-            periodoAnterior = "Noite";
-            const ontem = new Date(diaAtualDate);
-            ontem.setDate(ontem.getDate() - 1); 
-            dataAnterior = getFormattedDate(ontem); 
-        } else if (periodoTurnoAtual === "Tarde") {
-            periodoAnterior = "Manhã";
-        } else { // Noite
-            periodoAnterior = "Tarde";
-        }
-        const idTurnoAnterior = `${dataAnterior}_${periodoAnterior}`;
-
-        try {
-            const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
-            if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
-                const dados = turnoAnteriorDoc.data();
-                const estoqueFinal = { 
-                    itens: {}, 
-                    gelo: {}, 
-                    turnoId: idTurnoAnterior,
-                    caixaFinal: null  // Inicializa o campo para caixa final
-                };
-                
-                // Transfere itens do inventário
-                if (dados.itens) {
-                    Object.keys(dados.itens).forEach(cat => {
-                        estoqueFinal.itens[cat] = {};
-                        Object.keys(dados.itens[cat]).forEach(item => {
-                            estoqueFinal.itens[cat][item] = { sobra: dados.itens[cat][item].sobra || 0 };
-                        });
-                    });
-                }
-                
-                // Transfere gelo
-                if (dados.gelo && dados.gelo.gelo_pacote) { 
-                    estoqueFinal.gelo.gelo_pacote = { sobra: dados.gelo.gelo_pacote.sobra || 0 };
-                }
-                
-                // TRANSFERÊNCIA DE CAIXA: Pegar o caixa final do turno anterior
-                if (dados.caixaFinalContado !== undefined) {
-                    estoqueFinal.caixaFinal = dados.caixaFinalContado;
-                }
-                
-                return estoqueFinal;
-            }
-            console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não fechado. Iniciando com estoque zero.`);
-        } catch (error) {
-            console.error("Erro ao buscar estoque do turno anterior:", error);
-        }
-        return { itens: {}, gelo: {}, turnoId: null, caixaFinal: null };
+    if (periodoTurnoAtual === "Manhã") {
+        periodoAnterior = "Noite";
+        const ontem = new Date(diaAtualDate);
+        ontem.setDate(ontem.getDate() - 1); 
+        dataAnterior = getFormattedDate(ontem); 
+    } else if (periodoTurnoAtual === "Tarde") {
+        periodoAnterior = "Manhã";
+    } else { // Noite
+        periodoAnterior = "Tarde";
     }
+    const idTurnoAnterior = `${dataAnterior}_${periodoAnterior}`;
 
+    try {
+        const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
+        if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
+            const dados = turnoAnteriorDoc.data();
+            const estoqueFinal = { 
+                itens: {}, 
+                gelo: {}, 
+                turnoId: idTurnoAnterior,
+                caixaFinal: null,  // Inicializa o campo para caixa final
+                // Adicionando novos campos para transferência
+                formasPagamento: dados.formasPagamento || {},
+                trocaGas: dados.trocaGas || 'nao',
+                totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
+                totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
+                diferencaCaixa: dados.diferencaCaixaFinal,
+                fechamentoData: dados.fechamento || {},
+                fechamentoTimestamp: dados.closedAt || null
+            };
+            
+            // Transfere itens do inventário
+            if (dados.itens) {
+                Object.keys(dados.itens).forEach(cat => {
+                    estoqueFinal.itens[cat] = {};
+                    Object.keys(dados.itens[cat]).forEach(item => {
+                        estoqueFinal.itens[cat][item] = { 
+                          sobra: dados.itens[cat][item].sobra || 0,
+                          // Adicionando outros dados que podem ser úteis
+                          precoUnitario: dados.itens[cat][item].precoUnitario,
+                          vendido: dados.itens[cat][item].vendido,
+                          totalItemValor: dados.itens[cat][item].totalItemValor
+                        };
+                    });
+                });
+            }
+            
+            // Transfere gelo
+            if (dados.gelo && dados.gelo.gelo_pacote) { 
+                estoqueFinal.gelo.gelo_pacote = { 
+                    sobra: dados.gelo.gelo_pacote.sobra || 0,
+                    precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
+                    vendas: dados.gelo.gelo_pacote.vendas,
+                    totalItemValor: dados.gelo.gelo_pacote.totalItemValor
+                };
+            }
+            
+            // TRANSFERÊNCIA DE CAIXA: Pegar o caixa final do turno anterior
+            if (dados.caixaFinalContado !== undefined) {
+                estoqueFinal.caixaFinal = dados.caixaFinalContado;
+            }
+            
+            return estoqueFinal;
+        }
+        console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não fechado. Iniciando com estoque zero.`);
+    } catch (error) {
+        console.error("Erro ao buscar estoque do turno anterior:", error);
+    }
+    return { 
+        itens: {}, 
+        gelo: {}, 
+        turnoId: null, 
+        caixaFinal: null,
+        formasPagamento: {},
+        trocaGas: 'nao',
+        totalVendidoCalculado: 0,
+        totalRegistradoPagamentos: 0,
+        diferencaCaixa: 0,
+        fechamentoData: {},
+        fechamentoTimestamp: null
+    };
+}
+
+// 2. Adicionar função para criar resumo do turno anterior
+function adicionarResumoTurnoAnterior(turnoAnteriorId, estoqueAnterior) {
+    if (!turnoAnteriorId) return;
+    
+    // Remover resumo anterior se existir
+    const resumoExistente = document.getElementById('resumoTurnoAnterior');
+    if (resumoExistente) {
+        resumoExistente.remove();
+    }
+    
+    // Criar um elemento para mostrar informações do turno anterior
+    const resumoContainer = document.createElement('div');
+    resumoContainer.id = 'resumoTurnoAnterior';
+    resumoContainer.className = 'bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6 fade-in';
+    
+    // Título do resumo
+    const titulo = document.createElement('h3');
+    titulo.className = 'text-lg font-semibold text-blue-700 mb-2 flex items-center';
+    titulo.innerHTML = '<i class="fas fa-exchange-alt mr-2"></i> Resumo do Turno Anterior';
+    resumoContainer.appendChild(titulo);
+    
+    // Detalhes do turno anterior
+    const detalhes = document.createElement('div');
+    detalhes.className = 'text-sm grid grid-cols-1 md:grid-cols-2 gap-4';
+    
+    // Coluna da esquerda: Informações gerais
+    const colEsquerda = document.createElement('div');
+    colEsquerda.className = 'space-y-1';
+    
+    // Formatar data do turno anterior para exibição
+    const [dataAnterior, periodoAnterior] = turnoAnteriorId.split('_');
+    const dataFormatada = dataAnterior.split('-').reverse().join('/');
+    
+    // ID do turno anterior
+    const idTurno = document.createElement('p');
+    idTurno.innerHTML = `<strong>Turno:</strong> ${periodoAnterior} de ${dataFormatada}`;
+    colEsquerda.appendChild(idTurno);
+    
+    // Responsável pelo fechamento
+    if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.responsavelNome) {
+        const responsavel = document.createElement('p');
+        responsavel.innerHTML = `<strong>Fechado por:</strong> ${estoqueAnterior.fechamentoData.responsavelNome}`;
+        colEsquerda.appendChild(responsavel);
+    }
+    
+    // Hora do fechamento
+    if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.hora) {
+        const hora = document.createElement('p');
+        hora.innerHTML = `<strong>Horário:</strong> ${estoqueAnterior.fechamentoData.hora}`;
+        colEsquerda.appendChild(hora);
+    }
+    
+    // Caixa final do turno anterior
+    if (estoqueAnterior.caixaFinal !== undefined) {
+        const caixaFinal = document.createElement('p');
+        caixaFinal.className = 'text-green-700 font-medium';
+        caixaFinal.innerHTML = `<strong>Caixa Final:</strong> R$ ${estoqueAnterior.caixaFinal.toFixed(2)}`;
+        colEsquerda.appendChild(caixaFinal);
+    }
+    
+    // Informação sobre troca de gás
+    if (estoqueAnterior.trocaGas === 'sim') {
+        const trocaGas = document.createElement('p');
+        trocaGas.className = 'text-orange-700 font-medium mt-2 bg-orange-50 p-1 rounded';
+        trocaGas.innerHTML = '<i class="fas fa-fire mr-1"></i> <strong>Houve troca de botijão no turno anterior</strong>';
+        colEsquerda.appendChild(trocaGas);
+    }
+    
+    detalhes.appendChild(colEsquerda);
+    
+    // Coluna da direita: Valores de vendas e pagamentos
+    const colDireita = document.createElement('div');
+    colDireita.className = 'space-y-1';
+    
+    // Total vendido no turno anterior
+    if (estoqueAnterior.totalVendidoCalculado) {
+        const totalVendido = document.createElement('p');
+        totalVendido.innerHTML = `<strong>Total Vendido:</strong> R$ ${estoqueAnterior.totalVendidoCalculado.toFixed(2)}`;
+        colDireita.appendChild(totalVendido);
+    }
+    
+    // Total registrado em pagamentos
+    if (estoqueAnterior.totalRegistradoPagamentos) {
+        const totalPagamentos = document.createElement('p');
+        totalPagamentos.innerHTML = `<strong>Total Pagamentos:</strong> R$ ${estoqueAnterior.totalRegistradoPagamentos.toFixed(2)}`;
+        colDireita.appendChild(totalPagamentos);
+    }
+    
+    // Diferença de caixa
+    if (estoqueAnterior.diferencaCaixa !== undefined) {
+        const diferencaCaixa = document.createElement('p');
+        if (Math.abs(estoqueAnterior.diferencaCaixa) > 0.01) {
+            diferencaCaixa.className = estoqueAnterior.diferencaCaixa > 0 ? 'text-green-700' : 'text-red-700';
+            diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> R$ ${estoqueAnterior.diferencaCaixa.toFixed(2)}`;
+        } else {
+            diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> Sem diferença`;
+        }
+        colDireita.appendChild(diferencaCaixa);
+    }
+    
+    // Adicionar formas de pagamento em um único elemento para economizar espaço
+    if (estoqueAnterior.formasPagamento && Object.keys(estoqueAnterior.formasPagamento).length > 0) {
+        const pagamentos = document.createElement('div');
+        pagamentos.className = 'mt-2 bg-white bg-opacity-50 p-2 rounded';
+        
+        const pagamentosTitle = document.createElement('p');
+        pagamentosTitle.className = 'text-blue-800 font-medium';
+        pagamentosTitle.innerHTML = '<i class="fas fa-credit-card mr-1"></i> <strong>Formas de Pagamento:</strong>';
+        pagamentos.appendChild(pagamentosTitle);
+        
+        const pagamentosList = document.createElement('ul');
+        pagamentosList.className = 'grid grid-cols-2 gap-x-2 text-xs mt-1';
+        
+        // Mapeamento de nomes para exibição mais amigável
+        const nomeAmigavel = {
+            dinheiro: "Dinheiro",
+            pixManual: "PIX Manual",
+            stoneDCV: "Stone D/C/V",
+            stoneVoucher: "Stone Voucher",
+            pagbankDCV: "PagBank D/C/V"
+        };
+        
+        Object.entries(estoqueAnterior.formasPagamento).forEach(([metodo, valor]) => {
+            if (valor > 0) {
+                const li = document.createElement('li');
+                li.innerHTML = `${nomeAmigavel[metodo] || metodo}: <span class="font-medium">R$ ${valor.toFixed(2)}</span>`;
+                pagamentosList.appendChild(li);
+            }
+        });
+        
+        pagamentos.appendChild(pagamentosList);
+        colDireita.appendChild(pagamentos);
+    }
+    
+    detalhes.appendChild(colDireita);
+    resumoContainer.appendChild(detalhes);
+    
+    // Adicionar botão para fechar o resumo
+    const btnFechar = document.createElement('button');
+    btnFechar.type = 'button';
+    btnFechar.className = 'text-blue-600 hover:text-blue-800 text-xs mt-3 flex items-center';
+    btnFechar.innerHTML = '<i class="fas fa-times-circle mr-1"></i> Fechar resumo';
+    btnFechar.onclick = () => resumoContainer.remove();
+    resumoContainer.appendChild(btnFechar);
+    
+    // Adicionar o resumo ao formulário
+    const formTurno = document.getElementById('formTurno');
+    if (formTurno && formTurno.firstChild) {
+        formTurno.insertBefore(resumoContainer, formTurno.firstChild);
+    }
+    
+    return resumoContainer;
+}
 
     if (btnFecharTurno) {
         btnFecharTurno.addEventListener('click', async () => {
@@ -972,20 +1212,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // NOVA FUNÇÃO: Validar se valores transferidos não foram alterados
-    function validarCamposTransferidos(event) {
-        // Se o campo tem dataset.transferidoDoTurno, validar que seu valor não foi alterado
-        const target = event.target;
-        if (target && target.dataset && target.dataset.transferidoDoTurno) {
-            const valorOriginal = target.dataset.valorOriginal;
-            if (valorOriginal !== undefined && target.value !== valorOriginal) {
-                // Tentar restaurar o valor original
-                target.value = valorOriginal;
-                showError(`O campo "${target.name || target.id}" foi preenchido automaticamente com dados do turno anterior e não pode ser alterado.`);
-                return false;
+   function validarCamposTransferidos(event) {
+    const target = event.target;
+    if (target && target.dataset && target.dataset.transferidoDoTurno) {
+        const valorOriginal = target.dataset.valorOriginal;
+        
+        // Verificar se o valor foi alterado
+        if (valorOriginal !== undefined && target.value !== valorOriginal) {
+            // Restaurar o valor original
+            target.value = valorOriginal;
+            
+            // Adicionar animação de "shake" para feedback visual
+            target.classList.add('shake-animation');
+            setTimeout(() => {
+                target.classList.remove('shake-animation');
+            }, 500);
+            
+            // Exibir mensagem de erro
+            const msgErro = `O campo "${target.name || target.id}" foi transferido do turno anterior e não pode ser alterado.`;
+            
+            // Usar showError se disponível, caso contrário criar um alerta flutuante
+            if (typeof showError === 'function') {
+                showError(msgErro);
+            } else {
+                // Criar alerta visual temporário
+                const alerta = document.createElement('div');
+                alerta.className = 'alerta-campo-transferido';
+                alerta.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        <span>${msgErro}</span>
+                    </div>
+                `;
+                document.body.appendChild(alerta);
+                
+                // Remover o alerta após alguns segundos
+                setTimeout(() => {
+                    alerta.style.opacity = '0';
+                    setTimeout(() => alerta.remove(), 300);
+                }, 3000);
             }
+            
+            return false;
         }
-        return true;
     }
+    return true;
+}
+
+const shakeStyle = document.createElement('style');
+shakeStyle.textContent = `
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-3px); }
+        20%, 40%, 60%, 80% { transform: translateX(3px); }
+    }
+    .shake-animation {
+        animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    }
+`;
+document.head.appendChild(shakeStyle);
 
     // --- CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ---
     function setupEventListeners() {
