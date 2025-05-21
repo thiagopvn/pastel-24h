@@ -35,9 +35,9 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged(async (user) => {
         if (isRedirecting) return; // Evita loops durante redirecionamentos
         
-        // Detecta a página atual
+        // Detecta a página atual com mapeamento robusto para URLs limpas do Vercel
         const currentPage = getCurrentPage();
-        console.log("Página atual detectada:", currentPage);
+        console.log("Página atual detectada:", currentPage, "Full path:", window.location.pathname);
 
         try {
             if (user) {
@@ -63,15 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRole = localStorage.getItem('userRole');
                 
                 if (userRole === 'admin') {
-                    if (currentPage !== 'admin') {
+                    if (currentPage !== 'admin.html') {
                         console.log("Redirecionando admin para admin.html de", currentPage);
-                        executeRedirect('admin');
+                        executeRedirect('admin.html');
                         return;
                     }
                 } else if (userRole === 'funcionario') {
-                    if (currentPage !== 'funcionario') {
+                    if (currentPage !== 'funcionario.html') {
                         console.log("Redirecionando funcionário para funcionario.html de", currentPage);
-                        executeRedirect('funcionario');
+                        executeRedirect('funcionario.html');
                         return;
                     }
                 } else {
@@ -174,6 +174,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // === FUNÇÕES AUXILIARES ===
 
+    // Verifica a página atual considerando URLs limpas do Vercel
+    function getCurrentPage() {
+        const path = window.location.pathname;
+        
+        // Mapeamento robusto para URLs limpas
+        const pathMappings = {
+            '/': 'index.html',
+            '/index': 'index.html',
+            '/index.html': 'index.html',
+            '/admin': 'admin.html',
+            '/admin.html': 'admin.html',
+            '/funcionario': 'funcionario.html',
+            '/funcionario.html': 'funcionario.html'
+        };
+
+        // Log detalhado de detecção de página
+        const detectedPage = pathMappings[path] || 
+                             path.split('/').pop() || 
+                             'index.html';
+        
+        console.log(`Detecção de página:
+            - Caminho completo: ${path}
+            - Página detectada: ${detectedPage}`);
+
+        return detectedPage;
+    }
+
     // Configura persistência do Firebase Auth
     async function setupFirebasePersistence() {
         try {
@@ -207,23 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Conexão perdida. Usando dados locais.");
             showOfflineWarning();
         });
-    }
-
-    // Verifica a página atual considerando URLs limpas
-    function getCurrentPage() {
-        const path = window.location.pathname;
-        
-        // Lógica para lidar com URLs limpas (como no Vercel)
-        if (path === '/' || path === '/index' || path === '/index.html') {
-            return 'index.html';
-        } else if (path === '/admin' || path === '/admin.html') {
-            return 'admin.html';
-        } else if (path === '/funcionario' || path === '/funcionario.html') {
-            return 'funcionario.html';
-        }
-        
-        // Fallback para o método antigo
-        return path.split('/').pop() || 'index.html';
     }
 
     // Executa redirecionamento com segurança
@@ -381,6 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!loginErrorP) return;
         
         loginErrorP.textContent = message;
+
         if (loginErrorContainer) {
             loginErrorContainer.classList.remove('hidden');
         }
@@ -446,7 +457,7 @@ function protectRoute(allowedRoles) {
     console.log("protectRoute chamado para:", allowedRoles);
     
     // Verifica se o usuário está logado
-    const isLoggedIn = localStorage.getItem('LOCAL_AUTH_KEY') === 'true' || auth.currentUser;
+    const isLoggedIn = localStorage.getItem(LOCAL_AUTH_KEY) === 'true' || auth.currentUser;
     const userRole = localStorage.getItem('userRole');
     
     if (!isLoggedIn) {
@@ -485,7 +496,7 @@ function getCurrentUser() {
     
     // Se não encontrar no Firebase, tenta no localStorage
     try {
-        const userStr = localStorage.getItem('pastelaria_user_data');
+        const userStr = localStorage.getItem(LOCAL_USER_KEY);
         return userStr ? JSON.parse(userStr) : null;
     } catch (e) {
         console.error('Erro ao obter usuário local:', e);
@@ -493,10 +504,138 @@ function getCurrentUser() {
     }
 }
 
-// Exporta funções globalmente
+/**
+ * Registra usuário no sistema de autenticação do Firebase
+ * @param {string} email - Email do usuário
+ * @param {string} password - Senha do usuário
+ * @param {Object} userData - Dados adicionais do usuário
+ * @returns {Promise} - Promessa com resultado do registro
+ */
+async function registerUser(email, password, userData = {}) {
+    try {
+        // Cria usuário no Firebase Authentication
+        const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+        const user = userCredential.user;
+
+        // Salva informações adicionais no Firestore
+        const userDocRef = db.collection('usuarios').doc(user.uid);
+        await userDocRef.set({
+            uid: user.uid,
+            email: user.email,
+            nome: userData.nome || '',
+            role: userData.role || 'funcionario', // Valor padrão
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Salva no localStorage
+        saveUserToLocalStorage(user);
+
+        return user;
+    } catch (error) {
+        console.error("Erro ao registrar usuário:", error);
+        
+        // Tratamento de erros específicos de registro
+        let errorMessage = "Erro ao registrar usuário.";
+        switch (error.code) {
+            case 'auth/email-already-in-use':
+                errorMessage = 'Este email já está em uso.';
+                break;
+            case 'auth/invalid-email':
+                errorMessage = 'Email inválido.';
+                break;
+            case 'auth/weak-password':
+                errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres.';
+                break;
+            default:
+                errorMessage = `Erro: ${error.code}`;
+        }
+
+        throw new Error(errorMessage);
+    }
+}
+
+/**
+ * Atualiza o perfil do usuário
+ * @param {Object} profileData - Dados para atualização
+ * @returns {Promise} - Promessa com resultado da atualização
+ */
+async function updateUserProfile(profileData) {
+    try {
+        const user = auth.currentUser;
+        if (!user) throw new Error('Usuário não autenticado');
+
+        // Atualiza no Firebase Authentication
+        if (profileData.displayName) {
+            await user.updateProfile({
+                displayName: profileData.displayName
+            });
+        }
+
+        // Atualiza no Firestore
+        const userDocRef = db.collection('usuarios').doc(user.uid);
+        await userDocRef.update({
+            nome: profileData.displayName || profileData.nome,
+            ...(profileData.role && { role: profileData.role })
+        });
+
+        // Atualiza localStorage
+        const currentUserData = getLocalUser() || {};
+        const updatedUserData = {
+            ...currentUserData,
+            displayName: profileData.displayName || currentUserData.displayName
+        };
+        saveUserToLocalStorage(updatedUserData);
+
+        // Atualiza localStorage com nome
+        if (profileData.displayName) {
+            localStorage.setItem('userName', profileData.displayName);
+        }
+
+        return user;
+    } catch (error) {
+        console.error("Erro ao atualizar perfil:", error);
+        throw error;
+    }
+}
+
+/**
+ * Recuperação de senha via email
+ * @param {string} email - Email do usuário
+ * @returns {Promise} - Promessa com resultado da recuperação
+ */
+async function resetPassword(email) {
+    try {
+        await auth.sendPasswordResetEmail(email);
+        return true;
+    } catch (error) {
+        console.error("Erro ao enviar email de recuperação:", error);
+        
+        let errorMessage = "Erro ao recuperar senha.";
+        switch (error.code) {
+            case 'auth/invalid-email':
+                errorMessage = 'Email inválido.';
+                break;
+            case 'auth/user-not-found':
+                errorMessage = 'Nenhum usuário encontrado com este email.';
+                break;
+            case 'auth/too-many-requests':
+                errorMessage = 'Muitas solicitações. Tente novamente mais tarde.';
+                break;
+            default:
+                errorMessage = `Erro: ${error.code}`;
+        }
+
+        throw new Error(errorMessage);
+    }
+}
+
+// Exporta funções globalmente para uso em outros scripts
 if (typeof window !== 'undefined') {
     window.protectRoute = protectRoute;
     window.getCurrentUser = getCurrentUser;
+    window.registerUser = registerUser;
+    window.updateUserProfile = updateUserProfile;
+    window.resetPassword = resetPassword;
 }
 
-console.log("auth.js carregado corretamente com sistema de persistência híbrido.");
+console.log("auth.js carregado corretamente com sistema de autenticação robusto.");

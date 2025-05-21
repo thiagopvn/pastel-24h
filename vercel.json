@@ -1,18 +1,91 @@
 {
-  "version": 2,
-  "builds": [
-    { "src": "*.html", "use": "@vercel/static" },
-    { "src": "js/**/*", "use": "@vercel/static" },
-    { "src": "css/**/*", "use": "@vercel/static" },
-    { "src": "src/**/*", "use": "@vercel/static" },
-    { "src": "public/**/*", "use": "@vercel/static" },
-    { "src": "img/**/*", "use": "@vercel/static" }
-  ],
-  "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/funcionario", "destination": "/funcionario" },
-    { "source": "/admin", "destination": "/admin" }
-  ],
-  "cleanUrls": true,
-  "trailingSlash": false
+    "version": 2,
+    "name": "pastelaria-24h",
+    "builds": [
+        { "src": "*.html", "use": "@vercel/static" },
+        { "src": "src/js/**/*", "use": "@vercel/static" },
+        { "src": "src/css/**/*", "use": "@vercel/static" },
+        { "src": "src/assets/**/*", "use": "@vercel/static" },
+        { "src": "public/**/*", "use": "@vercel/static" }
+    ],
+    "routes": [
+        { "src": "/", "dest": "/index.html" },
+        { "src": "/index", "dest": "/index.html" },
+        
+        { "src": "/admin", "dest": "/admin.html" },
+        { "src": "/admin/", "dest": "/admin.html" },
+        
+        { "src": "/funcionario", "dest": "/funcionario.html" },
+        { "src": "/funcionario/", "dest": "/funcionario.html" }
+    ],
+    "rewrites": [
+        { "source": "/login", "destination": "/index.html" },
+        { "source": "/painel", "destination": "/funcionario.html" },
+        { "source": "/dashboard", "destination": "/admin.html" }
+    ],
+    "redirects": [
+        { "source": "/old-login", "destination": "/" },
+        { "source": "/antigo-painel", "destination": "/funcionario" }
+    ],
+    "headers": [
+        {
+            "source": "/(.*)",
+            "headers": [
+                { "key": "X-Frame-Options", "value": "DENY" },
+                { "key": "X-Content-Type-Options", "value": "nosniff" },
+                { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+                { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains; preload" }
+            ]
+        },
+        {
+            "source": "/src/js/(.*)",
+            "headers": [
+                { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+            ]
+        },
+        {
+            "source": "/src/css/(.*)",
+            "headers": [
+                { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+            ]
+        }
+    ],
+    "cleanUrls": true,
+    "trailingSlash": false,
+    "github": {
+        "silent": true
+    },
+    "env": {
+        "FIREBASE_API_KEY": "@firebase_api_key",
+        "FIREBASE_AUTH_DOMAIN": "@firebase_auth_domain",
+        "FIREBASE_PROJECT_ID": "@firebase_project_id"
+    },
+    "build": {
+        "env": {
+            "NODE_VERSION": "16.x"
+        }
+    },
+    "regions": ["gru1"],
+    "serverless": true,
+    "public": true,
+    "cors": {
+        "origin": ["https://pastelaria-24h.vercel.app", "http://localhost:8080"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allowedHeaders": [
+            "Content-Type", 
+            "Authorization"
+        ]
+    },
+    "security": {
+        "allowFraming": false
+    },
+    "compression": true,
+    "framework": {
+        "name": "static",
+        "version": "1.0"
+    },
+    "outputDirectory": "./",
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "devCommand": "npm run dev"
 }
