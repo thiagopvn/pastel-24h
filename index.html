@@ -3,212 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<<<<<<< HEAD
-    <title>Pastel 24h - Sistema de Controle</title>
-    
-    <!-- Firebase -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-messaging.js"></script>
-    
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    
-    <!-- Font Awesome -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    
-    <!-- Custom CSS -->
-    <link href="src/css/styles.css" rel="stylesheet">
-    <link href="src/css/notifications.css" rel="stylesheet">
-    
-    <!-- Firebase Config -->
-    <script src="src/js/firebase-config.js"></script>
-</head>
-<body>
-    <!-- Container de Notificações -->
-    <div class="notifications-container"></div>
-    
-    <!-- Navbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="#">
-                <i class="fas fa-store"></i>
-                Pastel 24h
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link active" href="#" id="homeLink">
-                            <i class="fas fa-home"></i> Início
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="turnosLink">
-                            <i class="fas fa-clock"></i> Turnos
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" id="relatoriosLink">
-                            <i class="fas fa-chart-bar"></i> Relatórios
-                        </a>
-                    </li>
-                </ul>
-                <div class="d-flex align-items-center">
-                    <div class="position-relative me-3">
-                        <button class="btn btn-outline-light" id="notificationsButton">
-                            <i class="fas fa-bell"></i>
-                            <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
-                        </button>
-                    </div>
-                    <div class="dropdown">
-                        <button class="btn btn-outline-light dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown">
-                            <i class="fas fa-user"></i>
-                            <span id="userName">Usuário</span>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#" id="profileLink">
-                                <i class="fas fa-user-cog"></i> Perfil
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#" id="logoutLink">
-                                <i class="fas fa-sign-out-alt"></i> Sair
-                            </a></li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="container-fluid mt-4">
-        <div id="mainContent">
-            <!-- Conteúdo será carregado dinamicamente -->
-        </div>
-    </div>
-
-    <!-- Modal de Notificações -->
-    <div class="modal fade" id="notificationsModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Notificações</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex justify-content-between mb-3">
-                        <button class="btn btn-sm btn-outline-primary" id="markAllReadButton">
-                            <i class="fas fa-check-double"></i> Marcar todas como lidas
-                        </button>
-                        <button class="btn btn-sm btn-outline-danger" id="clearAllButton">
-                            <i class="fas fa-trash"></i> Limpar todas
-                        </button>
-                    </div>
-                    <ul class="notifications-list" id="notificationsList">
-                        <!-- Notificações serão carregadas dinamicamente -->
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Bootstrap Bundle with Popper -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <!-- Custom JS -->
-    <script src="src/js/validation.js"></script>
-    <script src="src/js/backup.js"></script>
-    <script src="src/js/audit.js"></script>
-    <script src="src/js/error-handler.js"></script>
-    <script src="src/js/app.js"></script>
-=======
-    <title>Login - Controle de Caixa Pastelaria 24h</title>
+    <title>Pastelaria 24h - Sistema de Gestão</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="src/css/style.css">
     <!-- Firebase App (Core) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <!-- Firebase Authentication -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <!-- Firebase Firestore (Necessário para auth.js buscar a role do usuário) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <!-- Você pode adicionar um CSS customizado se necessário -->
-    <!-- <link rel="stylesheet" href="css/style.css"> -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <style>
-        /* Estilo para simular uma imagem de fundo ou cor temática */
         body {
-            background: linear-gradient(to right, #fbbf24, #f97316); /* Gradiente laranja/amarelo */
+            font-family: 'Poppins', sans-serif;
+            background-color: #FFFBF5;
+            min-height: 100vh;
+            overflow-x: hidden;
         }
-        /* Customização adicional para o card de login se desejar */
-        .login-card-custom {
-            /* Exemplo: box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); */
+        
+        .pastel-pattern {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23f97316' fill-opacity='0.05' fill-rule='evenodd'/%3E%3C/svg%3E");
+            z-index: -1;
+        }
+        
+        .login-card {
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 25px rgba(249, 115, 22, 0.2);
+        }
+        
+        .animated-gradient {
+            position: absolute;
+            top: -50%;
+            right: -50%;
+            bottom: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(-45deg, #fee2e2, #FFFBF5, #fed7aa, #FFEDD5);
+            background-size: 400% 400%;
+            animation: gradient 15s ease infinite;
+            z-index: -2;
+        }
+        
+        @keyframes gradient {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+        
+        .pastel-icon {
+            filter: drop-shadow(0 4px 6px rgba(249, 115, 22, 0.1));
+        }
+        
+        .input-icon {
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(249, 115, 22, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+            }
         }
     </style>
 </head>
-<body class="flex items-center justify-center h-screen p-4">
-
-    <div class="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md login-card-custom transform transition-all hover:scale-105 duration-300">
-        <div class="text-center mb-8">
-            <img src="https://via.placeholder.com/100x100.png?text=Pastel" alt="Logo Pastelaria" class="mx-auto mb-4 rounded-full shadow-lg">
-            <!-- Substitua "https://via.placeholder.com/..." pelo caminho do seu logo -->
-            <h1 class="text-3xl font-bold text-orange-600">Pastelaria 24h</h1>
-            <p class="text-gray-500">Bem-vindo! Faça login para continuar.</p>
-        </div>
-
-        <form id="loginForm" class="space-y-6">
-            <div>
-                <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
-                <div class="mt-1 relative rounded-md shadow-sm">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                        </svg>
-                    </div>
-                    <input type="email" id="email" name="email" required
-                           class="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3"
-                           placeholder="seuemail@exemplo.com">
-                </div>
-            </div>
-
-            <div>
-                <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
-                 <div class="mt-1 relative rounded-md shadow-sm">
-                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
-                        </svg>
-                    </div>
-                    <input type="password" id="password" name="password" required
-                           class="focus:ring-orange-500 focus:border-orange-500 block w-full pl-10 sm:text-sm border-gray-300 rounded-md p-3"
-                           placeholder="••••••••">
-                </div>
-            </div>
-
-            <button type="submit" id="btnLogin"
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-150 ease-in-out">
-                <span class="button-text">Entrar</span>
-                <svg class="animate-spin h-5 w-5 text-white ml-2 hidden" id="loginSpinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+<body class="flex flex-col justify-center items-center p-4 min-h-screen">
+    <div class="animated-gradient"></div>
+    <div class="pastel-pattern"></div>
+    
+    <div class="w-full max-w-md relative z-10">
+        <!-- Logo e Título -->
+        <div class="flex flex-col items-center mb-8">
+            <div class="w-24 h-24 bg-orange-50 rounded-full flex items-center justify-center mb-4 shadow-lg pastel-icon">
+                <svg class="w-14 h-14 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
                 </svg>
-            </button>
+            </div>
+            <h1 class="text-4xl font-bold text-orange-600 mb-1">Pastelaria 24h</h1>
+            <p class="text-gray-600 text-center max-w-sm">Sistema de Controle de Turnos</p>
+        </div>
+        
+        <!-- Card de Login -->
+        <div class="bg-white bg-opacity-90 p-8 rounded-2xl shadow-2xl login-card transform transition duration-500 hover:scale-105">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-semibold text-gray-800">Bem-vindo(a) de volta!</h2>
+                <p class="text-gray-500 text-sm mt-2">Faça login para continuar.</p>
+            </div>
 
-            <p id="loginError" class="text-red-500 text-sm mt-4 text-center font-medium"></p>
-        </form>
+            <form id="loginForm" class="space-y-6">
+                <!-- Campo Email -->
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <div class="relative">
+                        <div class="absolute left-3 input-icon">
+                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                            </svg>
+                        </div>
+                        <input 
+                            type="email" 
+                            id="email" 
+                            name="email" 
+                            required
+                            class="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg bg-white bg-opacity-80 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+                            placeholder="seu.email@exemplo.com"
+                        >
+                    </div>
+                </div>
 
-        <div class="mt-6 text-center">
-            <p class="text-sm text-gray-500">
-                Problemas para acessar? <a href="#" class="font-medium text-orange-600 hover:text-orange-500">Contate o suporte</a>.
-            </p>
+                <!-- Campo Senha -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                        <a href="#" class="text-xs text-orange-600 hover:text-orange-800 transition duration-200">Esqueceu a senha?</a>
+                    </div>
+                    <div class="relative">
+                        <div class="absolute left-3 input-icon">
+                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <input 
+                            type="password" 
+                            id="password" 
+                            name="password" 
+                            required
+                            class="pl-10 pr-4 py-3 w-full border border-gray-300 rounded-lg bg-white bg-opacity-80 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition duration-200"
+                            placeholder="••••••••"
+                        >
+                    </div>
+                </div>
+
+                <!-- Botão de Login -->
+                <button 
+                    type="submit" 
+                    id="btnLogin"
+                    class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-base font-medium text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition duration-300 ease-in-out pulse"
+                >
+                    <span class="button-text">Entrar no Sistema</span>
+                    <svg class="animate-spin h-5 w-5 text-white ml-2 hidden" id="loginSpinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </button>
+
+                <!-- Mensagem de Erro -->
+                <div class="rounded-md bg-red-50 p-4 text-red-600 text-sm mt-4 text-center font-medium hidden" id="loginErrorContainer">
+                    <p id="loginError"></p>
+                </div>
+            </form>
+
+            <!-- Footer -->
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white bg-opacity-90 text-gray-500">Ou</span>
+                    </div>
+                </div>
+
+                <div class="mt-6 text-center">
+                    <p class="text-sm text-gray-600">
+                        Problemas para acessar? <a href="#" class="font-medium text-orange-600 hover:text-orange-800 transition duration-200">Contate o suporte técnico</a>
+                    </p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Informações de Copyright -->
+        <div class="text-center mt-10 text-gray-500 text-sm">
+            <p>Pastelaria 24h &copy; 2023-2025 • Todos os direitos reservados</p>
+            <p class="mt-1 text-xs">Desenvolvido com <span class="text-red-500">♥</span> para saborear cada momento</p>
         </div>
     </div>
 
-    <script src="js/firebase-config.js"></script>
-    <script src="js/auth.js"></script>
+    <!-- Scripts JavaScript (mantidos do original) -->
+    <script src="src/js/firebase-config.js"></script>
+    <script src="src/js/auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const loginForm = document.getElementById('loginForm');
@@ -216,6 +212,7 @@
             const loginSpinner = document.getElementById('loginSpinner');
             const buttonText = btnLogin.querySelector('.button-text');
             const loginError = document.getElementById('loginError');
+            const loginErrorContainer = document.getElementById('loginErrorContainer');
 
             if (loginForm) {
                 loginForm.addEventListener('submit', async (e) => {
@@ -226,42 +223,14 @@
                     loginSpinner.classList.remove('hidden');
                     btnLogin.disabled = true;
                     loginError.textContent = '';
-
+                    loginErrorContainer.classList.add('hidden');
 
                     const email = loginForm.email.value;
                     const password = loginForm.password.value;
 
-                    // A lógica de login e redirecionamento já está em auth.js
-                    // A função auth.signInWithEmailAndPassword será chamada lá.
-                    // Precisamos apenas simular um pouco do processo visual aqui se desejado,
-                    // ou deixar auth.js cuidar do feedback de erro também.
-                    // Por agora, auth.js já tem um 'loginError.textContent', então
-                    // apenas chamamos o método do firebase auth.
-
                     try {
-                        // A chamada de signInWithEmailAndPassword já é feita dentro do auth.js,
-                        // no listener do form 'loginForm' (que é este mesmo formulário).
-                        // O auth.js vai capturar o submit e fazer a autenticação.
-                        // O código abaixo não é necessário se auth.js estiver configurado para o mesmo form.
-
-                        // Se o listener em auth.js estiver no mesmo 'loginForm',
-                        // este listener pode ser simplificado ou removido,
-                        // OU, o listener em auth.js é modificado para não ser
-                        // um event listener de 'submit' e sim uma função chamada aqui.
-
-                        // Para manter como está e para que auth.js controle, apenas removemos
-                        // a chamada explícita de signInWithEmailAndPassword daqui.
-                        // Apenas garantimos que o spinner seja escondido e o botão reabilitado
-                        // em caso de erro capturado *pelo auth.js*.
-                        
-                        // No entanto, o auth.js atual já busca o loginError.
-                        // Para que o spinner funcione aqui, precisamos interceptar e
-                        // fazer a chamada aqui.
-
                         await auth.signInWithEmailAndPassword(email, password);
                         // Se sucesso, auth.js cuidará do redirecionamento através do onAuthStateChanged.
-                        // Não precisa fazer nada aqui após o sucesso, pois o onAuthStateChanged disparará.
-                        // O spinner será "interrompido" pelo redirecionamento.
                     } catch (error) {
                         console.error("Erro de login no index.html:", error);
                         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
@@ -271,6 +240,10 @@
                         } else {
                             loginError.textContent = 'Erro ao fazer login. Verifique sua conexão ou tente novamente.';
                         }
+                        
+                        // Exibir container de erro
+                        loginErrorContainer.classList.remove('hidden');
+                        
                         // Esconder spinner e reabilitar botão em caso de erro
                         buttonText.classList.remove('hidden');
                         loginSpinner.classList.add('hidden');
@@ -282,10 +255,7 @@
             // Observador de estado de autenticação (já presente em auth.js, mas pode ser útil para UX inicial aqui)
             auth.onAuthStateChanged(user => {
                 if (user) {
-                    // Se o usuário já estiver logado (e onAuthStateChanged em auth.js já está tratando redirecionamentos),
-                    // podemos opcionalmente mostrar um "Redirecionando..."
-                    // mas auth.js já deve cuidar disso rapidamente.
-                    // Poderia também desabilitar o formulário
+                    // Se o usuário já estiver logado
                     if(btnLogin) btnLogin.disabled = true;
                     if(buttonText) buttonText.textContent = 'Redirecionando...';
                 } else {
@@ -293,14 +263,12 @@
                     if(btnLogin) btnLogin.disabled = false;
                     if(buttonText) {
                         buttonText.classList.remove('hidden');
-                        buttonText.textContent = 'Entrar';
+                        buttonText.textContent = 'Entrar no Sistema';
                     }
                     if(loginSpinner) loginSpinner.classList.add('hidden');
                 }
             });
         });
     </script>
-
->>>>>>> c666202 (Initial commit)
 </body>
 </html>

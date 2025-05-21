@@ -1,10 +1,12 @@
 {
   "version": 2,
   "builds": [
-<<<<<<< HEAD
     { "src": "*.html", "use": "@vercel/static" },
+    { "src": "js/**/*", "use": "@vercel/static" },
+    { "src": "css/**/*", "use": "@vercel/static" },
     { "src": "src/**/*", "use": "@vercel/static" },
-    { "src": "public/**/*", "use": "@vercel/static" }
+    { "src": "public/**/*", "use": "@vercel/static" },
+    { "src": "img/**/*", "use": "@vercel/static" }
   ],
   "routes": [
     { "handle": "filesystem" },
@@ -12,24 +14,7 @@
     { "src": "/funcionario", "dest": "/funcionario.html" },
     { "src": "/admin", "dest": "/admin.html" },
     { "src": "/(.*)", "dest": "/$1" }
-=======
-    {
-      "src": "public/**/*",
-      "use": "@vercel/static"
-    }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/public/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/public/index.html"
-    }
->>>>>>> c666202 (Initial commit)
-  ]
+  "cleanUrls": true,
+  "trailingSlash": false
 }

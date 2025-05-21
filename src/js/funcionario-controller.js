@@ -24,29 +24,239 @@ document.addEventListener('DOMContentLoaded', async () => {
     const totalRegistradoPagamentosInput = document.getElementById('totalRegistradoPagamentos');
     const caixaFinalContadoInput = document.getElementById('caixaFinalContado');
     const caixaDiferencaInput = document.getElementById('caixaDiferenca');
-    const caixaDiferencaContainer = document.getElementById('caixaDiferencaContainer'); // Div que contém a diferença
+    const caixaDiferencaContainer = document.getElementById('caixaDiferencaContainer'); 
     const divergenciaCaixaAlertaP = document.getElementById('divergenciaCaixaAlerta');
     const fechamentoDivergenciaAlertaGeralDiv = document.getElementById('fechamentoDivergenciaAlertaGeral');
 
     let currentTurnoId = localStorage.getItem('currentTurnoId');
     let productPrices = {}; 
-    let turnoAbertoLocalmente = false; // Controla se o turno foi aberto na sessão atual do navegador
+    let turnoAbertoLocalmente = false; 
+    let isInitializing = false;
+    let unsubscribeTurnoListener = null; // Para armazenar a função de cancelamento do listener
+
+    // --- FUNÇÕES DE PERSISTÊNCIA LOCAL ---
+    function saveTurnoLocal(turnoData) {
+        if (!turnoData) return;
+        localStorage.setItem('currentTurnoId', turnoData.id);
+        localStorage.setItem('turnoData', JSON.stringify(turnoData));
+        currentTurnoId = turnoData.id;
+    }
+
+    function getTurnoLocal() {
+        const turnoId = localStorage.getItem('currentTurnoId');
+        if (!turnoId) return null;
+        
+        try {
+            const turnoData = JSON.parse(localStorage.getItem('turnoData') || '{}');
+            if (turnoData && turnoData.id === turnoId) {
+                return turnoData;
+            }
+        } catch (e) {
+            console.error("Erro ao carregar dados do turno do localStorage:", e);
+        }
+        return null;
+    }
+
+    function removeTurnoLocal() {
+        localStorage.removeItem('currentTurnoId');
+        localStorage.removeItem('turnoData');
+        currentTurnoId = null;
+        turnoAbertoLocalmente = false;
+    }
 
     // --- FUNÇÕES DE INICIALIZAÇÃO E ESTADO ---
     async function initializePage() {
+        // Prevenção contra chamadas recursivas
+        if (isInitializing) return;
+        isInitializing = true;
+        
         showLoadingState(true, "Carregando dados iniciais...");
         try {
             await loadProductPrices();
-            populateProductTables(); // Popula tabelas com preços e estrutura
-            await checkOpenTurno();   // Verifica se há um turno aberto no backend ou localmente
+            populateProductTables();
+            
+            // Verifica se existe um turno em andamento, primeiro localmente e depois no Firestore
+            const localTurno = getTurnoLocal();
+            
+            if (localTurno && localTurno.status === 'aberto') {
+                // Temos um turno guardado localmente, vamos verificar se ele ainda existe no Firestore
+                await checkAndSyncTurnoWithFirestore(localTurno.id);
+            } else {
+                // Caso não haja turno local, busca no Firestore (pode haver um aberto em outro dispositivo)
+                await checkOpenTurnoInFirestore();
+            }
+            
+            // Configura listener para mudanças no Firestore
+            setupTurnoListener();
+            
             setupEventListeners();
-            setInitialPeriodo(); 
-            if (!turnoAbertoLocalmente && !currentTurnoId) { // Se nenhum turno aberto
-                toggleFormInputs(false); // Desabilita a maioria dos inputs
+            setInitialPeriodo();
+            
+            if (!turnoAbertoLocalmente && !currentTurnoId) {
+                toggleFormInputs(false);
             }
         } catch (error) {
             console.error("Erro na inicialização da página:", error);
             showError("Falha ao inicializar a página. Verifique sua conexão ou contate o suporte.");
+        } finally {
+            showLoadingState(false);
+            isInitializing = false;
+        }
+    }
+
+    // Novo método para estabelecer um listener em tempo real no Firestore
+    function setupTurnoListener() {
+        // Cancela qualquer listener anterior
+        if (unsubscribeTurnoListener) {
+            unsubscribeTurnoListener();
+        }
+
+        // Não configura listener se não houver turno aberto
+        if (!currentTurnoId) return;
+
+        // Configura listener para o documento do turno atual
+        unsubscribeTurnoListener = db.collection('turnos').doc(currentTurnoId)
+            .onSnapshot((doc) => {
+                if (doc.exists) {
+                    const turnoData = doc.data();
+                    if (turnoData.status === 'aberto') {
+                        // Atualiza os dados locais se houver mudanças
+                        saveTurnoLocal({ id: doc.id, ...turnoData });
+                        
+                        // Só atualiza o formulário se estiver diferente ou se for primeiro carregamento
+                        if (!turnoAbertoLocalmente) {
+                            loadTurnoDataToForm(turnoData);
+                            populateTurnoDetails(turnoData.abertura);
+                            turnoAbertoLocalmente = true;
+                            toggleFormInputs(true);
+                            btnAbrirTurno.disabled = true;
+                            btnFecharTurno.disabled = false;
+                            turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                            turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+                        }
+                    } else if (turnoData.status === 'fechado') {
+                        // Turno foi fechado em outro dispositivo/sessão
+                        removeTurnoLocal();
+                        resetFormAndState("Turno foi fechado em outro dispositivo/sessão.");
+                    }
+                } else {
+                    // Documento não existe mais - algo errado aconteceu
+                    removeTurnoLocal();
+                    resetFormAndState("Turno não encontrado no servidor. Pode ter sido removido.");
+                }
+            }, (error) => {
+                console.error("Erro no listener do turno:", error);
+            });
+    }
+
+    // Verifica e sincroniza com Firestore um turno salvo localmente
+    async function checkAndSyncTurnoWithFirestore(turnoId) {
+        try {
+            const turnoDoc = await db.collection('turnos').doc(turnoId).get();
+            
+            if (turnoDoc.exists) {
+                const turnoData = turnoDoc.data();
+                
+                if (turnoData.status === 'aberto') {
+                    // Turno ainda está aberto no Firestore
+                    saveTurnoLocal({ id: turnoDoc.id, ...turnoData });
+                    loadTurnoDataToForm(turnoData);
+                    populateTurnoDetails(turnoData.abertura);
+                    
+                    btnAbrirTurno.disabled = true;
+                    btnFecharTurno.disabled = false;
+                    turnoStatusP.textContent = `Turno ${turnoId.split('_')[1]} de ${turnoId.split('_')[0]} está aberto.`;
+                    turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+                    turnoAbertoLocalmente = true;
+                    toggleFormInputs(true);
+                } else {
+                    // Turno fechado no servidor
+                    removeTurnoLocal();
+                    resetFormAndState("O turno foi fechado em outra sessão.");
+                }
+            } else {
+                // Turno não existe mais no Firestore
+                removeTurnoLocal();
+                resetFormAndState("Turno salvo localmente não existe mais no servidor.");
+            }
+        } catch (error) {
+            console.error("Erro ao verificar turno no Firestore:", error);
+            
+            // Se offline, usa dados locais com alerta
+            const localTurno = getTurnoLocal();
+            if (localTurno) {
+                loadTurnoDataToForm(localTurno);
+                populateTurnoDetails(localTurno.abertura);
+                turnoAbertoLocalmente = true;
+                toggleFormInputs(true);
+                btnAbrirTurno.disabled = true;
+                btnFecharTurno.disabled = false;
+                turnoStatusP.textContent = `Turno ${localTurno.id.split('_')[1]} está aberto. (DADOS LOCAIS - SEM CONEXÃO)`;
+                turnoStatusP.className = 'text-center text-yellow-600 font-semibold mb-4';
+                showError("Usando dados locais do turno. Reconecte à internet para sincronizar.");
+            } else {
+                resetFormAndState("Erro ao verificar turno e nenhum dado local disponível.");
+            }
+        }
+    }
+
+    // Verifica se há turnos abertos no Firestore
+    async function checkOpenTurnoInFirestore() {
+        try {
+            // Recupera o usuário atual
+            const user = auth.currentUser;
+            if (!user) {
+                showError("Usuário não autenticado. Faça login novamente.");
+                return;
+            }
+
+            // Busca turnos abertos para o usuário atual
+            const turnosQuery = await db.collection('turnos')
+                .where('status', '==', 'aberto')
+                .where('abertura.responsavelId', '==', user.uid)
+                .get();
+
+            if (!turnosQuery.empty) {
+                // Encontrou um turno aberto
+                const turnoDoc = turnosQuery.docs[0];
+                const turnoData = turnoDoc.data();
+                currentTurnoId = turnoDoc.id;
+                
+                // Salva localmente
+                saveTurnoLocal({ id: turnoDoc.id, ...turnoData });
+                
+                // Carrega no formulário
+                loadTurnoDataToForm(turnoData);
+                populateTurnoDetails(turnoData.abertura);
+                
+                btnAbrirTurno.disabled = true;
+                btnFecharTurno.disabled = false;
+                turnoStatusP.textContent = `Turno ${turnoDoc.id.split('_')[1]} de ${turnoDoc.id.split('_')[0]} está aberto.`;
+                turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+                turnoAbertoLocalmente = true;
+                toggleFormInputs(true);
+            } else {
+                // Não há turno aberto
+                resetFormAndState("Nenhum turno aberto encontrado.");
+            }
+        } catch (error) {
+            console.error("Erro ao verificar turnos abertos no Firestore:", error);
+            resetFormAndState("Erro ao verificar turnos abertos. Verifique sua conexão.");
+        }
+    }
+
+    // Método original adaptado para usar os novos métodos
+    async function checkOpenTurno() {
+        showLoadingState(true, "Verificando turno...");
+        try {
+            if (currentTurnoId) {
+                await checkAndSyncTurnoWithFirestore(currentTurnoId);
+            } else {
+                await checkOpenTurnoInFirestore();
+            }
+        } catch (error) {
+            console.error("Erro ao verificar turno aberto:", error);
+            resetFormAndState("Erro ao verificar turno. Tente recarregar.");
         } finally {
             showLoadingState(false);
         }
@@ -60,15 +270,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             if(btnAbrirTurno) btnAbrirTurno.disabled = true;
             if(btnFecharTurno) btnFecharTurno.disabled = true;
         } else {
-            // O status será atualizado por outras funções (checkOpenTurno, abrir, fechar)
-            // Apenas reabilita botões se apropriado pelo estado atual
-             if(btnAbrirTurno) btnAbrirTurno.disabled = !!currentTurnoId || turnoAbertoLocalmente;
-             if(btnFecharTurno) btnFecharTurno.disabled = !currentTurnoId && !turnoAbertoLocalmente;
+            if(btnAbrirTurno) btnAbrirTurno.disabled = !!currentTurnoId || turnoAbertoLocalmente;
+            if(btnFecharTurno) btnFecharTurno.disabled = !currentTurnoId && !turnoAbertoLocalmente;
         }
     }
     
     function setInitialPeriodo() {
-        if (turnoAbertoLocalmente || currentTurnoId) return; 
+        if (turnoAbertoLocalmente || currentTurnoId) return; // Não muda se já houver um turno
         const currentHour = new Date().getHours();
         if (currentHour >= 6 && currentHour < 14) {
             turnoPeriodoSelect.value = 'Manhã';
@@ -217,44 +425,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    async function checkOpenTurno() {
-        showLoadingState(true, "Verificando turno...");
-        
-        try {
-            // Primeiro, verifica se existe algum turno aberto no banco
-            const turnosAbertosQuery = await db.collection('turnos').where('status', '==', 'aberto').get();
-            
-            if (!turnosAbertosQuery.empty) {
-                // Existe um turno aberto
-                const turnoAberto = turnosAbertosQuery.docs[0];
-                currentTurnoId = turnoAberto.id;
-                localStorage.setItem('currentTurnoId', currentTurnoId);
-                
-                const turnoData = turnoAberto.data();
-                loadTurnoDataToForm(turnoData);
-                populateTurnoDetails(turnoData.abertura);
-
-                btnAbrirTurno.disabled = true;
-                btnFecharTurno.disabled = false;
-                turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} está aberto.`;
-                turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
-                turnoAbertoLocalmente = true;
-                toggleFormInputs(true);
-            } else if (localStorage.getItem('currentTurnoId')) {
-                // Não há turno aberto no banco, mas existe no localStorage
-                // Isso pode acontecer se o turno foi fechado em outro dispositivo
-                resetFormAndState("Turno salvo localmente não encontrado ou já fechado no servidor.");
-            } else {
-                resetFormAndState(); // Nenhum turno aberto
-            }
-        } catch (error) {
-            console.error("Erro ao verificar turno aberto no servidor:", error);
-            resetFormAndState("Erro ao verificar turno. Tente recarregar.");
-        }
-        
-        showLoadingState(false);
-    }
-    
     function resetFormAndState(statusMessage = 'Nenhum turno aberto.') {
         formTurno.reset();
         setInitialPeriodo();
@@ -265,8 +435,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         btnAbrirTurno.disabled = false;
         btnFecharTurno.disabled = true;
-        currentTurnoId = null;
-        localStorage.removeItem('currentTurnoId');
+        removeTurnoLocal();
         turnoAbertoLocalmente = false;
         
         turnoStatusP.textContent = statusMessage;
@@ -294,8 +463,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
         if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
         if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
-
-        // Limpa campos específicos de Gelo, se eles tiverem lógica própria de totalização
+        
+        // Limpa campos específicos de Gelo
         const geloKey = 'gelo_pacote';
         const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
         if (totalGeloDisplay) totalGeloDisplay.textContent = 'R$ 0.00';
@@ -318,14 +487,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
             clearError();
-            
-            // Verifica se já existe um turno aberto
-            const turnosAbertosQuery = await db.collection('turnos').where('status', '==', 'aberto').get();
-            if (!turnosAbertosQuery.empty) {
-                showError("Já existe um turno aberto. É necessário fechar o turno atual antes de abrir um novo.");
-                return;
-            }
-            
             const caixaInicialVal = parseFloat(caixaInicioInput.value);
             if (isNaN(caixaInicialVal) || caixaInicialVal < 0) {
                 showError("Caixa Inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
@@ -342,13 +503,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             showLoadingState(true, "Abrindo turno...");
 
             try {
-                const existingTurno = await db.collection('turnos').doc(turnoIdProposto).get();
-                if (existingTurno.exists) {
-                    showError(`Já existe um turno (${periodoSelecionado}) registrado para hoje (${dataAtual}).`);
-                    showLoadingState(false);
-                    btnAbrirTurno.disabled = false;
-                    return;
-                }
+                // Verificação adicional: transação para garantir que não exista outro turno aberto
+                await db.runTransaction(async (transaction) => {
+                    // Verificar se o turno proposto já existe
+                    const turnoRef = db.collection('turnos').doc(turnoIdProposto);
+                    const turnoDoc = await transaction.get(turnoRef);
+                    
+                    if (turnoDoc.exists) {
+                        throw new Error(`Já existe um turno (${periodoSelecionado}) registrado para hoje (${dataAtual}).`);
+                    }
+                    
+                    // Verificar se há algum outro turno aberto para este funcionário
+                    const user = auth.currentUser;
+                    if (!user) {
+                        throw new Error("Usuário não logado. Faça login novamente.");
+                    }
+                    
+                    const turnosQuery = await db.collection('turnos')
+                        .where('status', '==', 'aberto')
+                        .where('abertura.responsavelId', '==', user.uid)
+                        .get();
+                    
+                    if (!turnosQuery.empty) {
+                        throw new Error("Você já possui um turno aberto. Feche-o antes de abrir um novo.");
+                    }
+                    
+                    // Se chegou aqui, está tudo ok
+                    return true;
+                });
                 
                 const user = auth.currentUser;
                 if (!user) {
@@ -368,12 +550,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                     periodo: periodoSelecionado,
                 };
 
-                populateTurnoDetails(aberturaDataObj);
+                populateTurnoDetails(aberturaDataObj); // Atualiza os campos de Mês, Data, Hora, Período no form
 
                 // Carrega 'sobra' do turno anterior para 'entrada' do atual
                 const estoqueAnterior = await getEstoqueInicial(dataAtual, periodoSelecionado);
                 
-                const initialItensData = collectItemData(true);
+                // Preenche as entradas dos itens com base no estoque anterior
+                Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
+                    Object.keys(estoqueAnterior.itens[categoryKey] || {}).forEach(itemKey => {
+                        const inputEntrada = document.getElementById(`${itemKey}_entrada`);
+                        if (inputEntrada && !inputEntrada.value) { // Só preenche se o usuário não digitou nada
+                            inputEntrada.value = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                        }
+                    });
+                });
+                
+                const inputEntradaGelo = document.getElementById(`gelo_pacote_entrada`);
+                if (inputEntradaGelo && !inputEntradaGelo.value) {
+                     inputEntradaGelo.value = estoqueAnterior.gelo?.gelo_pacote?.sobra || 0;
+                }
+
+                const initialItensData = collectItemData(true); // Coleta apenas entradas e preços unitários
 
                 const turnoDataToSave = {
                     abertura: aberturaDataObj,
@@ -381,28 +578,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                     caixaInicial: caixaInicialVal,
                     itens: initialItensData.itens,
                     gelo: initialItensData.gelo,
+                    turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 };
 
+                // Salva no Firestore
                 await db.collection('turnos').doc(turnoIdProposto).set(turnoDataToSave);
-                currentTurnoId = turnoIdProposto;
-                localStorage.setItem('currentTurnoId', currentTurnoId);
-
+                
+                // Salva localmente
+                saveTurnoLocal({
+                    id: turnoIdProposto,
+                    ...turnoDataToSave
+                });
+                
                 turnoAbertoLocalmente = true;
                 btnAbrirTurno.disabled = true;
                 btnFecharTurno.disabled = false;
                 turnoStatusP.textContent = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
-                toggleFormInputs(true);
-                calculateAll(); 
+                toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
+                
+                // Ativa listener para mudanças remotas
+                setupTurnoListener();
+                
+                calculateAll();
                 
             } catch (error) {
                 console.error("Erro ao abrir turno: ", error);
                 showError("Falha ao abrir turno: " + error.message + ". Verifique suas permissões ou contate o suporte.");
-                resetFormAndState("Erro ao tentar abrir o turno.");
+                resetFormAndState("Erro ao tentar abrir o turno."); // Reseta se a abertura falhar
             } finally {
-                showLoadingState(false);
+                 showLoadingState(false);
             }
         });
     }
@@ -429,54 +636,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
             if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
                 const dados = turnoAnteriorDoc.data();
-                const estoqueFinal = { itens: {}, gelo: {} };
-                
-                // Carrega dados dos itens
+                const estoqueFinal = { itens: {}, gelo: {}, turnoId: idTurnoAnterior };
                 if (dados.itens) {
                     Object.keys(dados.itens).forEach(cat => {
                         estoqueFinal.itens[cat] = {};
                         Object.keys(dados.itens[cat]).forEach(item => {
-                            const sobra = dados.itens[cat][item].sobra || 0;
-                            estoqueFinal.itens[cat][item] = { 
-                                sobra: sobra,
-                                entrada: sobra // Usa a sobra como entrada do próximo turno
-                            };
-                            
-                            // Preenche o input de entrada e o torna readonly
-                            const entradaInput = document.getElementById(`${item}_entrada`);
-                            if (entradaInput) {
-                                entradaInput.value = sobra;
-                                entradaInput.readOnly = true;
-                                entradaInput.classList.add('bg-gray-100');
-                            }
+                            estoqueFinal.itens[cat][item] = { sobra: dados.itens[cat][item].sobra || 0 };
                         });
                     });
                 }
-                
-                // Carrega dados do gelo
-                if (dados.gelo && dados.gelo.gelo_pacote) { 
-                    const sobraGelo = dados.gelo.gelo_pacote.sobra || 0;
-                    estoqueFinal.gelo.gelo_pacote = { 
-                        sobra: sobraGelo,
-                        entrada: sobraGelo // Usa a sobra como entrada do próximo turno
-                    };
-                    
-                    // Preenche o input de entrada do gelo e o torna readonly
-                    const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
-                    if (geloEntradaInput) {
-                        geloEntradaInput.value = sobraGelo;
-                        geloEntradaInput.readOnly = true;
-                        geloEntradaInput.classList.add('bg-gray-100');
-                    }
-                }
-                
+                 if (dados.gelo && dados.gelo.gelo_pacote) { 
+                    estoqueFinal.gelo.gelo_pacote = { sobra: dados.gelo.gelo_pacote.sobra || 0 };
+                 }
                 return estoqueFinal;
             }
             console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não fechado. Iniciando com estoque zero.`);
         } catch (error) {
             console.error("Erro ao buscar estoque do turno anterior:", error);
         }
-        return { itens: {}, gelo: {} };
+        return { itens: {}, gelo: {}, turnoId: null };
     }
 
 
@@ -560,50 +738,67 @@ document.addEventListener('DOMContentLoaded', async () => {
             const caixaFinalContadoVal = parseFloat(caixaFinalContadoInput.value) || 0;
             const caixaDiferencaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
 
-            // Pegar o caixa inicial que foi registrado na abertura
-            // O caixaInicioInput pode ter sido alterado se não estivesse readonly após a abertura.
-            // É mais seguro buscar do objeto do turno carregado ou, se for uma nova abertura, do valor que foi salvo.
-            let caixaInicialDoTurno;
-            const turnoDocAberto = await db.collection('turnos').doc(currentTurnoId).get();
-            if (turnoDocAberto.exists) {
-                caixaInicialDoTurno = turnoDocAberto.data().caixaInicial;
-            } else {
-                showError("Turno não encontrado no servidor para fechar. Contate o suporte.");
-                showLoadingState(false);
-                // Não reabilitar btnFecharTurno
-                return;
-            }
-
-
-            const turnoUpdateData = {
-                status: 'fechado',
-                fechamento: fechamentoDataObj,
-                itens: dadosColetados.itens,
-                gelo: dadosColetados.gelo, 
-                trocaGas: document.getElementById('trocaGas').value,
-                caixaInicial: caixaInicialDoTurno, // Usar o caixa inicial da abertura
-                caixaFinalContado: caixaFinalContadoVal,
-                formasPagamento: formasPagamentoObj,
-                totalVendidoCalculadoFinal: totalVendidoCalc,
-                totalRegistradoPagamentosFinal: totalPagamentos,
-                diferencaCaixaFinal: caixaDiferencaVal,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            };
-
+            // Verificação de turno aberto remoto via transação atômica
             try {
-                await db.collection('turnos').doc(currentTurnoId).update(turnoUpdateData);
+                await db.runTransaction(async (transaction) => {
+                    const turnoRef = db.collection('turnos').doc(currentTurnoId);
+                    const turnoDoc = await transaction.get(turnoRef);
+                    
+                    if (!turnoDoc.exists) {
+                        throw new Error("Turno não existe mais no servidor.");
+                    }
+                    
+                    const turnoData = turnoDoc.data();
+                    if (turnoData.status !== 'aberto') {
+                        throw new Error("Turno já foi fechado em outra sessão.");
+                    }
+                    
+                    // Pegar o caixa inicial que foi registrado na abertura
+                    const caixaInicialDoTurno = turnoData.caixaInicial;
+
+                    const turnoUpdateData = {
+                        status: 'fechado',
+                        fechamento: fechamentoDataObj,
+                        itens: dadosColetados.itens,
+                        gelo: dadosColetados.gelo, 
+                        trocaGas: document.getElementById('trocaGas').value,
+                        caixaInicial: caixaInicialDoTurno, // Usar o caixa inicial da abertura
+                        caixaFinalContado: caixaFinalContadoVal,
+                        formasPagamento: formasPagamentoObj,
+                        totalVendidoCalculadoFinal: totalVendidoCalc,
+                        totalRegistradoPagamentosFinal: totalPagamentos,
+                        diferencaCaixaFinal: caixaDiferencaVal,
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                    
+                    // Atualiza o documento dentro da transação
+                    transaction.update(turnoRef, turnoUpdateData);
+                    
+                    return {
+                        ...turnoData,
+                        ...turnoUpdateData
+                    };
+                });
+                
                 turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} fechado com sucesso.`;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
                 
-                resetFormAndState(); // Limpa o formulário e reseta o estado da UI
-                localStorage.removeItem('currentTurnoId'); // Faz isso no resetFormAndState
-                currentTurnoId = null; // Faz isso no resetFormAndState
-                turnoAbertoLocalmente = false; // Faz isso no resetFormAndState
+                // Remover dados locais
+                removeTurnoLocal();
+                
+                // Cancela o listener
+                if (unsubscribeTurnoListener) {
+                    unsubscribeTurnoListener();
+                    unsubscribeTurnoListener = null;
+                }
+                
+                resetFormAndState();
 
             } catch (error) {
                 console.error("Erro ao fechar turno: ", error);
                 showError("Falha ao fechar turno: " + error.message + ". O turno pode ainda estar aberto. Verifique e tente novamente ou contate o suporte.");
-                // Não reabilitar btnFecharTurno, pois o estado é incerto. Usuário deve recarregar ou admin verificar.
+                // Recarrega os dados do turno para garantir sincronização
+                await checkOpenTurno();
             } finally {
                 showLoadingState(false);
             }
@@ -823,7 +1018,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const dinheiroRecebido = parseFloat(pagamentoDinheiroInput.value) || 0;
         const caixaFinalContadoVal = parseFloat(caixaFinalContadoInput.value) || 0;
 
-        // Caixa esperado = caixa inicial + dinheiro recebido em dinheiro
         const caixaEsperado = caixaInicial + dinheiroRecebido;
         const diferenca = caixaFinalContadoVal - caixaEsperado;
 
@@ -831,7 +1025,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         let divergente = false;
         if (caixaDiferencaContainer) { // Verifica se o container existe
-            if (Math.abs(diferenca) > 0.015) { // Aumentada a tolerância para 0.015
+            if (Math.abs(diferenca) > 0.01) {
                 divergente = true;
                 divergenciaCaixaAlertaP.textContent = `Divergência de R$ ${diferenca.toFixed(2)} no caixa físico.`;
                 caixaDiferencaContainer.className = 'p-3 rounded-md ' + (diferenca > 0 ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300');
@@ -853,15 +1047,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { divergente: caixaDivergente } = updateCaixaDiferenca(); 
 
         const diffValores = Math.abs(totalVendidoCalc - totalPagamentos);
-        const temDivergencia = diffValores > 0.015 || caixaDivergente;
 
-        if (temDivergencia) {
+        if (diffValores > 0.015 || caixaDivergente) {
             let message = "<strong>ATENÇÃO: DIVERGÊNCIAS DETECTADAS!</strong><br>";
             if (diffValores > 0.015) {
                 message += `• Diferença entre Total Vendido Calculado (R$ ${totalVendidoCalc.toFixed(2)}) e Total Registrado em Pagamentos (R$ ${totalPagamentos.toFixed(2)}): <span class="font-bold">R$ ${(totalVendidoCalc - totalPagamentos).toFixed(2)}</span><br>`;
             }
             if (caixaDivergente) {
-                const difCaixaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
+                const difCaixaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '.')) || 0;
                 message += `• Diferença no caixa físico (Dinheiro): <span class="font-bold">R$ ${difCaixaVal.toFixed(2)}</span>`;
             }
             fechamentoDivergenciaAlertaGeralDiv.innerHTML = message;
@@ -962,11 +1155,184 @@ document.addEventListener('DOMContentLoaded', async () => {
                                  if (descarteInput) descarteInput.value = item.descarte || 0;
                                  const consumoInput = document.getElementById(`${itemKey}_consumo`);
                                  if (consumoInput) consumoInput.value = item.consumo || 0;
+                                 
+                                 // Preencher o dataset do preço no input de vendido se não existir ao carregar
+                                 const vendidoInput = document.getElementById(`${itemKey}_vendido`);
+                                 if (vendidoInput && item.precoUnitario && !vendidoInput.dataset.price) {
+                                     vendidoInput.dataset.price = item.precoUnitario;
+                                     // Atualiza também o display do preço na tabela, se aplicável (ou é feito ao popular tabelas)
+                                     const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
+                                     if(precoDisplay) precoDisplay.textContent = `R$ ${parseFloat(item.precoUnitario).toFixed(2)}`;
+                                 }
                             }
                         }
                     });
                 }
             });
         }
+        
+        if (turnoData.gelo && turnoData.gelo.gelo_pacote) {
+            const geloItem = turnoData.gelo.gelo_pacote;
+            const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
+            if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
+
+            if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
+                const geloSobraInput = document.getElementById(`gelo_pacote_sobra`);
+                if (geloSobraInput) geloSobraInput.value = geloItem.sobra || 0;
+                const geloVendasInput = document.getElementById(`gelo_pacote_vendas`);
+                if (geloVendasInput) geloVendasInput.value = geloItem.vendas || 0;
+                const geloConsumoInput = document.getElementById(`gelo_pacote_consumo_interno`);
+                if (geloConsumoInput) geloConsumoInput.value = geloItem.consumoInterno || 0;
+                // Preço do Gelo
+                 const precoGeloInputVendido = document.getElementById(`gelo_pacote_total_item`); // O total, não o 'vendido' input
+                 const precoGeloDisplay = document.getElementById(`gelo_pacote_preco_display`);
+                 if (geloItem.precoUnitario && precoGeloDisplay) {
+                     precoGeloDisplay.textContent = `R$ ${parseFloat(geloItem.precoUnitario).toFixed(2)}`;
+                 }
+            }
+        }
+
+        if (turnoData.status === 'fechado') { // Se o turno já veio fechado do DB (raro, mas possível)
+            document.getElementById('trocaGas').value = turnoData.trocaGas || 'nao';
+            if (turnoData.formasPagamento) {
+                Object.keys(turnoData.formasPagamento).forEach(key => {
+                    const inputId = 'pagamento' + key.charAt(0).toUpperCase() + key.slice(1);
+                    const inputEl = document.getElementById(inputId);
+                    if (inputEl) inputEl.value = turnoData.formasPagamento[key] || 0;
+                });
+            }
+            if(caixaFinalContadoInput) caixaFinalContadoInput.value = turnoData.caixaFinalContado || 0;
+        }
+        calculateAll(); 
     }
+
+    // --- MENSAGENS DE ERRO/STATUS ---
+    function showError(message) {
+        errorMessagesP.textContent = message;
+        errorMessagesP.classList.remove('hidden');
+    }
+
+    function clearError() {
+        errorMessagesP.textContent = '';
+        errorMessagesP.classList.add('hidden');
+    }
+    
+    // --- INICIALIZAÇÃO ---
+    // Adicionar event listener para detectar status de conectividade
+    window.addEventListener('online', function() {
+        console.log('Online - sincronizando dados...');
+        checkOpenTurno(); // Sincroniza quando ficar online novamente
+    });
+    
+    window.addEventListener('offline', function() {
+        console.log('Offline - usando dados locais...');
+        if (currentTurnoId) {
+            turnoStatusP.textContent = "Você está offline. Usando dados locais do turno.";
+            turnoStatusP.className = 'text-center text-yellow-600 font-semibold mb-4';
+        }
+    });
+
+    // Detecta se o usuário está saindo da página e salva os dados
+    window.addEventListener('beforeunload', function() {
+        // O localStorage já deve estar sendo atualizado ao longo do uso,
+        // mas podemos fazer uma última verificação aqui se necessário
+        if (turnoAbertoLocalmente && currentTurnoId) {
+            // Os dados principais já devem estar salvos, mas poderia adicionar
+            // uma última sincronização se necessário
+        }
+    });
+    
+    initializePage();
 });
+
+// Helpers de shared.js (inclua shared.js antes deste script)
+if (typeof getFormattedDate === 'undefined') {
+    function getFormattedDate(date = new Date()) {
+      const year = date.getFullYear();
+      const month = (date.getMonth() + 1).toString().padStart(2, '0');
+      const day = date.getDate().toString().padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+}
+if (typeof getFormattedTime === 'undefined') {
+    function getFormattedTime(date = new Date()) {
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+}
+if (typeof getCurrentMonth === 'undefined') {
+    function getCurrentMonth() {
+        const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        return months[new Date().getMonth()];
+    }
+}
+if (typeof createInputCell === 'undefined') {
+    function createInputCell(type, id, placeholder = '', value = '', readOnly = false, className = "w-full p-1 border rounded text-sm") {
+        const td = document.createElement('td');
+        td.className = 'px-1 py-1 whitespace-nowrap';
+        const input = document.createElement('input');
+        input.type = type;
+        input.id = id;
+        input.name = id;
+        input.className = `${className} ${readOnly ? 'bg-gray-100 cursor-not-allowed' : 'bg-white focus:ring-orange-500 focus:border-orange-500'}`;
+        input.placeholder = placeholder;
+        input.value = value;
+        if (readOnly) input.readOnly = true;
+        if (type === 'number') {
+            input.min = "0";
+            input.step = "1";
+            if (id.includes('preco') || id.includes('valor') || id.includes('caixa')) {
+                input.step = "0.01";
+            }
+        }
+        td.appendChild(input);
+        return td;
+    }
+}
+if (typeof createProductRow === 'undefined') {
+    function createProductRow(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
+        tr.dataset.itemKey = itemKey;
+        tr.dataset.categoryKey = categoryKey;
+
+        const tdName = document.createElement('td');
+        tdName.className = 'px-3 py-2 font-medium text-gray-800';
+        tdName.textContent = itemName;
+        tr.appendChild(tdName);
+
+        tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
+        tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
+        tr.appendChild(createInputCell('number', `${itemKey}_descarte`, '0', '', isReadOnly));
+        tr.appendChild(createInputCell('number', `${itemKey}_consumo`, '0', '', isReadOnly));
+        
+        const tdVendido = document.createElement('td');
+        tdVendido.className = 'px-1 py-1';
+        const inputVendido = document.createElement('input');
+        inputVendido.type = 'number';
+        inputVendido.id = `${itemKey}_vendido`;
+        inputVendido.name = `${itemKey}_vendido`;
+        inputVendido.className = 'w-full p-1 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed shadow-sm';
+        inputVendido.readOnly = true;
+        inputVendido.value = '0';
+        inputVendido.dataset.price = prices[categoryKey]?.[itemKey]?.preco || 0;
+        tdVendido.appendChild(inputVendido);
+        tr.appendChild(tdVendido);
+
+        const tdPreco = document.createElement('td');
+        tdPreco.className = 'px-3 py-2 text-sm text-gray-600 text-center';
+        const precoUnit = prices[categoryKey]?.[itemKey]?.preco || 0;
+        tdPreco.textContent = `R$ ${parseFloat(precoUnit).toFixed(2)}`;
+        tdPreco.id = `${itemKey}_preco_display`;
+        tr.appendChild(tdPreco);
+        
+        const tdTotalItem = document.createElement('td');
+        tdTotalItem.className = 'px-3 py-2 text-sm text-gray-700 font-semibold text-right';
+        tdTotalItem.id = `${itemKey}_total_item`;
+        tdTotalItem.textContent = `R$ 0.00`;
+        tr.appendChild(tdTotalItem);
+
+        return tr;
+    }
+}
