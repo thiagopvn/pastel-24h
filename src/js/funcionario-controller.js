@@ -33,6 +33,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let turnoAbertoLocalmente = false; 
     let isInitializing = false;
     let unsubscribeTurnoListener = null; // Para armazenar a função de cancelamento do listener
+    let turnoAnteriorData = null; // Para armazenar dados do turno anterior
+    let camposTransferidosAnterior = {}; // Para rastreamento de campos transferidos
 
     // --- FUNÇÕES DE PERSISTÊNCIA LOCAL ---
     function saveTurnoLocal(turnoData) {
@@ -75,6 +77,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadProductPrices();
             populateProductTables();
             
+            // Verificar e armazenar dados do último turno fechado para transferência
+            await carregarDadosTurnoAnterior();
+            
             // Verifica se existe um turno em andamento, primeiro localmente e depois no Firestore
             const localTurno = getTurnoLocal();
             
@@ -101,6 +106,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         } finally {
             showLoadingState(false);
             isInitializing = false;
+        }
+    }
+
+    // NOVA FUNÇÃO: Carrega dados do último turno fechado
+    async function carregarDadosTurnoAnterior() {
+        showLoadingState(true, "Verificando turnos anteriores...");
+        try {
+            const turnoAnteriorRef = await db.collection('turnos')
+                .where('status', '==', 'fechado')
+                .orderBy('fechamento.hora', 'desc')
+                .limit(1)
+                .get();
+                
+            if (!turnoAnteriorRef.empty) {
+                const doc = turnoAnteriorRef.docs[0];
+                turnoAnteriorData = { id: doc.id, ...doc.data() };
+                console.log("Dados do turno anterior recuperados:", turnoAnteriorData.id);
+                return true;
+            } else {
+                console.log("Nenhum turno anterior fechado encontrado");
+                turnoAnteriorData = null;
+                return false;
+            }
+        } catch (error) {
+            console.error("Erro ao carregar dados do turno anterior:", error);
+            turnoAnteriorData = null;
+            return false;
+        } finally {
+            showLoadingState(false);
         }
     }
 
@@ -245,7 +279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Método original adaptado para usar os novos métodos
+    // Método adaptado para usar os novos métodos
     async function checkOpenTurno() {
         showLoadingState(true, "Verificando turno...");
         try {
@@ -376,6 +410,35 @@ document.addEventListener('DOMContentLoaded', async () => {
         tabelaGeloBody.appendChild(trGelo);
     }
 
+    // NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
+    function adicionarIndicadorCampoTransferido(elemento, origem) {
+        if (!elemento) return;
+        
+        // Adiciona classe de estilo para destacar visualmente
+        elemento.classList.add('bg-blue-50', 'border-blue-300');
+        
+        // Armazena informação de que este campo veio do turno anterior
+        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+        elemento.dataset.valorOriginal = elemento.value;
+        
+        // Adiciona um pequeno indicador visual ao lado do campo
+        const parentElement = elemento.parentElement;
+        if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
+            const indicador = document.createElement('span');
+            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+            indicador.title = 'Valor transferido do turno anterior - Não editável';
+            parentElement.appendChild(indicador);
+        }
+        
+        // Rastreia este campo para validação
+        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
+        camposTransferidosAnterior[campoId] = {
+            elemento: elemento,
+            valorOriginal: elemento.value
+        };
+    }
+
     function toggleFormInputs(isTurnoOpenForEditing) {
         // Habilita/Desabilita todos os campos do formulário de acordo com o estado do turno
         const allInputsAndSelects = formTurno.querySelectorAll('input, select');
@@ -394,6 +457,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (el.id.endsWith('_vendido') || el.id.endsWith('_total_item')) {
                 el.readOnly = true;
                 el.classList.add('bg-gray-100');
+                return;
+            }
+            
+            // Se o campo foi transferido do turno anterior, ele deve permanecer readonly
+            if (el.dataset.transferidoDoTurno) {
+                el.readOnly = true;
                 return;
             }
 
@@ -470,6 +539,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (totalGeloDisplay) totalGeloDisplay.textContent = 'R$ 0.00';
         const totalFooterGelo = document.getElementById('totalGeloValor');
         if (totalFooterGelo) totalFooterGelo.textContent = 'R$ 0.00';
+        
+        // Remove todos os indicadores de campos transferidos
+        document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
+        document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
+            el.removeAttribute('data-transferido-do-turno');
+            el.removeAttribute('data-valor-original');
+            el.classList.remove('bg-blue-50', 'border-blue-300');
+        });
+        camposTransferidosAnterior = {};
+        
         calculateAll(); // Garante que os totais gerais sejam zerados
     }
     
@@ -552,22 +631,41 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 populateTurnoDetails(aberturaDataObj); // Atualiza os campos de Mês, Data, Hora, Período no form
 
-                // Carrega 'sobra' do turno anterior para 'entrada' do atual
+                // MODIFICADO: Usar o turno anterior para preencher entradas e caixa inicial
                 const estoqueAnterior = await getEstoqueInicial(dataAtual, periodoSelecionado);
                 
-                // Preenche as entradas dos itens com base no estoque anterior
+                // TRANSFERÊNCIA AUTOMÁTICA: Preenche as entradas dos itens com base no estoque anterior
+                let itensTransferidosCount = 0;
+                
                 Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
                     Object.keys(estoqueAnterior.itens[categoryKey] || {}).forEach(itemKey => {
                         const inputEntrada = document.getElementById(`${itemKey}_entrada`);
-                        if (inputEntrada && !inputEntrada.value) { // Só preenche se o usuário não digitou nada
-                            inputEntrada.value = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                        if (inputEntrada) {
+                            const sobraAnterior = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                            inputEntrada.value = sobraAnterior;
+                            
+                            // Marca como transferido para validação e estilo visual
+                            adicionarIndicadorCampoTransferido(inputEntrada, estoqueAnterior.turnoId);
+                            itensTransferidosCount++;
                         }
                     });
                 });
                 
                 const inputEntradaGelo = document.getElementById(`gelo_pacote_entrada`);
-                if (inputEntradaGelo && !inputEntradaGelo.value) {
-                     inputEntradaGelo.value = estoqueAnterior.gelo?.gelo_pacote?.sobra || 0;
+                if (inputEntradaGelo && estoqueAnterior.gelo?.gelo_pacote?.sobra) {
+                    inputEntradaGelo.value = estoqueAnterior.gelo.gelo_pacote.sobra;
+                    
+                    // Marca como transferido para validação e estilo visual
+                    adicionarIndicadorCampoTransferido(inputEntradaGelo, estoqueAnterior.turnoId);
+                    itensTransferidosCount++;
+                }
+                
+                // TRANSFERÊNCIA AUTOMÁTICA: Se tiver caixa final no turno anterior, usar como caixa inicial
+                if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
+                    caixaInicioInput.value = estoqueAnterior.caixaFinal;
+                    
+                    // Marca como transferido para validação e estilo visual
+                    adicionarIndicadorCampoTransferido(caixaInicioInput, estoqueAnterior.turnoId);
                 }
 
                 const initialItensData = collectItemData(true); // Coleta apenas entradas e preços unitários
@@ -575,10 +673,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const turnoDataToSave = {
                     abertura: aberturaDataObj,
                     status: 'aberto',
-                    caixaInicial: caixaInicialVal,
+                    caixaInicial: parseFloat(caixaInicioInput.value) || 0,
                     itens: initialItensData.itens,
                     gelo: initialItensData.gelo,
                     turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
+                    dadosTransferidos: {
+                        quantidadeItens: itensTransferidosCount,
+                        caixaTransferido: estoqueAnterior.caixaFinal !== undefined
+                    },
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 };
@@ -595,8 +697,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 turnoAbertoLocalmente = true;
                 btnAbrirTurno.disabled = true;
                 btnFecharTurno.disabled = false;
-                turnoStatusP.textContent = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
+                
+                // Mensagem de status com informação sobre os dados transferidos
+                let statusMsg = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
+                if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
+                    statusMsg += ` Dados transferidos do turno anterior.`;
+                }
+                turnoStatusP.textContent = statusMsg;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
+                
                 toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
                 
                 // Ativa listener para mudanças remotas
@@ -636,7 +745,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
             if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
                 const dados = turnoAnteriorDoc.data();
-                const estoqueFinal = { itens: {}, gelo: {}, turnoId: idTurnoAnterior };
+                const estoqueFinal = { 
+                    itens: {}, 
+                    gelo: {}, 
+                    turnoId: idTurnoAnterior,
+                    caixaFinal: null  // Inicializa o campo para caixa final
+                };
+                
+                // Transfere itens do inventário
                 if (dados.itens) {
                     Object.keys(dados.itens).forEach(cat => {
                         estoqueFinal.itens[cat] = {};
@@ -645,16 +761,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                     });
                 }
-                 if (dados.gelo && dados.gelo.gelo_pacote) { 
+                
+                // Transfere gelo
+                if (dados.gelo && dados.gelo.gelo_pacote) { 
                     estoqueFinal.gelo.gelo_pacote = { sobra: dados.gelo.gelo_pacote.sobra || 0 };
-                 }
+                }
+                
+                // TRANSFERÊNCIA DE CAIXA: Pegar o caixa final do turno anterior
+                if (dados.caixaFinalContado !== undefined) {
+                    estoqueFinal.caixaFinal = dados.caixaFinalContado;
+                }
+                
                 return estoqueFinal;
             }
             console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não fechado. Iniciando com estoque zero.`);
         } catch (error) {
             console.error("Erro ao buscar estoque do turno anterior:", error);
         }
-        return { itens: {}, gelo: {}, turnoId: null };
+        return { itens: {}, gelo: {}, turnoId: null, caixaFinal: null };
     }
 
 
@@ -768,7 +892,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         totalVendidoCalculadoFinal: totalVendidoCalc,
                         totalRegistradoPagamentosFinal: totalPagamentos,
                         diferencaCaixaFinal: caixaDiferencaVal,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp() // Adiciona timestamp de fechamento para consultas
                     };
                     
                     // Atualiza o documento dentro da transação
@@ -792,7 +917,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     unsubscribeTurnoListener = null;
                 }
                 
-                resetFormAndState();
+                // ADICIONADO: Atualizar os dados do turno anterior para o próximo que será aberto
+                await carregarDadosTurnoAnterior();
+                
+                resetFormAndState("Turno fechado com sucesso! Você já pode abrir um novo turno.");
 
             } catch (error) {
                 console.error("Erro ao fechar turno: ", error);
@@ -843,11 +971,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isValid;
     }
 
+    // NOVA FUNÇÃO: Validar se valores transferidos não foram alterados
+    function validarCamposTransferidos(event) {
+        // Se o campo tem dataset.transferidoDoTurno, validar que seu valor não foi alterado
+        const target = event.target;
+        if (target && target.dataset && target.dataset.transferidoDoTurno) {
+            const valorOriginal = target.dataset.valorOriginal;
+            if (valorOriginal !== undefined && target.value !== valorOriginal) {
+                // Tentar restaurar o valor original
+                target.value = valorOriginal;
+                showError(`O campo "${target.name || target.id}" foi preenchido automaticamente com dados do turno anterior e não pode ser alterado.`);
+                return false;
+            }
+        }
+        return true;
+    }
 
     // --- CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ---
     function setupEventListeners() {
         formTurno.addEventListener('input', (e) => {
             const target = e.target;
+            
+            // NOVA VALIDAÇÃO: Verificar se está tentando alterar um campo transferido do turno anterior
+            if (!validarCamposTransferidos(e)) {
+                e.preventDefault();
+                return;
+            }
+            
             if (target.closest('.item-row') && target.type === 'number') {
                 const row = target.closest('.item-row');
                 const itemKey = row.dataset.itemKey;
@@ -1242,6 +1392,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
     
+    // Inicializa a página e carrega os dados necessários
     initializePage();
 });
 

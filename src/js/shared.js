@@ -18,6 +18,8 @@ const STORAGE_KEYS = {
     TURNO_DATA: 'turnoData',
     TURNO_STATUS: 'turnoStatus',
     LAST_CLOSED_TURNO: 'lastClosedTurno',
+    PREVIOUS_TURNO_ID: 'previousTurnoId',
+    TRANSFERRED_DATA: 'transferredData',
     
     // Configuração e estado do sistema
     APP_CONFIG: 'pastelaria_config',
@@ -377,6 +379,105 @@ function getLastClosedTurno() {
     return getLocalItem(STORAGE_KEYS.LAST_CLOSED_TURNO, true, null);
 }
 
+/**
+ * NOVA FUNÇÃO: Salva informações sobre o turno anterior
+ * @param {string} turnoAnteriorId - ID do turno anterior
+ * @param {Object} dadosTransferidos - Dados transferidos
+ */
+function salvarInfoTurnoAnterior(turnoAnteriorId, dadosTransferidos = {}) {
+    try {
+        if (!turnoAnteriorId) return false;
+        
+        setLocalItem(STORAGE_KEYS.PREVIOUS_TURNO_ID, turnoAnteriorId);
+        setLocalItem(STORAGE_KEYS.TRANSFERRED_DATA, {
+            turnoAnteriorId: turnoAnteriorId,
+            dadosTransferidos: dadosTransferidos,
+            dataTransferencia: new Date().toISOString()
+        }, true);
+        
+        return true;
+    } catch (error) {
+        console.error("Erro ao salvar informações do turno anterior:", error);
+        return false;
+    }
+}
+
+/**
+ * NOVA FUNÇÃO: Obtém informações sobre o turno anterior
+ * @returns {Object|null} - Dados sobre turno anterior e transferência
+ */
+function obterInfoTurnoAnterior() {
+    try {
+        return getLocalItem(STORAGE_KEYS.TRANSFERRED_DATA, true, null);
+    } catch (error) {
+        console.error("Erro ao obter informações do turno anterior:", error);
+        return null;
+    }
+}
+
+/**
+ * NOVA FUNÇÃO: Verifica se um campo foi transferido do turno anterior
+ * @param {HTMLElement} elemento - Elemento do DOM para verificar
+ * @returns {boolean} - Se o elemento tem dados transferidos
+ */
+function isCampoTransferido(elemento) {
+    if (!elemento) return false;
+    return elemento.hasAttribute('data-transferido-do-turno');
+}
+
+/**
+ * NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
+ * @param {HTMLElement} elemento - Elemento que recebeu valor transferido
+ * @param {string} origem - ID do turno de origem
+ */
+function adicionarIndicadorCampoTransferido(elemento, origem) {
+    if (!elemento) return;
+    
+    // Adiciona classe de estilo para destacar visualmente
+    elemento.classList.add('bg-blue-50', 'border-blue-300');
+    
+    // Armazena informação de que este campo veio do turno anterior
+    elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+    elemento.dataset.valorOriginal = elemento.value;
+    
+    // Adiciona um pequeno indicador visual ao lado do campo
+    const parentElement = elemento.parentElement;
+    if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
+        const indicador = document.createElement('span');
+        indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+        indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+        indicador.title = 'Valor transferido do turno anterior - Não editável';
+        parentElement.appendChild(indicador);
+    }
+}
+
+/**
+ * NOVA FUNÇÃO: Valida se os campos transferidos não foram alterados
+ * @param {Event} event - Evento de input
+ * @returns {boolean} - Se a validação passou (true) ou falhou (false)
+ */
+function validarCamposTransferidos(event) {
+    // Se o campo tem dataset.transferidoDoTurno, validar que seu valor não foi alterado
+    const target = event.target;
+    if (target && target.dataset && target.dataset.transferidoDoTurno) {
+        const valorOriginal = target.dataset.valorOriginal;
+        if (valorOriginal !== undefined && target.value !== valorOriginal) {
+            // Tentar restaurar o valor original
+            target.value = valorOriginal;
+            
+            // Exibir mensagem de erro se houver uma função de exibição disponível
+            if (typeof showError === 'function') {
+                showError(`O campo "${target.name || target.id}" foi preenchido automaticamente com dados do turno anterior e não pode ser alterado.`);
+            } else {
+                console.error(`Tentativa de alterar campo transferido: ${target.name || target.id}`);
+                alert(`O campo "${target.name || target.id}" foi preenchido automaticamente com dados do turno anterior e não pode ser alterado.`);
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
 // ===== FUNÇÕES DE FORMATAÇÃO DE DATA E HORA =====
 
 /**
@@ -608,6 +709,50 @@ function extractNumberFromFormattedCurrency(formattedValue) {
     }
 }
 
+/**
+ * NOVA FUNÇÃO: Exibe uma mensagem de erro
+ * @param {string} message - Mensagem a ser exibida
+ * @param {string} [containerId] - ID do elemento para exibir a mensagem
+ */
+function showError(message, containerId = 'errorMessages') {
+    try {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.textContent = message;
+            container.classList.remove('hidden');
+            
+            // Aplicar estilo para tornar o erro mais visível
+            container.classList.add('text-red-600', 'font-medium', 'p-3', 'bg-red-100', 'border', 'border-red-300', 'rounded-md');
+            
+            // Rolar até a mensagem se estiver fora da área visível
+            container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+            // Fallback para alert se o container não existir
+            console.error(message);
+            alert(message);
+        }
+    } catch (error) {
+        console.error("Erro ao exibir mensagem:", error);
+        alert(message); // Fallback para alert em caso de erro
+    }
+}
+
+/**
+ * NOVA FUNÇÃO: Limpa uma mensagem de erro
+ * @param {string} [containerId] - ID do elemento contendo a mensagem
+ */
+function clearError(containerId = 'errorMessages') {
+    try {
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.textContent = '';
+            container.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error("Erro ao limpar mensagem:", error);
+    }
+}
+
 // ===== FUNÇÕES DE STATUS DE CONEXÃO =====
 
 /**
@@ -634,6 +779,47 @@ function setupConnectivityListeners(onlineCallback, offlineCallback) {
             window.removeEventListener('offline', offlineCallback);
         }
     };
+}
+
+/**
+ * NOVA FUNÇÃO: Cria resumo de transferência entre turnos
+ * @param {string} turnoOrigemId - ID do turno de origem
+ * @param {string} turnoDestinoId - ID do turno de destino
+ * @param {Object} dadosTransferidos - Objeto com dados transferidos
+ * @returns {HTMLElement} - Elemento HTML com o resumo
+ */
+function criarResumoTransferencia(turnoOrigemId, turnoDestinoId, dadosTransferidos) {
+    const container = document.createElement('div');
+    container.className = 'turno-anterior-resumo';
+    
+    // Adicionar título
+    const titulo = document.createElement('h4');
+    titulo.textContent = 'Transferência Entre Turnos';
+    container.appendChild(titulo);
+    
+    // Adicionar informações sobre os turnos
+    const origemInfo = document.createElement('p');
+    origemInfo.innerHTML = `<strong>Turno origem:</strong> ${turnoOrigemId || 'Desconhecido'}`;
+    container.appendChild(origemInfo);
+    
+    const destinoInfo = document.createElement('p');
+    destinoInfo.innerHTML = `<strong>Turno destino:</strong> ${turnoDestinoId || 'Atual'}`;
+    container.appendChild(destinoInfo);
+    
+    // Adicionar contagem de itens transferidos
+    if (dadosTransferidos) {
+        const contagem = document.createElement('p');
+        contagem.innerHTML = `<strong>Itens transferidos:</strong> <span class="transferencia-contagem">${dadosTransferidos.quantidadeItens || 0}</span>`;
+        container.appendChild(contagem);
+        
+        if (dadosTransferidos.caixaTransferido) {
+            const caixaInfo = document.createElement('p');
+            caixaInfo.innerHTML = `<strong>Caixa transferido:</strong> <span class="transferencia-contagem">Sim</span>`;
+            container.appendChild(caixaInfo);
+        }
+    }
+    
+    return container;
 }
 
 // ===== EXPORTAÇÃO DAS FUNÇÕES =====
@@ -666,6 +852,14 @@ if (typeof window !== 'undefined') {
     window.hasTurnoAbertoLocal = hasTurnoAbertoLocal;
     window.getLastClosedTurno = getLastClosedTurno;
     
+    // Novas funções de transferência entre turnos
+    window.salvarInfoTurnoAnterior = salvarInfoTurnoAnterior;
+    window.obterInfoTurnoAnterior = obterInfoTurnoAnterior;
+    window.isCampoTransferido = isCampoTransferido;
+    window.adicionarIndicadorCampoTransferido = adicionarIndicadorCampoTransferido;
+    window.validarCamposTransferidos = validarCamposTransferidos;
+    window.criarResumoTransferencia = criarResumoTransferencia;
+    
     // Funções de formatação de data e hora
     window.getFormattedDate = getFormattedDate;
     window.getFormattedTime = getFormattedTime;
@@ -678,13 +872,15 @@ if (typeof window !== 'undefined') {
     window.createProductRow = createProductRow;
     window.formatCurrency = formatCurrency;
     window.extractNumberFromFormattedCurrency = extractNumberFromFormattedCurrency;
+    window.showError = showError;
+    window.clearError = clearError;
     
     // Funções de conectividade
     window.isOnline = isOnline;
     window.setupConnectivityListeners = setupConnectivityListeners;
     
     // Log de carregamento
-    console.log("shared.js carregado com funções aprimoradas de manipulação do localStorage e utilitários diversos.");
+    console.log("shared.js carregado com funções aprimoradas para transferência entre turnos.");
 }
 
 // Limpa dados potencialmente obsoletos a cada carregamento da página

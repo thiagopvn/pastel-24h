@@ -356,3 +356,105 @@ a:focus, button:focus {
     }
     /* Adicionar mais regras para otimizar a impressão conforme necessário */
 }
+
+/* Estilos para indicar campos transferidos do turno anterior */
+
+/* Estilo para o campo com dado transferido */
+[data-transferido-do-turno] {
+    background-color: #EFF6FF !important; /* Azul muito claro */
+    border-color: #93C5FD !important;
+    border-width: 1px;
+    color: #2563EB;
+    font-weight: 500;
+}
+
+/* Efeito de hover para mostrar que não é editável */
+[data-transferido-do-turno]:hover {
+    cursor: not-allowed;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* Indicador visual pequeno ao lado do campo */
+.indicador-transferido {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: #2563EB;
+    margin-left: 0.25rem;
+    vertical-align: middle;
+    animation: pulse-blue 2s infinite;
+}
+
+@keyframes pulse-blue {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}
+
+/* Tooltip ao passar o mouse sobre o indicador */
+.indicador-transferido:hover {
+    cursor: help;
+}
+
+/* Estilo para o popup de alerta quando tenta editar campo transferido */
+.alerta-campo-transferido {
+    background-color: #FEF2F2;
+    border: 1px solid #F87171;
+    color: #DC2626;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.375rem;
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 100;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    max-width: 24rem;
+    animation: slide-in 0.3s ease-out forwards;
+}
+
+@keyframes slide-in {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Estilos para o cabeçalho de resumo do turno anterior */
+.turno-anterior-resumo {
+    background-color: #F3F4F6;
+    border-left: 4px solid #2563EB;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    font-size: 0.875rem;
+}
+
+.turno-anterior-resumo h4 {
+    margin: 0 0 0.5rem 0;
+    color: #1F2937;
+    font-weight: 600;
+}
+
+.turno-anterior-resumo p {
+    margin: 0.25rem 0;
+    color: #4B5563;
+}
+
+.transferencia-contagem {
+    background-color: #DBEAFE;
+    color: #1E40AF;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    font-weight: 500;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+}

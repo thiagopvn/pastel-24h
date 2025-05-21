@@ -28,6 +28,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const turnosIncompletosReportDiv = document.getElementById('turnosIncompletosReport');
     const dataFiltroDashboardInput = document.getElementById('dataFiltroDashboard');
     const btnFiltrarDashboard = document.getElementById('btnFiltrarDashboard');
+    
+    // Novo elemento para o relatório de transferências entre turnos
+    const transferenciasTurnosReportDiv = document.createElement('div');
+    transferenciasTurnosReportDiv.id = 'transferenciasTurnosReport';
+    transferenciasTurnosReportDiv.className = 'md:col-span-2 bg-blue-50 p-5 rounded-lg shadow-sm border border-blue-200 report-card';
+    if (turnosIncompletosReportDiv && turnosIncompletosReportDiv.parentNode) {
+        turnosIncompletosReportDiv.parentNode.insertBefore(transferenciasTurnosReportDiv, turnosIncompletosReportDiv.nextSibling);
+    }
+    
+    // Adiciona título ao relatório de transferências
+    const tituloTransferencias = document.createElement('h3');
+    tituloTransferencias.className = 'text-lg font-semibold text-blue-600 mb-3 pb-2 border-b border-blue-200 flex items-center';
+    tituloTransferencias.innerHTML = '<i class="fas fa-exchange-alt mr-2"></i>Transferências entre Turnos';
+    transferenciasTurnosReportDiv.appendChild(tituloTransferencias);
+    
+    // Conteúdo do relatório de transferências
+    const conteudoTransferencias = document.createElement('div');
+    conteudoTransferencias.className = 'text-sm space-y-2 report-list p-2 text-blue-700';
+    transferenciasTurnosReportDiv.appendChild(conteudoTransferencias);
 
     // Elementos da Aba de Usuários
     const formNovoUsuario = document.getElementById('formNovoUsuario');
@@ -71,7 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- GERENCIAMENTO DE PREÇOS ---
     function createPriceInput(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
         const div = document.createElement('div');
-        // div.className = 'mb-3'; // Usado no HTML, aqui pode ser direto
         
         const label = document.createElement('label');
         label.htmlFor = `preco_${categoryKey}_${itemKey}`;
@@ -235,6 +253,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         pagamentosReportDiv.innerHTML = '<p class="text-gray-500 p-4 text-center">Carregando formas de pagamento...</p>';
         divergenciasReportDiv.innerHTML = '<p class="text-gray-500 p-4 text-center">Carregando divergências...</p>';
         turnosIncompletosReportDiv.innerHTML = '<p class="text-gray-500 p-4 text-center">Carregando turnos incompletos...</p>';
+        conteudoTransferencias.innerHTML = '<p class="text-gray-500 p-4 text-center">Carregando dados de transferências entre turnos...</p>';
 
         try {
             let query = db.collection('turnos').where('status', '==', 'fechado'); // Apenas turnos fechados para relatórios de vendas
@@ -271,10 +290,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 vendasPorProdutoReportDiv.innerHTML = `<p class="text-gray-600 p-4 text-center">${msg}</p>`;
                 pagamentosReportDiv.innerHTML = `<p class="text-gray-600 p-4 text-center">${msg}</p>`;
                 divergenciasReportDiv.innerHTML = `<p class="text-gray-600 p-4 text-center">${msg}</p>`;
+                conteudoTransferencias.innerHTML = `<p class="text-gray-600 p-4 text-center">${msg}</p>`;
             } else {
                 generateVendasPorProdutoReport(turnosFechados);
                 generatePagamentosReport(turnosFechados);
                 generateDivergenciasReport(turnosFechados);
+                generateTransferenciasReport(turnosFechados); // Nova função para relatório de transferências
             }
 
             // Para turnos incompletos/abertos, fazemos uma query separada
@@ -294,6 +315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             pagamentosReportDiv.innerHTML = errorMsg;
             divergenciasReportDiv.innerHTML = errorMsg;
             turnosIncompletosReportDiv.innerHTML = errorMsg;
+            conteudoTransferencias.innerHTML = errorMsg;
         }
     }
 
@@ -429,6 +451,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
+    // NOVA FUNÇÃO: Gera relatório de transferências entre turnos
+    function generateTransferenciasReport(turnosFechados) {
+        conteudoTransferencias.innerHTML = '';
+        const ul = document.createElement('ul');
+        ul.className = 'space-y-3';
+        let hasTransferencias = false;
+        
+        // Ordenar turnos por data de fechamento (mais recentes primeiro)
+        const turnosOrdenados = [...turnosFechados].sort((a, b) => {
+            if (a.closedAt && b.closedAt) {
+                return b.closedAt.seconds - a.closedAt.seconds;
+            }
+            return 0;
+        });
+        
+        // Procurar por turnos que contêm informações de transferência
+        turnosOrdenados.forEach(turno => {
+            // Verificar se este turno tem o campo turnoAnteriorId preenchido
+            if (turno.turnoAnteriorId) {
+                hasTransferencias = true;
+                const li = document.createElement('li');
+                li.className = 'p-3 bg-blue-50 rounded shadow-xs border border-blue-300';
+                
+                // Dados de data e hora do turno
+                const dataHoraTurno = turno.id.split('_')[0];
+                const periodoTurno = turno.id.split('_')[1];
+                
+                // Informações sobre o turno que recebeu a transferência
+                let msg = `<div class="font-semibold text-blue-700">Transferência para o Turno: ${dataHoraTurno} (${periodoTurno})</div>`;
+                msg += `<div class="text-xs text-gray-600">Turno Anterior: ${turno.turnoAnteriorId}</div>`;
+                
+                // Contador de itens transferidos
+                let itensTransferidos = 0;
+                
+                // Verificar dados transferidos do turno anterior
+                if (turno.dadosTransferidos) {
+                    if (turno.dadosTransferidos.quantidadeItens) {
+                        itensTransferidos = turno.dadosTransferidos.quantidadeItens;
+                        msg += `<p class="mt-1 text-sm">Itens transferidos: <span class="font-semibold">${itensTransferidos}</span></p>`;
+                    }
+                    
+                    if (turno.dadosTransferidos.caixaTransferido) {
+                        msg += `<p class="mt-1 text-sm">Caixa transferido: <span class="font-semibold">R$ ${turno.caixaInicial?.toFixed(2) || '0.00'}</span></p>`;
+                    }
+                }
+                
+                // Responsável pela abertura do turno que recebeu a transferência
+                msg += `<div class="text-xs text-gray-600 mt-1">Responsável: ${turno.abertura?.responsavelNome || 'N/A'}</div>`;
+                
+                li.innerHTML = msg;
+                ul.appendChild(li);
+            }
+        });
+        
+        if (!hasTransferencias) {
+            conteudoTransferencias.innerHTML = '<p class="text-blue-600 p-4 text-center font-medium">Nenhuma transferência entre turnos encontrada no período selecionado.</p>';
+        } else {
+            // Adicionar resumo de transferências
+            const resumo = document.createElement('div');
+            resumo.className = 'bg-white p-3 mb-3 rounded-lg shadow-sm';
+            resumo.innerHTML = `
+                <p class="text-sm font-medium text-blue-700">
+                    ${ul.childElementCount} transferências encontradas no período
+                </p>
+            `;
+            conteudoTransferencias.appendChild(resumo);
+            conteudoTransferencias.appendChild(ul);
+        }
+    }
+    
     function generateTurnosIncompletosReport(turnosAbertos, turnosFechados) {
         turnosIncompletosReportDiv.innerHTML = '';
         const ul = document.createElement('ul');
@@ -444,6 +536,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             li.innerHTML = `<div class="font-semibold text-yellow-700">Turno Aberto: ${dataHoraAbertura} (${turno.id.split('_')[1]})</div>
                             <div class="text-xs text-gray-600">Responsável Abertura: ${turno.abertura?.responsavelNome || 'N/A'}</div>`;
+            
+            // Adicionar informação sobre dados transferidos de turno anterior, se houver
+            if (turno.turnoAnteriorId) {
+                li.innerHTML += `<div class="mt-1 text-xs text-blue-600">
+                    <i class="fas fa-exchange-alt mr-1"></i> Recebeu dados do turno: ${turno.turnoAnteriorId}
+                </div>`;
+            }
+            
             ul.appendChild(li);
         });
         
@@ -644,7 +744,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if(allTabsButtons[0].id === 'btnTabDashboard') loadDashboardData();
         if(allTabsButtons[0].id === 'btnTabPrecos') loadCurrentPrices();
         if(allTabsButtons[0].id === 'btnTabUsuarios') loadUsuarios();
-
     }
 });
 
