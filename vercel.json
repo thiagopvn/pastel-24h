@@ -8,12 +8,10 @@
     { "src": "public/**/*", "use": "@vercel/static" },
     { "src": "img/**/*", "use": "@vercel/static" }
   ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/", "dest": "/index.html" },
-    { "src": "/funcionario", "dest": "/funcionario.html" },
-    { "src": "/admin", "dest": "/admin.html" },
-    { "src": "/(.*)", "dest": "/$1" }
+  "rewrites": [
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/funcionario", "destination": "/funcionario" },
+    { "source": "/admin", "destination": "/admin" }
   ],
   "cleanUrls": true,
   "trailingSlash": false

@@ -63,15 +63,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const userRole = localStorage.getItem('userRole');
                 
                 if (userRole === 'admin') {
-                    if (currentPage !== 'admin.html') {
+                    if (currentPage !== 'admin') {
                         console.log("Redirecionando admin para admin.html de", currentPage);
-                        executeRedirect('admin.html');
+                        executeRedirect('admin');
                         return;
                     }
                 } else if (userRole === 'funcionario') {
-                    if (currentPage !== 'funcionario.html') {
+                    if (currentPage !== 'funcionario') {
                         console.log("Redirecionando funcionário para funcionario.html de", currentPage);
-                        executeRedirect('funcionario.html');
+                        executeRedirect('funcionario.');
                         return;
                     }
                 } else {
