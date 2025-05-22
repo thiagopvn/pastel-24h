@@ -350,31 +350,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         const localListaSaboresPasteis = typeof listaSaboresPasteis !== 'undefined' ? listaSaboresPasteis : [];
         localListaSaboresPasteis.forEach(sabor => {
             const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o').replace(/[úùûü]/g, 'u');
-            const row = createProductRow(sabor, key, 'pasteis', productPrices, true); // Inicialmente readonly
+            const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true); // Inicialmente readonly
             tabelaPasteisBody.appendChild(row);
         });
 
         const localListaCasquinhas = typeof listaCasquinhas !== 'undefined' ? listaCasquinhas : [];
         localListaCasquinhas.forEach(casquinha => {
             const key = casquinha.toLowerCase().replace(/\s+/g, '_');
-            const row = createProductRow(casquinha, key, 'casquinhas', productPrices, true);
+            const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
             tabelaCasquinhasBody.appendChild(row);
         });
 
         const localListaCaldoCana = typeof listaCaldoCana !== 'undefined' ? listaCaldoCana : [];
         localListaCaldoCana.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\d+ml/, d => d.toLowerCase()).replace(/\d+litro/, d => d.toLowerCase());
-            const row = createProductRow(item, key, 'caldo_cana', productPrices, true);
+            const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
             tabelaCaldoCanaBody.appendChild(row);
         });
 
         const localListaRefrigerantes = typeof listaRefrigerantes !== 'undefined' ? listaRefrigerantes : [];
         localListaRefrigerantes.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\./g, '');
-            const row = createProductRow(item, key, 'refrigerantes', productPrices, true);
+            const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
             tabelaRefrigerantesBody.appendChild(row);
         });
         
+        // GELO COM NOVA ESTRUTURA (Entrada + Chegadas)
         const geloKey = 'gelo_pacote';
         const trGelo = document.createElement('tr');
         trGelo.className = 'border-b item-row';
@@ -386,13 +387,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         tdGeloName.textContent = 'Gelo (Pacote)';
         trGelo.appendChild(tdGeloName);
         
-        // Gelo usa a função createInputCell, mas as colunas são específicas
+        // Gelo: entrada, chegadas, sobra, vendas, consumo_interno
         trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm")); // entrada
+        trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas")); // chegadas
         trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));   // sobra
         const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm"); // vendas
         tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true"; // Marcação para event listener
         trGelo.appendChild(tdVendasGelo);
-        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));// consumo_interno (o de funcionario é diferente)
+        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));// consumo_interno
         
         const tdPrecoGelo = document.createElement('td');
         tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600';
@@ -408,6 +410,59 @@ document.addEventListener('DOMContentLoaded', async () => {
         trGelo.appendChild(tdTotalGelo);
         
         tabelaGeloBody.appendChild(trGelo);
+    }
+
+    // NOVA FUNÇÃO: Cria linha de produto com coluna CHEGADAS
+    function createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
+        const tr = document.createElement('tr');
+        tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
+        tr.dataset.itemKey = itemKey;
+        tr.dataset.categoryKey = categoryKey;
+
+        const tdName = document.createElement('td');
+        tdName.className = 'px-3 py-2 font-medium text-gray-800';
+        tdName.textContent = itemName;
+        tr.appendChild(tdName);
+
+        // Entrada (do turno anterior)
+        tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
+        
+        // NOVA COLUNA: Chegadas (editável durante o turno)
+        const tdChegadas = createInputCell('number', `${itemKey}_chegadas`, '0', '', isReadOnly, "w-full p-1 border rounded text-sm");
+        tdChegadas.classList.add('col-chegadas'); // Destaque visual
+        tr.appendChild(tdChegadas);
+        
+        tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
+        tr.appendChild(createInputCell('number', `${itemKey}_descarte`, '0', '', isReadOnly));
+        tr.appendChild(createInputCell('number', `${itemKey}_consumo`, '0', '', isReadOnly));
+        
+        const tdVendido = document.createElement('td');
+        tdVendido.className = 'px-1 py-1';
+        const inputVendido = document.createElement('input');
+        inputVendido.type = 'number';
+        inputVendido.id = `${itemKey}_vendido`;
+        inputVendido.name = `${itemKey}_vendido`;
+        inputVendido.className = 'w-full p-1 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed shadow-sm';
+        inputVendido.readOnly = true;
+        inputVendido.value = '0';
+        inputVendido.dataset.price = prices[categoryKey]?.[itemKey]?.preco || 0;
+        tdVendido.appendChild(inputVendido);
+        tr.appendChild(tdVendido);
+
+        const tdPreco = document.createElement('td');
+        tdPreco.className = 'px-3 py-2 text-sm text-gray-600 text-center';
+        const precoUnit = prices[categoryKey]?.[itemKey]?.preco || 0;
+        tdPreco.textContent = `R$ ${parseFloat(precoUnit).toFixed(2)}`;
+        tdPreco.id = `${itemKey}_preco_display`;
+        tr.appendChild(tdPreco);
+        
+        const tdTotalItem = document.createElement('td');
+        tdTotalItem.className = 'px-3 py-2 text-sm text-gray-700 font-semibold text-right';
+        tdTotalItem.id = `${itemKey}_total_item`;
+        tdTotalItem.textContent = `R$ 0.00`;
+        tr.appendChild(tdTotalItem);
+
+        return tr;
     }
 
     // NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
@@ -476,20 +531,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                 el.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
             }
         });
-         // Após abrir o turno, 'entrada' e 'caixaInicial' devem ficar readonly.
+         // Após abrir o turno, 'entrada' deve ficar readonly, mas 'chegadas' editável
          if (turnoAbertoLocalmente || currentTurnoId) { // Significa que o turno está "em andamento"
             if(caixaInicioInput) caixaInicioInput.readOnly = true;
             if(caixaInicioInput) caixaInicioInput.classList.add('bg-gray-100');
+            
+            // Entrada fica readonly (vem do turno anterior)
             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
                 inp.readOnly = true;
                 inp.classList.add('bg-gray-100');
             });
-        } else { // Se nenhum turno aberto, caixa inicial e entradas estão disponíveis para o "Abrir Turno"
+            
+            // Chegadas ficam editáveis durante o turno (se não for transferido)
+            document.querySelectorAll('input[id$="_chegadas"]').forEach(inp => {
+                if (!inp.dataset.transferidoDoTurno) {
+                    inp.readOnly = false;
+                    inp.classList.remove('bg-gray-100');
+                    inp.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
+                }
+            });
+        } else { // Se nenhum turno aberto, entrada e chegadas estão disponíveis para o "Abrir Turno"
              if(caixaInicioInput) caixaInicioInput.readOnly = false;
              if(caixaInicioInput) caixaInicioInput.classList.remove('bg-gray-100');
-             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
-                inp.readOnly = false;
-                inp.classList.remove('bg-gray-100');
+             document.querySelectorAll('input[id$="_entrada"], input[id$="_chegadas"]').forEach(inp => {
+                if (!inp.dataset.transferidoDoTurno) {
+                    inp.readOnly = false;
+                    inp.classList.remove('bg-gray-100');
+                }
             });
         }
     }
@@ -519,6 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Limpar totais e campos calculados para garantir que não haja lixo visual
         document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
+        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0'); // NOVO: limpar chegadas
         document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = 'R$ 0.00');
         if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = 'R$ 0.00';
         if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = 'R$ 0.00';
@@ -673,7 +742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 adicionarResumoTurnoAnterior(estoqueAnterior.turnoId, estoqueAnterior);
                 }
 
-                const initialItensData = collectItemData(true); // Coleta apenas entradas e preços unitários
+                const initialItensData = collectItemData(true); // Coleta apenas entradas, chegadas e preços unitários
 
                 const turnoDataToSave = {
             abertura: aberturaDataObj,
@@ -716,7 +785,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         turnoStatusP.textContent = statusMsg;
         turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
         
-        toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
+        toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly, chegadas editáveis
         
         // Ativa listener para mudanças remotas
         setupTurnoListener();
@@ -816,7 +885,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 fechamentoTimestamp: dados.closedAt || null
             };
             
-            // Transfere itens do inventário
+            // Transfere itens do inventário (apenas SOBRA vai para próxima ENTRADA)
             if (dados.itens) {
                 Object.keys(dados.itens).forEach(cat => {
                     estoqueFinal.itens[cat] = {};
@@ -826,19 +895,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                           // Adicionando outros dados que podem ser úteis
                           precoUnitario: dados.itens[cat][item].precoUnitario,
                           vendido: dados.itens[cat][item].vendido,
-                          totalItemValor: dados.itens[cat][item].totalItemValor
+                          totalItemValor: dados.itens[cat][item].totalItemValor,
+                          chegadas: dados.itens[cat][item].chegadas || 0 // NOVO: incluir chegadas do turno anterior para histórico
                         };
                     });
                 });
             }
             
-            // Transfere gelo
+            // Transfere gelo (apenas SOBRA vai para próxima ENTRADA)
             if (dados.gelo && dados.gelo.gelo_pacote) { 
                 estoqueFinal.gelo.gelo_pacote = { 
                     sobra: dados.gelo.gelo_pacote.sobra || 0,
                     precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
                     vendas: dados.gelo.gelo_pacote.vendas,
-                    totalItemValor: dados.gelo.gelo_pacote.totalItemValor
+                    totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
+                    chegadas: dados.gelo.gelo_pacote.chegadas || 0 // NOVO: incluir chegadas do gelo
                 };
             }
             
@@ -1177,10 +1248,10 @@ function adicionarResumoTurnoAnterior(turnoAnteriorId, estoqueAnterior) {
         let isValid = true;
         const fieldsToValidate = [];
 
-        // Campos de Itens: Sobra, Descarte, Consumo Func.
+        // Campos de Itens: Chegadas, Sobra, Descarte, Consumo Func.
         document.querySelectorAll('.item-row').forEach(row => {
             const itemKey = row.dataset.itemKey;
-            const itemFields = itemKey === 'gelo_pacote' ? ['sobra', 'vendas', 'consumo_interno'] : ['sobra', 'descarte', 'consumo'];
+            const itemFields = itemKey === 'gelo_pacote' ? ['chegadas', 'sobra', 'vendas', 'consumo_interno'] : ['chegadas', 'sobra', 'descarte', 'consumo'];
             itemFields.forEach(fieldSuffix => {
                 fieldsToValidate.push(document.getElementById(`${itemKey}_${fieldSuffix}`));
             });
@@ -1308,17 +1379,21 @@ document.head.appendChild(shakeStyle);
         });
     }
     
+    // NOVA LÓGICA DE CÁLCULO: Entrada + Chegadas - Sobra - Descarte - Consumo = Vendido
     function calculateItemRow(rowElement) {
         const itemKey = rowElement.dataset.itemKey;
         if (!itemKey || itemKey === 'gelo_pacote') return; // Gelo tem cálculo separado
 
         const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
         const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
         const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
         const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
         
         const vendidoInput = document.getElementById(`${itemKey}_vendido`);
-        let vendidoCalculado = entrada - sobra - descarte - consumo;
+        
+        // NOVA FÓRMULA: (Entrada + Chegadas) - Sobra - Descarte - Consumo = Vendido
+        let vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
         
         if (vendidoCalculado < 0) {
             // Se negativo, podemos mostrar um alerta ou apenas zerar.
@@ -1337,6 +1412,7 @@ document.head.appendChild(shakeStyle);
         }
     }
     
+    // NOVA LÓGICA PARA GELO: Vendas são informadas diretamente, não calculadas
     function calculateGeloTotal(rowElement) {
         const itemKey = rowElement.dataset.itemKey; // Deve ser 'gelo_pacote'
         if(itemKey !== 'gelo_pacote') return;
@@ -1422,7 +1498,7 @@ document.head.appendChild(shakeStyle);
         document.getElementById('totalGeloValor').textContent = `R$ ${totalGeloValorVenda.toFixed(2)}`;
 
 
-        // TOTAL VENDIDO NO TURNO (CALCULADO PELOS ITENS)
+        // TOTAL VENDIDO NO TURNO (CALCULADO PELOS ITENS) - AGORA CONSIDERA CHEGADAS
         const granTotalVendidoValor = totalGeralPasteisValor + totalCasquinhasValor + totalCaldoCanaValor + totalRefrigerantesValor + totalGeloValorVenda;
         totalVendidoTurnoCalculadoInput.value = `R$ ${granTotalVendidoValor.toFixed(2)}`;
 
@@ -1515,12 +1591,14 @@ document.head.appendChild(shakeStyle);
             section.querySelectorAll('.item-row').forEach(row => {
                 const itemKey = row.dataset.itemKey;
                 const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+                const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
                 // Usar productPrices carregado para pegar o preço unitário
                 const precoUnitario = productPrices[categoryKey]?.[itemKey]?.preco || 0;
 
                 if (isOpeningTurno) {
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
+                        chegadas: chegadas, // NOVO: salvar chegadas na abertura (geralmente 0)
                         precoUnitario: precoUnitario
                     };
                 } else { 
@@ -1531,6 +1609,7 @@ document.head.appendChild(shakeStyle);
                     
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
+                        chegadas: chegadas, // NOVO: salvar chegadas no fechamento
                         sobra: sobra,
                         descarte: descarte,
                         consumo: consumo,
@@ -1542,23 +1621,25 @@ document.head.appendChild(shakeStyle);
             });
         });
 
-        // Coleta de Gelo
+        // Coleta de Gelo - MODIFICADO para incluir chegadas
         const geloKey = 'gelo_pacote';
         const geloEntrada = parseFloat(document.getElementById(`${geloKey}_entrada`)?.value) || 0;
+        const geloChegadas = parseFloat(document.getElementById(`${geloKey}_chegadas`)?.value) || 0; // NOVO
         const precoUnitarioGelo = productPrices.gelo?.[geloKey]?.preco || 0;
 
         if (isOpeningTurno) {
              data.gelo[geloKey] = {
                 entrada: geloEntrada,
+                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo na abertura (geralmente 0)
                 precoUnitario: precoUnitarioGelo
              };
         } else {
             const geloSobra = parseFloat(document.getElementById(`${geloKey}_sobra`)?.value) || 0;
             const geloVendas = parseFloat(document.getElementById(`${geloKey}_vendas`)?.value) || 0; 
             const geloConsumoInterno = parseFloat(document.getElementById(`${geloKey}_consumo_interno`)?.value) || 0;
-            
             data.gelo[geloKey] = {
                 entrada: geloEntrada,
+                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo no fechamento
                 sobra: geloSobra,
                 vendas: geloVendas, 
                 consumoInterno: geloConsumoInterno,
@@ -1582,6 +1663,10 @@ document.head.appendChild(shakeStyle);
                         if (item) {
                             const entradaInput = document.getElementById(`${itemKey}_entrada`);
                             if (entradaInput) entradaInput.value = item.entrada || 0;
+                            
+                            // NOVO: Carregar chegadas
+                            const chegadasInput = document.getElementById(`${itemKey}_chegadas`);
+                            if (chegadasInput) chegadasInput.value = item.chegadas || 0;
         
                             if (turnoData.status === 'fechado' || turnoAbertoLocalmente) { // Preenche mais se for para fechar
                                  const sobraInput = document.getElementById(`${itemKey}_sobra`);
@@ -1610,6 +1695,10 @@ document.head.appendChild(shakeStyle);
             const geloItem = turnoData.gelo.gelo_pacote;
             const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
             if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
+            
+            // NOVO: Carregar chegadas de gelo
+            const geloChegadasInput = document.getElementById(`gelo_pacote_chegadas`);
+            if (geloChegadasInput) geloChegadasInput.value = geloItem.chegadas || 0;
 
             if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
                 const geloSobraInput = document.getElementById(`gelo_pacote_sobra`);

@@ -163,6 +163,24 @@
         .fade-in {
             animation: fadeIn 0.3s ease-in-out;
         }
+
+        /* Destaque visual para coluna de chegadas */
+        .col-chegadas {
+            background-color: #FEF3C7 !important;
+            border-left: 2px solid #F59E0B;
+            border-right: 2px solid #F59E0B;
+        }
+        
+        .col-chegadas input {
+            background-color: #FFFBEB !important;
+            border-color: #FCD34D !important;
+        }
+        
+        .col-chegadas input:focus {
+            background-color: #FEFCE8 !important;
+            border-color: #F59E0B !important;
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+        }
     </style>
 </head>
 <body class="bg-pattern min-h-screen">
@@ -254,6 +272,23 @@
                         </div>
                     </fieldset>
 
+                    <!-- AVISO SOBRE NOVA COLUNA CHEGADAS -->
+                    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-lg">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <i class="fas fa-info-circle text-amber-400 text-xl"></i>
+                            </div>
+                            <div class="ml-3">
+                                <h3 class="text-amber-800 font-semibold">Nova Funcionalidade: Controle de Chegadas</h3>
+                                <p class="text-amber-700 text-sm mt-1">
+                                    A coluna <strong>"Chegadas"</strong> é para registrar produtos que chegam durante o turno.
+                                    <br>Cálculo: <strong>Vendido = (Entrada + Chegadas) - Sobra - Descarte - Consumo</strong>
+                                    <br>Exemplo: Entrada 10 + Chegadas 50 - Sobra 10 = 50 vendidos
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Seção Pastéis -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="pasteis">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
@@ -265,6 +300,7 @@
                                     <tr>
                                         <th class="px-3 py-3 text-left text-xs font-medium tracking-wider">Sabor</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
@@ -281,25 +317,25 @@
                                 </tbody>
                                 <tfoot class="bg-pastel-orange-50">
                                     <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="5">Total Pastéis Comuns:</td>
+                                        <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Comuns:</td>
                                         <td id="totalPasteisComunsVendido" class="px-2 py-2 text-center">0</td>
                                         <td></td>
                                         <td id="totalPasteisComunsValor" class="px-2 py-2">R$ 0.00</td>
                                     </tr>
                                     <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="5">Total Pastéis Especiais:</td>
+                                        <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Especiais:</td>
                                         <td id="totalPasteisEspeciaisVendido" class="px-2 py-2 text-center">0</td>
                                         <td></td>
                                         <td id="totalPasteisEspeciaisValor" class="px-2 py-2">R$ 0.00</td>
                                     </tr>
                                     <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="5">Total Casquinhas:</td>
+                                        <td class="px-3 py-2 text-right" colspan="6">Total Casquinhas:</td>
                                         <td id="totalCasquinhasVendido" class="px-2 py-2 text-center">0</td>
                                         <td></td>
                                         <td id="totalCasquinhasValor" class="px-2 py-2">R$ 0.00</td>
                                     </tr>
                                     <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="5">TOTAL GERAL DE PASTÉIS (C+E):</td>
+                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL GERAL DE PASTÉIS (C+E):</td>
                                         <td id="totalGeralPasteisVendido" class="px-2 py-3 text-center">0</td>
                                         <td></td>
                                         <td id="totalGeralPasteisValor" class="px-2 py-3">R$ 0.00</td>
@@ -320,6 +356,7 @@
                                     <tr>
                                         <th class="px-3 py-3 text-left text-xs font-medium tracking-wider">Item</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
@@ -333,7 +370,7 @@
                                 </tbody>
                                 <tfoot class="bg-pastel-orange-50">
                                     <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="5">TOTAL CALDO DE CANA:</td>
+                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL CALDO DE CANA:</td>
                                         <td id="totalCaldoCanaVendido" class="px-2 py-3 text-center">0</td>
                                         <td></td>
                                         <td id="totalCaldoCanaValor" class="px-2 py-3">R$ 0.00</td>
@@ -354,6 +391,7 @@
                                     <tr>
                                         <th class="px-3 py-3 text-left text-xs font-medium tracking-wider">Item</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
@@ -367,7 +405,7 @@
                                 </tbody>
                                 <tfoot class="bg-pastel-orange-50">
                                     <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="5">TOTAL REFRIGERANTES E BEBIDAS:</td>
+                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL REFRIGERANTES E BEBIDAS:</td>
                                         <td id="totalRefrigerantesVendido" class="px-2 py-3 text-center">0</td>
                                         <td></td>
                                         <td id="totalRefrigerantesValor" class="px-2 py-3">R$ 0.00</td>
@@ -388,6 +426,7 @@
                                     <tr>
                                         <th class="px-3 py-3 text-left text-xs font-medium tracking-wider">Item</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada (Pct)</th>
+                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas (Pct)</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra (Pct)</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendas (Pct)</th>
                                         <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Interno (Pct)</th>
@@ -400,7 +439,7 @@
                                 </tbody>
                                 <tfoot class="bg-pastel-orange-50">
                                     <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL VENDA DE GELO:</td>
+                                        <td class="px-3 py-3 text-right" colspan="7">TOTAL VENDA DE GELO:</td>
                                         <td id="totalGeloValor" class="px-2 py-3">R$ 0.00</td>
                                     </tr>
                                 </tfoot>
@@ -532,7 +571,7 @@
                         </svg>
                         Pastelaria 24h
                     </p>
-                    <p class="text-sm text-gray-400">Sistema de Controle de Caixa • v2.0</p>
+                    <p class="text-sm text-gray-400">Sistema de Controle de Caixa • v2.1</p>
                 </div>
                 <div class="text-sm text-gray-400">
                     <p>&copy; 2023-2025 • Todos os direitos reservados</p>
