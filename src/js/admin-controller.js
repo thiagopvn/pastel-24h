@@ -2030,37 +2030,61 @@ class PriceManager {
         }
 
         async switchTab(activeTabName) {
-            // Atualizar botões
-            Object.values(this.tabs).forEach(tab => {
-                if (tab.button) {
-                    tab.button.classList.remove('active', 'bg-primary-500', 'text-white', 'font-semibold');
-                    tab.button.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
-                }
-                if (tab.content) {
-                    tab.content.classList.add('hidden');
-                }
-            });
-            
-            const activeTab = this.tabs[activeTabName];
-            if (activeTab) {
-                if (activeTab.button) {
-                    activeTab.button.classList.remove('bg-gray-200', 'text-gray-700', 'font-medium');
-                    activeTab.button.classList.add('active', 'bg-primary-500', 'text-white', 'font-semibold');
-                }
-                if (activeTab.content) {
-                    activeTab.content.classList.remove('hidden');
-                }
+    // Atualizar botões
+    Object.values(this.tabs).forEach(tab => {
+        if (tab.button) {
+            tab.button.classList.remove('active', 'bg-primary-500', 'text-white', 'font-semibold');
+            tab.button.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
+        }
+        if (tab.content) {
+            tab.content.classList.add('hidden');
+        }
+    });
+    
+    const activeTab = this.tabs[activeTabName];
+    if (activeTab) {
+        if (activeTab.button) {
+            activeTab.button.classList.remove('bg-gray-200', 'text-gray-700', 'font-medium');
+            activeTab.button.classList.add('active', 'bg-primary-500', 'text-white', 'font-semibold');
+        }
+        if (activeTab.content) {
+            activeTab.content.classList.remove('hidden');
+        }
+        
+        // Carregar dados da aba se necessário
+        if (activeTab.loader) {
+            try {
+                await activeTab.loader();
                 
-                // Carregar dados da aba se necessário
-                if (activeTab.loader) {
-                    try {
-                        await activeTab.loader();
-                    } catch (error) {
-                        console.error(`Erro ao carregar aba ${activeTabName}:`, error);
-                    }
+                // NOVO: Atualizar contadores após carregar dados de preços
+                if (activeTabName === 'precos') {
+                    this.updatePriceCounters();
                 }
+            } catch (error) {
+                console.error(`Erro ao carregar aba ${activeTabName}:`, error);
+                toastManager.show(`Erro ao carregar dados da aba ${activeTabName}`, 'error');
             }
         }
+    }
+}
+
+// NOVA FUNÇÃO: Atualizar contadores de produtos
+updatePriceCounters() {
+    const counters = {
+        pasteis: document.getElementById('pasteisCount'),
+        casquinhas: document.getElementById('casquinhasCount'),
+        caldo_cana: document.getElementById('caldoCanaCount'),
+        refrigerantes: document.getElementById('refrigerantesCount'),
+        gelo: document.getElementById('geloCount')
+    };
+    
+    Object.entries(priceManager.produtosPorCategoria).forEach(([category, products]) => {
+        const countElement = counters[category];
+        if (countElement) {
+            countElement.textContent = products.length;
+        }
+    });
+}
 
         setupKPIModals() {
             const kpiCards = document.querySelectorAll('.kpi-card');

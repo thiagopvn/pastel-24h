@@ -538,65 +538,172 @@
             </div>
         </div>
 
-        <!-- Conteúdo Preços (mantido da versão original, mas melhorado) -->
-        <div id="tabContentPrecos" class="tab-content hidden">
-            <div class="glass-effect rounded-2xl p-6">
-                <h2 class="text-2xl font-semibold mb-6 text-gray-800 flex items-center">
-                    <i class="fas fa-tags mr-3 text-primary-600"></i>Gerenciar Preços dos Produtos
-                </h2>
-                
-                <form id="formPrecos" class="space-y-8">
-                    <fieldset class="border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-                        <legend class="text-lg font-semibold text-primary-700 px-3 bg-white flex items-center">
-                            <i class="fas fa-utensils mr-2"></i>Pastéis
-                        </legend>
-                        <div id="precosPasteisContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                            <div class="loading-shimmer h-20 rounded"></div>
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-                        <legend class="text-lg font-semibold text-primary-700 px-3 bg-white flex items-center">
-                            <i class="fas fa-ice-cream mr-2"></i>Casquinhas
-                        </legend>
-                        <div id="precosCasquinhasContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-                        <legend class="text-lg font-semibold text-primary-700 px-3 bg-white flex items-center">
-                            <i class="fas fa-glass-whiskey mr-2"></i>Caldo de Cana
-                        </legend>
-                        <div id="precosCaldoCanaContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                        </div>
-                    </fieldset>
-
-                    <fieldset class="border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-                        <legend class="text-lg font-semibold text-primary-700 px-3 bg-white flex items-center">
-                            <i class="fas fa-bottle-water mr-2"></i>Refrigerantes e Bebidas
-                        </legend>
-                        <div id="precosRefrigerantesContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                        </div>
-                    </fieldset>
-                    
-                    <fieldset class="border border-gray-200 p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300">
-                        <legend class="text-lg font-semibold text-primary-700 px-3 bg-white flex items-center">
-                            <i class="fas fa-cube mr-2"></i>Gelo
-                        </legend>
-                        <div id="precosGeloContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mt-4">
-                        </div>
-                    </fieldset>
-
-                    <div class="mt-8">
-                        <button type="submit" class="w-full flex items-center justify-center bg-gradient-to-r from-success-500 to-success-600 hover:from-success-600 hover:to-success-700 text-white font-bold py-4 px-6 rounded-xl text-lg shadow-lg transition-all duration-300">
-                            <i class="fas fa-save mr-2"></i>Salvar Alterações nos Preços
-                        </button>
-                        <p id="precosSalvosMsg" class="text-success-600 mt-3 text-center font-medium"></p>
-                        <p id="precosErrorMsg" class="text-danger-500 mt-3 text-center font-medium"></p>
-                    </div>
-                </form>
+        <!-- Conteúdo Preços (Completamente Reformulado) -->
+<div id="tabContentPrecos" class="tab-content hidden">
+    <div class="glass-effect rounded-2xl p-8">
+        <!-- Header da seção -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
+                <i class="fas fa-tags text-white text-2xl"></i>
             </div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Preços dos Produtos</h2>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                Configure os preços de todos os produtos do sistema. As alterações serão aplicadas imediatamente após salvar.
+            </p>
         </div>
+        
+        <form id="formPrecos" class="space-y-10">
+            <!-- Pastéis -->
+            <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
+                <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
+                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-utensils text-primary-600"></i>
+                    </div>
+                    Pastéis
+                </legend>
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-gray-600">Configure os preços dos pastéis disponíveis no cardápio</p>
+                        <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span id="pasteisCount">0</span> itens
+                        </span>
+                    </div>
+                    <div id="precosPasteisContainer" class="prices-grid">
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Casquinhas -->
+            <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
+                <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
+                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-ice-cream text-primary-600"></i>
+                    </div>
+                    Casquinhas
+                </legend>
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-gray-600">Configure os preços das casquinhas e sorvetes</p>
+                        <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span id="casquinhasCount">0</span> itens
+                        </span>
+                    </div>
+                    <div id="precosCasquinhasContainer" class="prices-grid">
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Caldo de Cana -->
+            <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
+                <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
+                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-glass-whiskey text-primary-600"></i>
+                    </div>
+                    Caldo de Cana
+                </legend>
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-gray-600">Configure os preços do caldo de cana em diferentes tamanhos</p>
+                        <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span id="caldoCanaCount">0</span> itens
+                        </span>
+                    </div>
+                    <div id="precosCaldoCanaContainer" class="prices-grid">
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Refrigerantes e Bebidas -->
+            <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
+                <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
+                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-bottle-water text-primary-600"></i>
+                    </div>
+                    Refrigerantes e Bebidas
+                </legend>
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-gray-600">Configure os preços dos refrigerantes, sucos e águas</p>
+                        <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span id="refrigerantesCount">0</span> itens
+                        </span>
+                    </div>
+                    <div id="precosRefrigerantesContainer" class="prices-grid">
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                    </div>
+                </div>
+            </fieldset>
+            
+            <!-- Gelo -->
+            <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
+                <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
+                    <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
+                        <i class="fas fa-cube text-primary-600"></i>
+                    </div>
+                    Gelo
+                </legend>
+                <div class="mt-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <p class="text-gray-600">Configure o preço do gelo vendido por pacote</p>
+                        <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span id="geloCount">0</span> itens
+                        </span>
+                    </div>
+                    <div id="precosGeloContainer" class="prices-grid">
+                        <div class="price-card-loading h-32 rounded-xl"></div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <!-- Botões de ação -->
+            <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200">
+                <div class="flex flex-col lg:flex-row gap-4 justify-between items-center">
+                    <div class="text-center lg:text-left">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-1">Pronto para salvar?</h3>
+                        <p class="text-gray-600 text-sm">
+                            Revise todos os preços antes de confirmar. As alterações serão aplicadas imediatamente.
+                        </p>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="button" id="resetPricesBtn" class="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all duration-300 flex items-center">
+                            <i class="fas fa-undo mr-2"></i>
+                            Resetar Alterações
+                        </button>
+                        <button type="submit" class="save-prices-btn px-8 py-3 text-white font-bold rounded-lg text-lg shadow-lg transition-all duration-300 flex items-center hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>
+                            <span>Salvar Alterações nos Preços</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Status de salvamento -->
+                <div id="precosSalvosMsg" class="mt-4 text-center hidden">
+                    <div class="inline-flex items-center px-4 py-2 bg-success-100 text-success-800 rounded-full text-sm font-medium">
+                        <i class="fas fa-check-circle mr-2"></i>
+                        <span>Preços salvos com sucesso!</span>
+                    </div>
+                </div>
+                
+                <div id="precosErrorMsg" class="mt-4 text-center hidden">
+                    <div class="inline-flex items-center px-4 py-2 bg-danger-100 text-danger-800 rounded-full text-sm font-medium">
+                        <i class="fas fa-exclamation-circle mr-2"></i>
+                        <span>Erro ao salvar preços</span>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
 
         <!-- Conteúdo Usuários (mantido da versão original, mas melhorado) -->
         <div id="tabContentUsuarios" class="tab-content hidden">
