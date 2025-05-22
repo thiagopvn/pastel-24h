@@ -172,71 +172,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     const toastManager = new ToastManager();
 
     // Gerenciador de Dados
-    class DataManager {
-        constructor() {
-            this.cache = new Map();
-            this.cacheTimeout = 60000; // 1 minuto
+class DataManager {
+    constructor() {
+        this.cache = new Map();
+        this.cacheTimeout = 60000; // 1 minuto
+    }
+
+    async getTurnos(filters = {}) {
+        const cacheKey = JSON.stringify(filters);
+        const cached = this.cache.get(cacheKey);
+        
+        if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
+            return cached.data;
         }
 
-        async getTurnos(filters = {}) {
-            const cacheKey = JSON.stringify(filters);
-            const cached = this.cache.get(cacheKey);
+        try {
+            let query = db.collection('turnos').where('status', '==', 'fechado');
             
-            if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
-                return cached.data;
+            if (filters.startDate && filters.endDate) {
+                const startId = `${filters.startDate}_Manhã`;
+                const endId = `${filters.endDate}_Noite`;
+                query = query.orderBy(firebase.firestore.FieldPath.documentId())
+                             .startAt(startId)
+                             .endAt(endId);
+            } else {
+                const date30DaysAgo = new Date();
+                date30DaysAgo.setDate(date30DaysAgo.getDate() - 30);
+                const startDateString = date30DaysAgo.toISOString().split('T')[0];
+                query = query.orderBy(firebase.firestore.FieldPath.documentId(), 'desc')
+                             .where(firebase.firestore.FieldPath.documentId(), '>=', `${startDateString}_Manhã`);
             }
 
-            try {
-                let query = db.collection('turnos').where('status', '==', 'fechado');
+            const snapshot = await query.get();
+            const turnos = [];
+            snapshot.forEach(doc => {
+                const data = { id: doc.id, ...doc.data() };
                 
-                if (filters.startDate && filters.endDate) {
-                    const startId = `${filters.startDate}_Manhã`;
-                    const endId = `${filters.endDate}_Noite`;
-                    query = query.orderBy(firebase.firestore.FieldPath.documentId())
-                                 .startAt(startId)
-                                 .endAt(endId);
-                } else {
-                    const date30DaysAgo = new Date();
-                    date30DaysAgo.setDate(date30DaysAgo.getDate() - 30);
-                    const startDateString = date30DaysAgo.toISOString().split('T')[0];
-                    query = query.orderBy(firebase.firestore.FieldPath.documentId(), 'desc')
-                                 .where(firebase.firestore.FieldPath.documentId(), '>=', `${startDateString}_Manhã`);
-                }
-
-                const snapshot = await query.get();
-                const turnos = [];
-                snapshot.forEach(doc => {
-                    const data = { id: doc.id, ...doc.data() };
-                    
-                    // Aplicar filtros adicionais
-                    if (filters.turno && !data.id.includes(filters.turno)) return;
-                    if (filters.funcionario && data.abertura?.responsavelNome !== filters.funcionario) return;
-                    
-                    turnos.push(data);
-                });
-
-                this.cache.set(cacheKey, { data: turnos, timestamp: Date.now() });
-                return turnos;
+                // Aplicar filtros adicionais
+                if (filters.turno && !data.id.includes(filters.turno)) return;
+                if (filters.funcionario && data.abertura?.responsavelNome !== filters.funcionario) return;
                 
-            } catch (error) {
-                console.error('Erro ao buscar turnos:', error);
-                throw error;
-            }
-        }
+                turnos.push(data);
+            });
 
-        async getTurnosAbertos() {
-            try {
-                const snapshot = await db.collection('turnos').where('status', '==', 'aberto').get();
-                const turnos = [];
-                snapshot.forEach(doc => turnos.push({ id: doc.id, ...doc.data() }));
-                return turnos;
-            } catch (error) {
-                console.error('Erro ao buscar turnos abertos:', error);
-                return [];
-            }
+            this.cache.set(cacheKey, { data: turnos, timestamp: Date.now() });
+            return turnos;
+            
+        } catch (error) {
+            console.error('Erro ao buscar turnos:', error);
+            throw error;
         }
+    }
 
-        // Substitua a função getPrecos() na classe DataManager
+    async getTurnosAbertos() {
+        try {
+            const snapshot = await db.collection('turnos').where('status', '==', 'aberto').get();
+            const turnos = [];
+            snapshot.forEach(doc => turnos.push({ id: doc.id, ...doc.data() }));
+            return turnos;
+        } catch (error) {
+            console.error('Erro ao buscar turnos abertos:', error);
+            return [];
+        }
+    }
 
 async getPrecos() {
     try {
@@ -247,40 +245,93 @@ async getPrecos() {
         
         console.log(`📦 Encontrados ${snapshot.size} documentos na coleção produtos`);
         
+        if (snapshot.empty) {
+            console.warn('⚠️ Nenhum documento encontrado na coleção produtos!');
+            
+            // Criar estrutura padrão vazia
+            const categorias = ['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes', 'gelo'];
+            categorias.forEach(categoria => {
+                precos[categoria] = {};
+            });
+            
+            return precos;
+        }
+        
         snapshot.forEach(doc => {
             const categoria = doc.id;  // pasteis, casquinhas, etc.
             const dados = doc.data();
             
             console.log(`📋 Processando categoria: ${categoria}`, dados);
             
-            precos[categoria] = dados;
+            // Verificar se os dados estão no formato esperado
+            if (typeof dados === 'object' && dados !== null) {
+                precos[categoria] = dados;
+                
+                // Log detalhado para debug
+                const numItens = Object.keys(dados).length;
+                console.log(`✅ Categoria ${categoria}: ${numItens} itens carregados`);
+                
+                // Mostrar alguns exemplos de preços para debug
+                const exemplos = Object.entries(dados).slice(0, 3);
+                exemplos.forEach(([item, info]) => {
+                    console.log(`   - ${item}: R$ ${info.preco || 0}`);
+                });
+            } else {
+                console.warn(`⚠️ Dados inválidos para categoria ${categoria}:`, dados);
+                precos[categoria] = {};
+            }
+        });
+        
+        // Garantir que todas as categorias esperadas existam
+        const categoriasEsperadas = ['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes', 'gelo'];
+        categoriasEsperadas.forEach(categoria => {
+            if (!precos[categoria]) {
+                console.warn(`⚠️ Categoria ${categoria} não encontrada no Firebase. Criando vazia.`);
+                precos[categoria] = {};
+            }
         });
         
         console.log('✅ Preços carregados com sucesso:', precos);
+        console.log('📊 Resumo dos preços:');
+        Object.entries(precos).forEach(([categoria, itens]) => {
+            console.log(`   ${categoria}: ${Object.keys(itens).length} itens`);
+        });
+        
         return precos;
         
     } catch (error) {
         console.error('❌ Erro ao buscar preços:', error);
-        throw error;
+        console.error('Detalhes do erro:', error.message, error.code);
+        
+        // Retornar estrutura vazia em caso de erro
+        const precosVazios = {
+            pasteis: {},
+            casquinhas: {},
+            caldo_cana: {},
+            refrigerantes: {},
+            gelo: {}
+        };
+        
+        return precosVazios;
     }
 }
 
-        async getUsuarios() {
-            try {
-                const snapshot = await db.collection('usuarios').get();
-                const usuarios = [];
-                snapshot.forEach(doc => usuarios.push({ id: doc.id, ...doc.data() }));
-                return usuarios;
-            } catch (error) {
-                console.error('Erro ao buscar usuários:', error);
-                return [];
-            }
-        }
-
-        clearCache() {
-            this.cache.clear();
+    async getUsuarios() {
+        try {
+            const snapshot = await db.collection('usuarios').get();
+            const usuarios = [];
+            snapshot.forEach(doc => usuarios.push({ id: doc.id, ...doc.data() }));
+            return usuarios;
+        } catch (error) {
+            console.error('Erro ao buscar usuários:', error);
+            return [];
         }
     }
+
+    clearCache() {
+        this.cache.clear();
+    }
+}
 
     const dataManager = new DataManager();
 
@@ -1300,15 +1351,15 @@ async getPrecos() {
 
     const timelineManager = new TimelineManager();
 
-// Gerenciador de Preços Corrigido
 class PriceManager {
     constructor() {
+        // CORREÇÃO: Mapeamento correto dos IDs dos containers
         this.containers = {
-            precosPasteisContainer: 'pasteis',
-            precosCasquinhasContainer: 'casquinhas', 
-            precosCaldoCanaContainer: 'caldo_cana',
-            precosRefrigerantesContainer: 'refrigerantes',
-            precosGeloContainer: 'gelo'
+            precosPasteisContainer: 'precosPasteisContainer',
+            precosCasquinhasContainer: 'precosCasquinhasContainer', 
+            precosCaldoCanaContainer: 'precosCaldoCanaContainer',
+            precosRefrigerantesContainer: 'precosRefrigerantesContainer',
+            precosGeloContainer: 'precosGeloContainer'
         };
         
         // Definir produtos usando as listas do shared.js
@@ -1330,6 +1381,15 @@ class PriceManager {
             ],
             gelo: ["Gelo (Pacote)"]
         };
+        
+        // Mapeamento entre IDs de containers e chaves de categoria
+        this.containerToCategoryMap = {
+            precosPasteisContainer: 'pasteis',
+            precosCasquinhasContainer: 'casquinhas',
+            precosCaldoCanaContainer: 'caldo_cana',
+            precosRefrigerantesContainer: 'refrigerantes',
+            precosGeloContainer: 'gelo'
+        };
     }
 
     async load() {
@@ -1338,11 +1398,14 @@ class PriceManager {
             
             // Carregar preços do Firebase
             appState.currentPrices = await dataManager.getPrecos();
-            console.log('Preços carregados:', appState.currentPrices);
+            console.log('Preços carregados do Firebase:', appState.currentPrices);
             
             // Popular formulários
             this.populateForms();
             this.setupFormHandler();
+            
+            // Atualizar contadores
+            this.updateCounters();
             
             toastManager.show('Preços carregados com sucesso', 'success');
         } catch (error) {
@@ -1352,19 +1415,22 @@ class PriceManager {
     }
 
     populateForms() {
-        Object.entries(this.containers).forEach(([containerId, categoryKey]) => {
+        Object.entries(this.containers).forEach(([containerKey, containerId]) => {
             const container = document.getElementById(containerId);
             if (!container) {
                 console.warn(`Container ${containerId} não encontrado`);
                 return;
             }
             
+            // Obter a categoria correspondente
+            const categoryKey = this.containerToCategoryMap[containerKey];
+            
             // Limpar container
             container.innerHTML = '';
             
             // Obter produtos da categoria
             const products = this.produtosPorCategoria[categoryKey] || [];
-            console.log(`Populando ${categoryKey} com ${products.length} produtos`);
+            console.log(`Populando ${categoryKey} (${containerId}) com ${products.length} produtos`);
             
             // Criar inputs para cada produto
             products.forEach(product => {
@@ -1376,18 +1442,30 @@ class PriceManager {
         });
     }
 
+    updateCounters() {
+        // Atualizar contadores de produtos em cada categoria
+        Object.entries(this.containerToCategoryMap).forEach(([containerId, categoryKey]) => {
+            const products = this.produtosPorCategoria[categoryKey] || [];
+            const countElementId = `${categoryKey.replace('_', '')}Count`; // Ex: pasteisCount
+            const countElement = document.getElementById(countElementId);
+            
+            if (countElement) {
+                countElement.textContent = products.length;
+                console.log(`Atualizado contador ${countElementId}: ${products.length} itens`);
+            }
+        });
+    }
+
     generateItemKey(itemName) {
         return itemName.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
             .replace(/\s+/g, '_')
-            .replace(/[ç]/g, 'c')
-            .replace(/[ãâáàä]/g, 'a')
-            .replace(/[éêèë]/g, 'e')
-            .replace(/[íìîï]/g, 'i')
-            .replace(/[óôõòö]/g, 'o')
-            .replace(/[úùûü]/g, 'u')
+            .replace(/[()]/g, '') // Remove parênteses
             .replace(/\./g, '')
             .replace(/\d+ml/g, d => d.toLowerCase())
-            .replace(/\d+litro/g, d => d.toLowerCase());
+            .replace(/\d+litro/g, d => d.toLowerCase())
+            .replace(/\d+l/g, d => d.toLowerCase()); // Para "2L"
     }
 
     createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
@@ -1446,6 +1524,7 @@ class PriceManager {
         input.placeholder = '0.00';
         input.dataset.categoryKey = categoryKey;
         input.dataset.itemKey = itemKey;
+        input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
         
         // Símbolo de moeda
         const currencySymbol = document.createElement('div');
@@ -1486,13 +1565,12 @@ class PriceManager {
             currentValueSpan.textContent = formatCurrency(newValue);
             
             // Mostrar indicador de mudança
-            changeIndicator.classList.remove('opacity-0');
-            setTimeout(() => changeIndicator.classList.add('opacity-0'), 2000);
-            
-            // Highlight do card quando modificado
-            if (newValue !== currentPriceValue) {
+            const originalValue = parseFloat(input.dataset.originalValue);
+            if (Math.abs(newValue - originalValue) > 0.01) {
+                changeIndicator.classList.remove('opacity-0');
                 cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
             } else {
+                changeIndicator.classList.add('opacity-0');
                 cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
             }
         });
@@ -1529,12 +1607,34 @@ class PriceManager {
 
     setupFormHandler() {
         const form = document.getElementById('formPrecos');
+        const resetBtn = document.getElementById('resetPricesBtn');
+        
         if (!form) return;
         
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             await this.saveAll();
         });
+        
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                this.resetPrices();
+            });
+        }
+    }
+
+    resetPrices() {
+        const inputs = document.querySelectorAll('#formPrecos input[type="number"]');
+        
+        inputs.forEach(input => {
+            const originalValue = input.dataset.originalValue;
+            if (originalValue) {
+                input.value = originalValue;
+                input.dispatchEvent(new Event('input'));
+            }
+        });
+        
+        toastManager.show('Preços resetados para valores originais', 'info');
     }
 
     async saveAll() {
@@ -1599,6 +1699,11 @@ class PriceManager {
             appState.currentPrices = { ...appState.currentPrices, ...newPricesData };
             dataManager.clearCache();
             
+            // Atualizar valores originais
+            inputs.forEach(input => {
+                input.dataset.originalValue = input.value;
+            });
+            
             // Feedback visual de sucesso
             inputs.forEach(input => {
                 const card = input.closest('.price-card');
@@ -1610,10 +1715,20 @@ class PriceManager {
                 }, 2000);
             });
             
+            // Mostrar mensagens de sucesso
+            document.getElementById('precosSalvosMsg').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('precosSalvosMsg').classList.add('hidden');
+            }, 3000);
+            
             toastManager.show(`${changedCount} preço(s) alterado(s) com sucesso!`, 'success', 5000);
             
         } catch (error) {
             console.error('Erro ao salvar preços:', error);
+            document.getElementById('precosErrorMsg').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('precosErrorMsg').classList.add('hidden');
+            }, 3000);
             toastManager.show('Erro ao salvar preços: ' + error.message, 'error');
         } finally {
             saveButton.disabled = false;
@@ -1623,6 +1738,7 @@ class PriceManager {
 }
 
     const priceManager = new PriceManager();
+    window.priceManager = priceManager;
 
     // Gerenciador de Usuários
     class UserManager {
@@ -2044,7 +2160,7 @@ class PriceManager {
             });
         }
 
-        async switchTab(activeTabName) {
+async switchTab(activeTabName) {
     // Atualizar botões
     Object.values(this.tabs).forEach(tab => {
         if (tab.button) {
@@ -2070,11 +2186,6 @@ class PriceManager {
         if (activeTab.loader) {
             try {
                 await activeTab.loader();
-                
-                // NOVO: Atualizar contadores após carregar dados de preços
-                if (activeTabName === 'precos') {
-                    this.updatePriceCounters();
-                }
             } catch (error) {
                 console.error(`Erro ao carregar aba ${activeTabName}:`, error);
                 toastManager.show(`Erro ao carregar dados da aba ${activeTabName}`, 'error');
