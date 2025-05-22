@@ -3,543 +3,1479 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Administrativo - Pastelaria 24h</title>
+    <title>Dashboard Administrativo - Pastelaria 24h</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="src/css/style.css">
-    <!-- Firebase App (Core) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <!-- Firebase Authentication -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <!-- Firebase Firestore -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <!-- Google Fonts -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        'pastel-orange': {
-                            50: '#FFF7ED',
-                            100: '#FFEDD5',
-                            200: '#FED7AA',
-                            300: '#FDBA74',
-                            400: '#FB923C',
-                            500: '#F97316',
-                            600: '#EA580C',
-                            700: '#C2410C',
-                            800: '#9A3412',
-                            900: '#7C2D12',
-                        },
-                    },
-                    fontFamily: {
-                        sans: ['Poppins', 'sans-serif'],
-                    },
-                    boxShadow: {
-                        'card': '0 10px 30px -5px rgba(249, 115, 22, 0.2)',
-                        'inner-glow': 'inset 0 2px 4px 0 rgba(249, 115, 22, 0.06)',
-                    },
-                }
-            }
-        }
-    </script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
     <style>
         body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f8f9fd;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
         }
         
-        .bg-admin-gradient {
-            background: linear-gradient(to right, #9A3412, #C2410C, #EA580C);
-        }
-
-        .custom-shadow {
-            box-shadow: 0 4px 20px -5px rgba(249, 115, 22, 0.25);
-        }
-        
-        .bg-pattern {
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f97316' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        .glass-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         }
         
-        .tab-button {
-            position: relative;
+        .kpi-card {
             transition: all 0.3s ease;
+            cursor: pointer;
         }
         
-        .tab-button::after {
+        .kpi-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            max-width: 400px;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .toast.show {
+            transform: translateX(0);
+        }
+        
+        .severity-critical { border-left: 4px solid #dc2626; background: #fef2f2; }
+        .severity-warning { border-left: 4px solid #f59e0b; background: #fffbeb; }
+        .severity-info { border-left: 4px solid #3b82f6; background: #eff6ff; }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-left: 2rem;
+        }
+        
+        .timeline-item::before {
             content: '';
             position: absolute;
-            bottom: -2px;
-            left: 50%;
-            width: 0;
-            height: 3px;
-            background-color: #F97316;
-            transition: all 0.3s ease;
-            transform: translateX(-50%);
+            left: 0.5rem;
+            top: 0.5rem;
+            width: 0.5rem;
+            height: 0.5rem;
+            background: #3b82f6;
+            border-radius: 50%;
         }
         
-        .tab-button.active::after {
-            width: 80%;
+        .timeline-item::after {
+            content: '';
+            position: absolute;
+            left: 0.75rem;
+            top: 1rem;
+            width: 1px;
+            height: calc(100% - 1rem);
+            background: #e5e7eb;
         }
         
-        .tab-content {
-            transition: all 0.3s ease;
+        .timeline-item:last-child::after {
+            display: none;
         }
         
-        /* Animações e efeitos */
-        .pulse {
-            animation: pulse 2s infinite;
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
         }
         
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(249, 115, 22, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
-            }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
         }
         
-        .fade-in {
-            animation: fadeIn 0.3s ease-in-out;
+        .modal-content {
+            background: white;
+            border-radius: 1rem;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease;
         }
         
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from { opacity: 0; }
+            to { opacity: 1; }
         }
         
-        /* Estilos para cards de relatório */
-        .report-card {
-            transition: all 0.3s ease;
-            height: 100%;
+        @keyframes slideIn {
+            from { transform: translateY(-50px) scale(0.95); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
         }
         
-        .report-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.15);
-        }
-        
-        .alert-item {
+        .filter-chip {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            background: #f3f4f6;
+            border-radius: 9999px;
+            font-size: 0.875rem;
+            margin: 0.25rem;
+            cursor: pointer;
             transition: all 0.2s ease;
         }
         
-        .alert-item:hover {
-            transform: translateX(5px);
+        .filter-chip.active {
+            background: #3b82f6;
+            color: white;
         }
         
-        /* Estilos para tabelas em relatórios */
-        .report-list {
-            max-height: 300px;
-            overflow-y: auto;
+        .filter-chip:hover {
+            background: #e5e7eb;
         }
         
-        .report-list::-webkit-scrollbar {
-            width: 8px;
-        }
-        
-        .report-list::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 10px;
-        }
-        
-        .report-list::-webkit-scrollbar-thumb {
-            background: #EA580C;
-            border-radius: 10px;
-        }
-        
-        .report-list::-webkit-scrollbar-thumb:hover {
-            background: #C2410C;
-        }
-        
-        /* Estilos para formulários */
-        .input-focus:focus {
-            outline: none;
-            border-color: #F97316;
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+        .filter-chip.active:hover {
+            background: #2563eb;
         }
     </style>
 </head>
-<body class="bg-pattern min-h-screen">
-    <header class="bg-admin-gradient text-white p-4 flex justify-between items-center shadow-lg sticky top-0 z-50">
-        <div class="flex items-center space-x-3">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M5 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H5zm9 4a1 1 0 10-2 0v6a1 1 0 102 0V7zm-3 2a1 1 0 10-2 0v4a1 1 0 102 0V9zm-3 3a1 1 0 10-2 0v1a1 1 0 102 0v-1z" clip-rule="evenodd" />
-            </svg>
-            <h1 class="text-xl font-bold tracking-wide">Pastelaria 24h - Painel Administrativo</h1>
-        </div>
-        
-        <div class="flex items-center">
-            <div class="mr-4 bg-white bg-opacity-20 rounded-full px-3 py-1 flex items-center">
-                <i class="fa fa-user-shield mr-2"></i>
-                <span id="loggedInUserName" class="font-medium">Admin</span>
-            </div>
-            <button id="logoutButton" class="flex items-center bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">
-                <i class="fa fa-sign-out-alt mr-2"></i> Sair
-            </button>
-        </div>
-    </header>
-
-    <main class="container mx-auto p-4 fade-in">
-        <!-- Navigation Tabs -->
-        <div class="mb-6 bg-white p-4 rounded-xl shadow-card">
-            <nav class="flex flex-wrap justify-center sm:justify-start gap-2">
-                <button id="btnTabDashboard" class="tab-button active px-6 py-3 bg-pastel-orange-500 text-white font-semibold rounded-lg shadow hover:bg-pastel-orange-600 transition-all">
-                    <i class="fas fa-chart-pie mr-2"></i>Dashboard
-                </button>
-                <button id="btnTabPrecos" class="tab-button px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg shadow hover:bg-gray-300 transition-all">
-                    <i class="fas fa-tags mr-2"></i>Gerenciar Preços
-                </button>
-                <button id="btnTabUsuarios" class="tab-button px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg shadow hover:bg-gray-300 transition-all">
-                    <i class="fas fa-users mr-2"></i>Gerenciar Usuários
-                </button>
-            </nav>
-        </div>
-
-        <!-- Dashboard Tab -->
-        <section id="tabContentDashboard" class="tab-content bg-white p-6 rounded-xl shadow-card mb-8">
-            <div class="flex flex-col sm:flex-row justify-between items-center mb-6 pb-4 border-b border-pastel-orange-100">
-                <h2 class="text-2xl font-semibold text-pastel-orange-700 mb-4 sm:mb-0 flex items-center">
-                    <i class="fas fa-chart-line mr-3"></i>Dashboard do Administrador
-                </h2>
-                <div class="flex flex-wrap items-center gap-2">
-                    <label for="dataFiltroDashboard" class="block text-sm font-medium text-gray-700">Filtrar por Data:</label>
-                    <input type="date" id="dataFiltroDashboard" class="p-2 border border-gray-300 rounded-lg shadow-sm focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus">
-                    <button id="btnFiltrarDashboard" class="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg shadow-md transition-all duration-150 flex items-center">
-                        <i class="fas fa-filter mr-2"></i>Filtrar
-                    </button>
-                </div>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Vendas por Produto -->
-                <div class="bg-pastel-orange-50 p-5 rounded-lg shadow-sm border border-pastel-orange-100 report-card">
-                    <h3 class="text-lg font-semibold text-pastel-orange-700 mb-3 pb-2 border-b border-pastel-orange-100 flex items-center">
-                        <i class="fas fa-shopping-cart mr-2"></i>Vendas por Produto
-                    </h3>
-                    <div id="vendasPorProdutoReport" class="text-sm space-y-1 report-list p-2">
-                        <div class="flex items-center justify-center h-40">
-                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-pastel-orange-500"></div>
-                            <span class="ml-3 text-pastel-orange-500 font-medium">Carregando dados...</span>
+<body>
+    <div class="min-h-screen">
+        <header class="glass-card sticky top-0 z-40 border-b">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center h-16">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-chart-line text-white text-lg"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-white">Pastelaria 24h</h1>
+                            <p class="text-sm text-gray-200">Dashboard Administrativo</p>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Valores por Forma de Pagamento -->
-                <div class="bg-pastel-orange-50 p-5 rounded-lg shadow-sm border border-pastel-orange-100 report-card">
-                    <h3 class="text-lg font-semibold text-pastel-orange-700 mb-3 pb-2 border-b border-pastel-orange-100 flex items-center">
-                        <i class="fas fa-credit-card mr-2"></i>Valores por Forma de Pagamento
-                    </h3>
-                    <div id="pagamentosReport" class="text-sm space-y-1 report-list p-2">
-                        <div class="flex items-center justify-center h-40">
-                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-pastel-orange-500"></div>
-                            <span class="ml-3 text-pastel-orange-500 font-medium">Carregando dados...</span>
+                    
+                    <div class="flex items-center space-x-4">
+                        <div class="relative">
+                            <button id="notificationBtn" class="text-white hover:text-gray-200 relative">
+                                <i class="fas fa-bell text-xl"></i>
+                                <span id="notificationBadge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
+                            </button>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Divergências -->
-                <div class="md:col-span-2 bg-red-50 p-5 rounded-lg shadow-sm border border-red-200 report-card">
-                    <h3 class="text-lg font-semibold text-red-600 mb-3 pb-2 border-b border-red-200 flex items-center">
-                        <i class="fas fa-exclamation-triangle mr-2"></i>Alertas e Divergências
-                    </h3>
-                    <div id="divergenciasReport" class="text-sm space-y-2 report-list p-2 text-red-700">
-                        <div class="flex items-center justify-center h-40">
-                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-red-500"></div>
-                            <span class="ml-3 text-red-500 font-medium">Verificando divergências...</span>
+                        
+                        <div class="flex items-center space-x-3 px-3 py-2 rounded-lg glass-card">
+                            <i class="fas fa-user-shield text-white"></i>
+                            <span id="loggedInUserName" class="text-white font-medium">Admin</span>
                         </div>
-                    </div>
-                </div>
-                
-                <!-- Turnos Incompletos -->
-                <div class="md:col-span-2 bg-yellow-50 p-5 rounded-lg shadow-sm border border-yellow-300 report-card">
-                    <h3 class="text-lg font-semibold text-yellow-600 mb-3 pb-2 border-b border-yellow-200 flex items-center">
-                        <i class="fas fa-clock mr-2"></i>Turnos Abertos / Incompletos
-                    </h3>
-                    <div id="turnosIncompletosReport" class="text-sm space-y-2 report-list p-2 text-yellow-700">
-                        <div class="flex items-center justify-center h-40">
-                            <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-yellow-500"></div>
-                            <span class="ml-3 text-yellow-600 font-medium">Verificando turnos...</span>
-                        </div>
+                        
+                        <button id="logoutButton" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Sair</span>
+                        </button>
                     </div>
                 </div>
             </div>
-        </section>
+        </header>
 
-        <!-- Gerenciar Preços Tab -->
-        <section id="tabContentPrecos" class="tab-content bg-white p-6 rounded-xl shadow-card mb-8 hidden">
-            <h2 class="text-2xl font-semibold mb-6 pb-4 border-b border-pastel-orange-100 text-pastel-orange-700 flex items-center">
-                <i class="fas fa-tags mr-3"></i>Gerenciar Preços dos Produtos
-            </h2>
-            
-            <form id="formPrecos" class="space-y-8">
-                <!-- Pastéis -->
-                <fieldset class="border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                    <legend class="text-lg font-semibold text-pastel-orange-700 px-3 bg-white flex items-center">
-                        <i class="fas fa-utensils mr-2"></i>Pastéis
-                    </legend>
-                    <div id="precosPasteisContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 mt-3">
-                        <div class="animate-pulse flex space-x-4">
-                            <div class="flex-1 space-y-4 py-1">
-                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                                <div class="h-8 bg-gray-200 rounded"></div>
-                            </div>
-                        </div>
-                        <div class="animate-pulse flex space-x-4">
-                            <div class="flex-1 space-y-4 py-1">
-                                <div class="h-4 bg-gray-200 rounded w-3/4"></div>
-                                <div class="h-8 bg-gray-200 rounded"></div>
-                            </div>
-                        </div>
-                    </div>
-                </fieldset>
-
-                <!-- Casquinhas -->
-                <fieldset class="border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                    <legend class="text-lg font-semibold text-pastel-orange-700 px-3 bg-white flex items-center">
-                        <i class="fas fa-ice-cream mr-2"></i>Casquinhas
-                    </legend>
-                    <div id="precosCasquinhasContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 mt-3">
-                        <!-- Inputs de preço para casquinhas serão inseridos pelo JS -->
-                    </div>
-                </fieldset>
-
-                <!-- Caldo de Cana -->
-                <fieldset class="border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                    <legend class="text-lg font-semibold text-pastel-orange-700 px-3 bg-white flex items-center">
-                        <i class="fas fa-glass-whiskey mr-2"></i>Caldo de Cana
-                    </legend>
-                    <div id="precosCaldoCanaContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 mt-3">
-                        <!-- Inputs de preço para caldo de cana serão inseridos pelo JS -->
-                    </div>
-                </fieldset>
-
-                <!-- Refrigerantes e Bebidas -->
-                <fieldset class="border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                    <legend class="text-lg font-semibold text-pastel-orange-700 px-3 bg-white flex items-center">
-                        <i class="fas fa-bottle-water mr-2"></i>Refrigerantes e Bebidas
-                    </legend>
-                    <div id="precosRefrigerantesContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 mt-3">
-                        <!-- Inputs de preço para refrigerantes serão inseridos pelo JS -->
-                    </div>
-                </fieldset>
-                
-                <!-- Gelo -->
-                <fieldset class="border border-gray-200 p-5 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                    <legend class="text-lg font-semibold text-pastel-orange-700 px-3 bg-white flex items-center">
-                        <i class="fas fa-cube mr-2"></i>Gelo
-                    </legend>
-                    <div id="precosGeloContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4 mt-3">
-                        <!-- Input de preço para gelo será inserido pelo JS -->
-                    </div>
-                </fieldset>
-
-                <div class="mt-8">
-                    <button type="submit" class="w-full flex items-center justify-center bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold py-4 px-6 rounded-lg text-lg shadow-lg transition-all duration-300 ease-in-out">
-                        <i class="fas fa-save mr-2"></i>Salvar Alterações nos Preços
-                    </button>
-                    <p id="precosSalvosMsg" class="text-green-600 mt-3 text-center font-medium"></p>
-                    <p id="precosErrorMsg" class="text-red-500 mt-3 text-center font-medium"></p>
-                </div>
-            </form>
-        </section>
-        
-        <!-- Gerenciar Usuários Tab -->
-        <section id="tabContentUsuarios" class="tab-content bg-white p-6 rounded-xl shadow-card mb-8 hidden">
-            <h2 class="text-2xl font-semibold mb-6 pb-4 border-b border-pastel-orange-100 text-pastel-orange-700 flex items-center">
-                <i class="fas fa-users-cog mr-3"></i>Gerenciar Usuários
-            </h2>
-            
-            <form id="formNovoUsuario" class="mb-8 p-6 border rounded-lg bg-pastel-orange-50 shadow-sm">
-                <h3 class="text-lg font-semibold text-pastel-orange-700 mb-4 flex items-center">
-                    <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário / Associar ao Firestore
-                </h3>
-                <div class="p-3 bg-blue-50 border border-blue-100 rounded-lg mb-5 text-sm text-blue-800">
-                    <p class="flex items-start">
-                        <i class="fas fa-info-circle text-blue-600 mt-0.5 mr-2"></i>
-                        <span>
-                            <strong>Instrução:</strong> Primeiro, crie o usuário no <a href="https://console.firebase.google.com/" target="_blank" class="text-blue-600 hover:underline">Painel de Autenticação do Firebase</a>.
-                            Depois, copie o <strong>UID</strong> gerado e insira-o abaixo junto com os outros dados para registrar o usuário no sistema.
-                        </span>
-                    </p>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="mb-8">
+                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6">
                     <div>
-                        <label for="novoUsuarioUid" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-fingerprint mr-1"></i>UID (do Firebase Auth)
-                        </label>
-                        <input type="text" id="novoUsuarioUid" required 
-                               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-                               placeholder="UID copiado do Firebase Console">
+                        <h2 class="text-3xl font-bold text-white mb-2">Dashboard Operacional</h2>
+                        <p class="text-gray-200">Visão completa do desempenho da sua pastelaria</p>
                     </div>
-                    <div>
-                        <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-user mr-1"></i>Nome Completo
-                        </label>
-                        <input type="text" id="novoUsuarioNome" required 
-                               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-                               placeholder="Nome do Funcionário">
-                    </div>
-                    <div>
-                        <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-envelope mr-1"></i>Email (registrado no Firebase Auth)
-                        </label>
-                        <input type="email" id="novoUsuarioEmail" required 
-                               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-                               placeholder="email@example.com">
-                    </div>
-                    <div>
-                        <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-user-tag mr-1"></i>Função (Role)
-                        </label>
-                        <select id="novoUsuarioRole" 
-                                class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus">
-                            <option value="funcionario">Funcionário</option>
-                            <option value="admin">Administrador</option>
-                        </select>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label for="novoUsuarioSenha" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-lock mr-1"></i>Senha (para referência)
-                        </label>
-                        <input type="password" id="novoUsuarioSenha" 
-                               class="w-full p-3 border border-gray-300 rounded-lg bg-gray-200 shadow-inner" 
-                               placeholder="Senha definida no Firebase Auth" readonly 
-                               title="A senha é gerenciada no Firebase Authentication. Este campo é apenas para visualização caso fosse gerenciado aqui.">
-                        <p class="text-xs text-gray-500 mt-1 italic">
-                            A senha é gerenciada diretamente no Firebase Authentication. Este campo seria para criação direta se houvesse backend.
-                        </p>
+                    
+                    <div class="flex flex-wrap items-center gap-3 mt-4 lg:mt-0">
+                        <div class="flex items-center space-x-2 glass-card px-4 py-2 rounded-lg">
+                            <i class="fas fa-calendar text-white"></i>
+                            <select id="periodSelector" class="bg-transparent text-white border-none outline-none">
+                                <option value="today">Hoje</option>
+                                <option value="yesterday">Ontem</option>
+                                <option value="week">Esta Semana</option>
+                                <option value="month">Este Mês</option>
+                                <option value="custom">Período Personalizado</option>
+                            </select>
+                        </div>
+                        
+                        <div id="customDateRange" class="hidden flex items-center space-x-2">
+                            <input type="date" id="startDate" class="glass-card text-white border-none rounded-lg px-3 py-2">
+                            <span class="text-white">até</span>
+                            <input type="date" id="endDate" class="glass-card text-white border-none rounded-lg px-3 py-2">
+                        </div>
+                        
+                        <button id="refreshData" class="glass-card px-4 py-2 rounded-lg text-white hover:bg-white hover:bg-opacity-20 transition-colors">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        
+                        <button id="exportData" class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg text-white transition-colors">
+                            <i class="fas fa-download mr-2"></i>Exportar
+                        </button>
                     </div>
                 </div>
-                
-                <button type="submit" class="mt-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-5 rounded-lg shadow-md transition-all duration-300">
-                    <i class="fas fa-user-plus mr-2"></i>Adicionar/Registrar Usuário no Sistema
-                </button>
-                <p id="usuarioMsg" class="text-sm mt-3 text-center font-medium"></p>
-            </form>
-            
-            <h3 class="text-lg font-semibold text-pastel-orange-700 mb-4 mt-10 pt-4 border-t flex items-center">
-                <i class="fas fa-users mr-2"></i>Usuários Existentes no Sistema
-            </h3>
-            <div id="listaUsuariosContainer" class="space-y-4">
-                <div class="flex items-center justify-center p-10">
-                    <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-pastel-orange-500"></div>
-                    <span class="ml-3 text-pastel-orange-500 font-medium">Carregando usuários...</span>
+
+                <div class="flex flex-wrap gap-2 mb-6">
+                    <div class="filter-chip" data-filter="turno">
+                        <i class="fas fa-clock mr-2"></i>Filtrar por Turno
+                    </div>
+                    <div class="filter-chip" data-filter="pagamento">
+                        <i class="fas fa-credit-card mr-2"></i>Forma de Pagamento
+                    </div>
+                    <div class="filter-chip" data-filter="produto">
+                        <i class="fas fa-utensils mr-2"></i>Produto
+                    </div>
+                    <div class="filter-chip" data-filter="funcionario">
+                        <i class="fas fa-user mr-2"></i>Funcionário
+                    </div>
                 </div>
             </div>
-        </section>
-    </main>
 
-    <footer class="bg-gray-800 text-gray-300 py-6 mt-8">
-        <div class="container mx-auto px-4">
-            <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <p class="text-lg font-semibold flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                        </svg>
-                        Pastelaria 24h
-                    </p>
-                    <p class="text-sm text-gray-400">Painel Administrativo • v2.0</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="vendas">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-dollar-sign text-xl"></i>
+                        </div>
+                        <span class="text-green-400 text-sm font-medium">+12.5%</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">Vendas Brutas</p>
+                        <p id="kpi-vendas" class="text-2xl font-bold">R$ 0,00</p>
+                    </div>
                 </div>
-                <div class="text-sm text-gray-400">
-                    <p>&copy; 2023-2025 • Todos os direitos reservados</p>
-                    <p class="mt-1">Desenvolvido com tecnologias modernas para seu negócio</p>
+
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="ticket">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-receipt text-xl"></i>
+                        </div>
+                        <span class="text-blue-400 text-sm font-medium">+8.3%</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">Ticket Médio</p>
+                        <p id="kpi-ticket" class="text-2xl font-bold">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="pedidos">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-purple-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-shopping-cart text-xl"></i>
+                        </div>
+                        <span class="text-purple-400 text-sm font-medium">+15.2%</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">Total Pedidos</p>
+                        <p id="kpi-pedidos" class="text-2xl font-bold">0</p>
+                    </div>
+                </div>
+
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="divergencias">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-exclamation-triangle text-xl"></i>
+                        </div>
+                        <span class="text-red-400 text-sm font-medium">-2.1%</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">% Divergências</p>
+                        <p id="kpi-divergencias" class="text-2xl font-bold">0%</p>
+                    </div>
+                </div>
+
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="caixa">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-cash-register text-xl"></i>
+                        </div>
+                        <span class="text-yellow-400 text-sm font-medium">atual</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">Caixa Atual</p>
+                        <p id="kpi-caixa" class="text-2xl font-bold">R$ 0,00</p>
+                    </div>
+                </div>
+
+                <div class="kpi-card glass-card rounded-xl p-6 text-white" data-kpi="lucro">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-indigo-500 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-chart-line text-xl"></i>
+                        </div>
+                        <span class="text-indigo-400 text-sm font-medium">+18.7%</span>
+                    </div>
+                    <div class="space-y-1">
+                        <p class="text-gray-300 font-medium">Lucro Estimado</p>
+                        <p id="kpi-lucro" class="text-2xl font-bold">R$ 0,00</p>
+                    </div>
                 </div>
             </div>
-        </div>
-    </footer>
 
-    <div id="connection-status" class="fixed bottom-4 right-4 flex items-center px-3 py-2 rounded-full text-sm font-medium hidden">
-        <span class="status-icon w-2 h-2 rounded-full mr-2"></span>
-        <span class="status-text"></span>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white">Vendas por Forma de Pagamento</h3>
+                        <button class="text-gray-300 hover:text-white">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="paymentChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white">Top 10 Produtos</h3>
+                        <button class="text-gray-300 hover:text-white">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="productsChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white">Vendas por Hora</h3>
+                        <button class="text-gray-300 hover:text-white">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white">Heatmap de Divergências</h3>
+                        <button class="text-gray-300 hover:text-white">
+                            <i class="fas fa-expand"></i>
+                        </button>
+                    </div>
+                    <div id="heatmapContainer" class="grid grid-cols-7 gap-1">
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8 mb-8">
+                <div class="xl:col-span-2 glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white flex items-center">
+                            <i class="fas fa-exclamation-triangle mr-3 text-red-400"></i>
+                            Alertas & Divergências
+                        </h3>
+                        <div class="flex space-x-2">
+                            <button id="resolveAllBtn" class="bg-green-500 hover:bg-green-600 px-3 py-1 rounded text-white text-sm">
+                                Resolver Todos
+                            </button>
+                            <button id="filterCriticalBtn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded text-white text-sm">
+                                Apenas Críticos
+                            </button>
+                        </div>
+                    </div>
+                    <div id="alertsContainer" class="space-y-3 max-h-96 overflow-y-auto">
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white flex items-center">
+                            <i class="fas fa-clock mr-3 text-blue-400"></i>
+                            Turnos Ativos
+                        </h3>
+                        <button id="refreshTurnosBtn" class="text-gray-300 hover:text-white">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                    <div id="turnosContainer" class="space-y-4">
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-8 mb-8">
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white flex items-center">
+                            <i class="fas fa-history mr-3 text-indigo-400"></i>
+                            Timeline de Ações
+                        </h3>
+                        <div class="flex space-x-2">
+                            <input type="text" id="timelineSearch" placeholder="Buscar ações..." class="glass-card text-white placeholder-gray-300 px-3 py-1 rounded text-sm border-none">
+                            <button id="exportTimelineBtn" class="text-gray-300 hover:text-white">
+                                <i class="fas fa-download"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="timelineContainer" class="space-y-4 max-h-96 overflow-y-auto">
+                    </div>
+                </div>
+
+                <div class="glass-card rounded-xl p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-xl font-bold text-white flex items-center">
+                            <i class="fas fa-cogs mr-3 text-purple-400"></i>
+                            Ações Rápidas
+                        </h3>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button id="managePricesBtn" class="glass-card p-4 rounded-lg text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+                            <i class="fas fa-tags text-2xl mb-2 text-orange-400"></i>
+                            <p class="font-medium">Gerenciar Preços</p>
+                        </button>
+                        
+                        <button id="manageUsersBtn" class="glass-card p-4 rounded-lg text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+                            <i class="fas fa-users text-2xl mb-2 text-blue-400"></i>
+                            <p class="font-medium">Gerenciar Usuários</p>
+                        </button>
+                        
+                        <button id="transferCashBtn" class="glass-card p-4 rounded-lg text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+                            <i class="fas fa-exchange-alt text-2xl mb-2 text-green-400"></i>
+                            <p class="font-medium">Transferir Caixa</p>
+                        </button>
+                        
+                        <button id="generateReportBtn" class="glass-card p-4 rounded-lg text-white hover:bg-white hover:bg-opacity-10 transition-colors">
+                            <i class="fas fa-file-alt text-2xl mb-2 text-purple-400"></i>
+                            <p class="font-medium">Gerar Relatório</p>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
     </div>
 
-    <!-- Scripts JavaScript -->
+    <div id="kpiModal" class="modal">
+        <div class="modal-content w-full max-w-4xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 id="modalTitle" class="text-2xl font-bold text-gray-800"></h3>
+                <button class="modal-close text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="modalContent" class="space-y-6">
+            </div>
+        </div>
+    </div>
+
+    <div id="pricesModal" class="modal">
+        <div class="modal-content w-full max-w-6xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-2xl font-bold text-gray-800">Gerenciar Preços dos Produtos</h3>
+                <button class="modal-close text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-700 mb-4 flex items-center">
+                            <i class="fas fa-utensils mr-2 text-orange-500"></i>Pastéis
+                        </h4>
+                        <div id="precosPasteisContainer" class="space-y-3">
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-700 mb-4 flex items-center">
+                            <i class="fas fa-ice-cream mr-2 text-blue-500"></i>Casquinhas
+                        </h4>
+                        <div id="precosCasquinhasContainer" class="space-y-3">
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-700 mb-4 flex items-center">
+                            <i class="fas fa-glass-whiskey mr-2 text-green-500"></i>Caldo de Cana
+                        </h4>
+                        <div id="precosCaldoCanaContainer" class="space-y-3">
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-700 mb-4 flex items-center">
+                            <i class="fas fa-bottle-water mr-2 text-purple-500"></i>Refrigerantes
+                        </h4>
+                        <div id="precosRefrigerantesContainer" class="space-y-3">
+                        </div>
+                    </div>
+                    
+                    <div class="border rounded-lg p-4">
+                        <h4 class="font-semibold text-gray-700 mb-4 flex items-center">
+                            <i class="fas fa-cube mr-2 text-gray-500"></i>Gelo
+                        </h4>
+                        <div id="precosGeloContainer" class="space-y-3">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-4">
+                    <button class="modal-close px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                        Cancelar
+                    </button>
+                    <button id="savePricesBtn" class="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg">
+                        Salvar Alterações
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="usersModal" class="modal">
+        <div class="modal-content w-full max-w-4xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-2xl font-bold text-gray-800">Gerenciar Usuários</h3>
+                <button class="modal-close text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="space-y-6">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h4 class="font-semibold text-blue-800 mb-4">Adicionar Novo Usuário</h4>
+                    <form id="formNovoUsuario" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">UID (Firebase Auth)</label>
+                            <input type="text" id="novoUsuarioUid" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="UID do Firebase Console">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
+                            <input type="text" id="novoUsuarioNome" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="Nome do Funcionário">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="novoUsuarioEmail" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" placeholder="email@example.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Função</label>
+                            <select id="novoUsuarioRole" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                                <option value="funcionario">Funcionário</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg">
+                                Adicionar Usuário
+                            </button>
+                        </div>
+                    </form>
+                    <p id="usuarioMsg" class="text-sm mt-3 text-center font-medium"></p>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-gray-800 mb-4">Usuários Existentes</h4>
+                    <div id="listaUsuariosContainer" class="space-y-3">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="alertModal" class="modal">
+        <div class="modal-content w-full max-w-2xl p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h3 id="alertModalTitle" class="text-xl font-bold text-gray-800"></h3>
+                <button class="modal-close text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div id="alertModalContent" class="space-y-4">
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button class="modal-close px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">
+                    Cancelar
+                </button>
+                <button id="resolveAlertBtn" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg">
+                    Resolver
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
     <script src="src/js/firebase-config.js"></script>
     <script src="src/js/shared.js"></script>
     <script src="src/js/auth.js"></script>
-    <script src="src/js/admin-controller.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Protege a rota, permitindo apenas acesso a usuários com a role 'admin'
-            protectRoute(['admin']);
+        class ModernAdminDashboard {
+            constructor() {
+                this.currentPeriod = 'today';
+                this.activeFilters = {};
+                this.dashboardData = {};
+                this.charts = {};
+                this.init();
+            }
 
-            // Configuração de navegação de abas
-            const tabButtons = document.querySelectorAll('.tab-button');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            function setActiveTab(tabId) {
-                // Remove active state from all tabs
-                tabButtons.forEach(btn => {
-                    btn.classList.remove('active', 'bg-pastel-orange-500', 'text-white', 'font-semibold');
-                    btn.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
-                });
-                
-                tabContents.forEach(content => {
-                    content.classList.add('hidden');
-                });
-                
-                // Set active state for selected tab
-                const selectedButton = document.getElementById(`btnTab${tabId}`);
-                const selectedContent = document.getElementById(`tabContent${tabId}`);
-                
-                if(selectedButton && selectedContent) {
-                    selectedButton.classList.remove('bg-gray-200', 'text-gray-700', 'font-medium');
-                    selectedButton.classList.add('active', 'bg-pastel-orange-500', 'text-white', 'font-semibold');
-                    selectedContent.classList.remove('hidden');
-                }
+            init() {
+                this.setupEventListeners();
+                this.initializeCharts();
+                this.loadDashboardData();
+                this.startRealTimeUpdates();
             }
-            
-            tabButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const tabId = button.id.replace('btnTab', '');
-                    setActiveTab(tabId);
+
+            setupEventListeners() {
+                document.getElementById('periodSelector').addEventListener('change', (e) => {
+                    this.currentPeriod = e.target.value;
+                    this.toggleCustomDateRange();
+                    this.loadDashboardData();
                 });
-            });
-            
-            // Monitor de status de conexão com internet
-            function updateConnectionStatus() {
-                const statusEl = document.getElementById('connection-status');
-                const statusIcon = statusEl.querySelector('.status-icon');
-                const statusText = statusEl.querySelector('.status-text');
-                
-                if (navigator.onLine) {
-                    statusEl.classList.remove('bg-red-100', 'text-red-700');
-                    statusEl.classList.add('bg-green-100', 'text-green-700');
-                    statusIcon.classList.remove('bg-red-500');
-                    statusIcon.classList.add('bg-green-500');
-                    statusText.textContent = 'Conectado';
-                    
-                    setTimeout(() => {
-                        statusEl.classList.add('fade-out');
-                        setTimeout(() => {
-                            statusEl.classList.add('hidden');
-                            statusEl.classList.remove('fade-out');
-                        }, 1000);
-                    }, 3000);
+
+                document.getElementById('refreshData').addEventListener('click', () => {
+                    this.loadDashboardData();
+                    this.showToast('Dados atualizados com sucesso!', 'success');
+                });
+
+                document.querySelectorAll('.kpi-card').forEach(card => {
+                    card.addEventListener('click', () => {
+                        const kpiType = card.dataset.kpi;
+                        this.showKPIDetails(kpiType);
+                    });
+                });
+
+                document.querySelectorAll('.filter-chip').forEach(chip => {
+                    chip.addEventListener('click', () => {
+                        chip.classList.toggle('active');
+                        this.updateFilters();
+                    });
+                });
+
+                document.getElementById('managePricesBtn').addEventListener('click', () => {
+                    this.showPricesModal();
+                });
+
+                document.getElementById('manageUsersBtn').addEventListener('click', () => {
+                    this.showUsersModal();
+                });
+
+                document.querySelectorAll('.modal-close').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        this.closeModal(e.target.closest('.modal'));
+                    });
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        this.closeAllModals();
+                    }
+                });
+            }
+
+            toggleCustomDateRange() {
+                const customRange = document.getElementById('customDateRange');
+                if (this.currentPeriod === 'custom') {
+                    customRange.classList.remove('hidden');
                 } else {
-                    statusEl.classList.remove('hidden', 'bg-green-100', 'text-green-700');
-                    statusEl.classList.add('bg-red-100', 'text-red-700');
-                    statusIcon.classList.remove('bg-green-500');
-                    statusIcon.classList.add('bg-red-500');
-                    statusText.textContent = 'Sem conexão';
+                    customRange.classList.add('hidden');
                 }
             }
-            
-            window.addEventListener('online', function() {
-                updateConnectionStatus();
-            });
-            
-            window.addEventListener('offline', function() {
-                updateConnectionStatus();
-            });
+
+            async loadDashboardData() {
+                try {
+                    const dateRange = this.getDateRange();
+                    const turnos = await this.fetchTurnos(dateRange);
+                    
+                    this.dashboardData = this.processData(turnos);
+                    this.updateKPICards();
+                    this.updateCharts();
+                    this.updateAlerts();
+                    this.updateTurnos();
+                    this.updateTimeline();
+                } catch (error) {
+                    console.error('Erro ao carregar dados:', error);
+                    this.showToast('Erro ao carregar dados do dashboard', 'error');
+                }
+            }
+
+            getDateRange() {
+                const now = new Date();
+                let startDate, endDate;
+
+                switch (this.currentPeriod) {
+                    case 'today':
+                        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                        break;
+                    case 'yesterday':
+                        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        break;
+                    case 'week':
+                        const weekStart = new Date(now);
+                        weekStart.setDate(now.getDate() - now.getDay());
+                        startDate = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                        break;
+                    case 'month':
+                        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                        endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                        break;
+                    case 'custom':
+                        const startInput = document.getElementById('startDate').value;
+                        const endInput = document.getElementById('endDate').value;
+                        startDate = startInput ? new Date(startInput) : new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        endDate = endInput ? new Date(endInput) : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                        break;
+                    default:
+                        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                }
+
+                return { startDate, endDate };
+            }
+
+            async fetchTurnos(dateRange) {
+                try {
+                    const startDateId = this.formatDateForId(dateRange.startDate);
+                    const endDateId = this.formatDateForId(dateRange.endDate);
+                    
+                    let query = db.collection('turnos')
+                        .where('status', '==', 'fechado')
+                        .orderBy(firebase.firestore.FieldPath.documentId());
+                    
+                    if (startDateId === endDateId) {
+                        query = query.startAt(`${startDateId}_Manhã`).endAt(`${startDateId}_Noite`);
+                    } else {
+                        query = query.startAt(`${startDateId}_Manhã`).endAt(`${endDateId}_Noite`);
+                    }
+
+                    const snapshot = await query.get();
+                    const turnos = [];
+                    snapshot.forEach(doc => {
+                        turnos.push({ id: doc.id, ...doc.data() });
+                    });
+
+                    return turnos;
+                } catch (error) {
+                    console.error('Erro ao buscar turnos:', error);
+                    return [];
+                }
+            }
+
+            formatDateForId(date) {
+                return date.toISOString().split('T')[0];
+            }
+
+            processData(turnos) {
+                const data = {
+                    vendas: 0,
+                    totalPedidos: 0,
+                    divergencias: [],
+                    formasPagamento: {},
+                    produtos: {},
+                    vendasPorHora: {},
+                    caixaAtual: 0,
+                    lucroEstimado: 0
+                };
+
+                turnos.forEach(turno => {
+                    if (turno.totalVendidoCalculadoFinal) {
+                        data.vendas += turno.totalVendidoCalculadoFinal;
+                    }
+
+                    data.totalPedidos += this.contarPedidosTurno(turno);
+
+                    if (turno.formasPagamento) {
+                        Object.entries(turno.formasPagamento).forEach(([forma, valor]) => {
+                            data.formasPagamento[forma] = (data.formasPagamento[forma] || 0) + valor;
+                        });
+                    }
+
+                    if (turno.itens) {
+                        Object.values(turno.itens).forEach(categoria => {
+                            Object.entries(categoria).forEach(([produto, info]) => {
+                                if (info.vendido > 0) {
+                                    data.produtos[produto] = (data.produtos[produto] || 0) + info.vendido;
+                                }
+                            });
+                        });
+                    }
+
+                    if (this.hasDivergencia(turno)) {
+                        data.divergencias.push(turno);
+                    }
+
+                    if (turno.caixaFinalContado) {
+                        data.caixaAtual = turno.caixaFinalContado;
+                    }
+                });
+
+                data.ticketMedio = data.totalPedidos > 0 ? data.vendas / data.totalPedidos : 0;
+                data.percentualDivergencias = turnos.length > 0 ? (data.divergencias.length / turnos.length) * 100 : 0;
+                data.lucroEstimado = data.vendas * 0.35;
+
+                return data;
+            }
+
+            contarPedidosTurno(turno) {
+                let total = 0;
+                if (turno.itens) {
+                    Object.values(turno.itens).forEach(categoria => {
+                        Object.values(categoria).forEach(item => {
+                            if (item.vendido > 0) {
+                                total += item.vendido;
+                            }
+                        });
+                    });
+                }
+                return total;
+            }
+
+            hasDivergencia(turno) {
+                const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
+                const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
+                const diffCaixa = turno.diferencaCaixaFinal || 0;
+                
+                return Math.abs(vendidoCalc - pagamentosReg) > 0.01 || Math.abs(diffCaixa) > 0.01;
+            }
+
+            updateKPICards() {
+                const formatter = new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+
+                document.getElementById('kpi-vendas').textContent = formatter.format(this.dashboardData.vendas);
+                document.getElementById('kpi-ticket').textContent = formatter.format(this.dashboardData.ticketMedio);
+                document.getElementById('kpi-pedidos').textContent = this.dashboardData.totalPedidos.toString();
+                document.getElementById('kpi-divergencias').textContent = `${this.dashboardData.percentualDivergencias.toFixed(1)}%`;
+                document.getElementById('kpi-caixa').textContent = formatter.format(this.dashboardData.caixaAtual);
+                document.getElementById('kpi-lucro').textContent = formatter.format(this.dashboardData.lucroEstimado);
+            }
+
+            initializeCharts() {
+                const chartOptions = {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'white'
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        },
+                        y: {
+                            ticks: { color: 'white' },
+                            grid: { color: 'rgba(255,255,255,0.1)' }
+                        }
+                    }
+                };
+
+                this.charts.payment = new Chart(document.getElementById('paymentChart'), {
+                    type: 'pie',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: [] }] },
+                    options: { ...chartOptions, scales: undefined }
+                });
+
+                this.charts.products = new Chart(document.getElementById('productsChart'), {
+                    type: 'bar',
+                    data: { labels: [], datasets: [{ data: [], backgroundColor: '#3b82f6' }] },
+                    options: { ...chartOptions, indexAxis: 'y' }
+                });
+
+                this.charts.sales = new Chart(document.getElementById('salesChart'), {
+                    type: 'line',
+                    data: { labels: [], datasets: [{ data: [], borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)' }] },
+                    options: chartOptions
+                });
+            }
+
+            updateCharts() {
+                this.updatePaymentChart();
+                this.updateProductsChart();
+                this.updateSalesChart();
+                this.updateHeatmap();
+            }
+
+            updatePaymentChart() {
+                const data = Object.entries(this.dashboardData.formasPagamento);
+                const labels = data.map(([key]) => this.formatPaymentMethod(key));
+                const values = data.map(([, value]) => value);
+                const colors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+
+                this.charts.payment.data.labels = labels;
+                this.charts.payment.data.datasets[0].data = values;
+                this.charts.payment.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
+                this.charts.payment.update();
+            }
+
+            updateProductsChart() {
+                const sorted = Object.entries(this.dashboardData.produtos)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 10);
+
+                this.charts.products.data.labels = sorted.map(([name]) => this.formatProductName(name));
+                this.charts.products.data.datasets[0].data = sorted.map(([, qty]) => qty);
+                this.charts.products.update();
+            }
+
+            updateSalesChart() {
+                const hours = Array.from({length: 24}, (_, i) => `${i.toString().padStart(2, '0')}:00`);
+                const salesData = hours.map(() => Math.random() * 1000);
+
+                this.charts.sales.data.labels = hours;
+                this.charts.sales.data.datasets[0].data = salesData;
+                this.charts.sales.update();
+            }
+
+            updateHeatmap() {
+                const container = document.getElementById('heatmapContainer');
+                container.innerHTML = '';
+
+                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                const shifts = ['Manhã', 'Tarde', 'Noite'];
+
+                days.forEach(day => {
+                    shifts.forEach(shift => {
+                        const cell = document.createElement('div');
+                        const intensity = Math.random();
+                        cell.className = `h-8 rounded text-xs flex items-center justify-center text-white font-medium`;
+                        cell.style.backgroundColor = `rgba(239, 68, 68, ${intensity})`;
+                        cell.textContent = Math.floor(intensity * 10);
+                        cell.title = `${day} - ${shift}: ${Math.floor(intensity * 10)} divergências`;
+                        container.appendChild(cell);
+                    });
+                });
+            }
+
+            updateAlerts() {
+                const container = document.getElementById('alertsContainer');
+                container.innerHTML = '';
+
+                this.dashboardData.divergencias.forEach(turno => {
+                    const alert = this.createAlertElement(turno);
+                    container.appendChild(alert);
+                });
+
+                if (this.dashboardData.divergencias.length === 0) {
+                    container.innerHTML = '<p class="text-gray-300 text-center py-8">Nenhuma divergência encontrada 🎉</p>';
+                }
+            }
+
+            createAlertElement(turno) {
+                const div = document.createElement('div');
+                const severity = this.getAlertSeverity(turno);
+                div.className = `p-4 rounded-lg border-l-4 ${severity === 'critical' ? 'severity-critical' : 'severity-warning'}`;
+
+                const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
+                const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
+                const diffVendas = vendidoCalc - pagamentosReg;
+                const diffCaixa = turno.diferencaCaixaFinal || 0;
+
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">Turno ${turno.id}</h4>
+                            <p class="text-sm text-gray-600">Responsável: ${turno.fechamento?.responsavelNome || 'N/A'}</p>
+                            ${Math.abs(diffVendas) > 0.01 ? `<p class="text-sm">Diferença vendas/pagamentos: ${this.formatCurrency(Math.abs(diffVendas))}</p>` : ''}
+                            ${Math.abs(diffCaixa) > 0.01 ? `<p class="text-sm">Diferença caixa: ${this.formatCurrency(Math.abs(diffCaixa))}</p>` : ''}
+                        </div>
+                        <div class="flex space-x-2">
+                            <button class="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600" onclick="dashboard.showAlertDetails('${turno.id}')">
+                                Detalhes
+                            </button>
+                            <button class="px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600" onclick="dashboard.resolveAlert('${turno.id}')">
+                                Resolver
+                            </button>
+                        </div>
+                    </div>
+                `;
+
+                return div;
+            }
+
+            getAlertSeverity(turno) {
+                const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
+                const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
+                const diffVendas = Math.abs(vendidoCalc - pagamentosReg);
+                const diffCaixa = Math.abs(turno.diferencaCaixaFinal || 0);
+
+                return (diffVendas > 50 || diffCaixa > 50) ? 'critical' : 'warning';
+            }
+
+            updateTurnos() {
+                const container = document.getElementById('turnosContainer');
+                container.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between p-3 bg-green-100 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <div>
+                                    <p class="font-medium text-green-800">Turno Manhã</p>
+                                    <p class="text-sm text-green-600">João Silva</p>
+                                </div>
+                            </div>
+                            <button class="text-green-600 hover:text-green-800">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-3 bg-yellow-100 rounded-lg">
+                            <div class="flex items-center space-x-3">
+                                <div class="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                                <div>
+                                    <p class="font-medium text-yellow-800">Turno Tarde</p>
+                                    <p class="text-sm text-yellow-600">Em andamento</p>
+                                </div>
+                            </div>
+                            <button class="text-yellow-600 hover:text-yellow-800">
+                                <i class="fas fa-exchange-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            updateTimeline() {
+                const container = document.getElementById('timelineContainer');
+                const actions = [
+                    { time: '14:30', action: 'Turno Tarde iniciado', user: 'Maria Santos', type: 'info' },
+                    { time: '13:45', action: 'Turno Manhã fechado', user: 'João Silva', type: 'success' },
+                    { time: '13:40', action: 'Divergência de R$ 15,00 resolvida', user: 'João Silva', type: 'warning' },
+                    { time: '12:15', action: 'Preços atualizados', user: 'Admin', type: 'info' },
+                    { time: '08:30', action: 'Caixa transferido: R$ 250,00', user: 'João Silva', type: 'success' }
+                ];
+
+                container.innerHTML = actions.map(action => `
+                    <div class="timeline-item">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <p class="font-medium text-white">${action.action}</p>
+                                <p class="text-sm text-gray-300">${action.user} • ${action.time}</p>
+                            </div>
+                            <i class="fas fa-${action.type === 'success' ? 'check' : action.type === 'warning' ? 'exclamation-triangle' : 'info-circle'} text-${action.type === 'success' ? 'green' : action.type === 'warning' ? 'yellow' : 'blue'}-400"></i>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            showKPIDetails(kpiType) {
+                const modal = document.getElementById('kpiModal');
+                const title = document.getElementById('modalTitle');
+                const content = document.getElementById('modalContent');
+
+                const titles = {
+                    vendas: 'Detalhamento de Vendas',
+                    ticket: 'Análise do Ticket Médio',
+                    pedidos: 'Total de Pedidos',
+                    divergencias: 'Análise de Divergências',
+                    caixa: 'Status do Caixa',
+                    lucro: 'Projeção de Lucro'
+                };
+
+                title.textContent = titles[kpiType] || 'Detalhes';
+                content.innerHTML = this.generateKPIContent(kpiType);
+                this.showModal(modal);
+            }
+
+            generateKPIContent(kpiType) {
+                const formatter = new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+
+                switch (kpiType) {
+                    case 'vendas':
+                        return `
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-4">
+                                    <h4 class="font-semibold text-gray-800">Resumo de Vendas</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex justify-between">
+                                            <span>Vendas Brutas:</span>
+                                            <span class="font-semibold">${formatter.format(this.dashboardData.vendas)}</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>Descontos:</span>
+                                            <span class="font-semibold">R$ 0,00</span>
+                                        </div>
+                                        <div class="flex justify-between border-t pt-2">
+                                            <span class="font-semibold">Total Líquido:</span>
+                                            <span class="font-bold">${formatter.format(this.dashboardData.vendas)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="space-y-4">
+                                    <h4 class="font-semibold text-gray-800">Comparativo</h4>
+                                    <div class="space-y-2">
+                                        <div class="flex justify-between">
+                                            <span>Ontem:</span>
+                                            <span class="text-green-600">+12.5%</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>Semana Passada:</span>
+                                            <span class="text-green-600">+8.3%</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span>Mês Passado:</span>
+                                            <span class="text-green-600">+15.7%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    default:
+                        return `<p class="text-gray-600">Detalhes detalhados para ${kpiType} serão implementados em breve.</p>`;
+                }
+            }
+
+            async showPricesModal() {
+                const modal = document.getElementById('pricesModal');
+                await this.loadPrices();
+                this.showModal(modal);
+            }
+
+            async loadPrices() {
+                try {
+                    const snapshot = await db.collection('produtos').get();
+                    const prices = {};
+                    snapshot.forEach(doc => {
+                        prices[doc.id] = doc.data();
+                    });
+
+                    this.populatePriceContainers(prices);
+                } catch (error) {
+                    console.error('Erro ao carregar preços:', error);
+                    this.showToast('Erro ao carregar preços', 'error');
+                }
+            }
+
+            populatePriceContainers(prices) {
+                const categories = {
+                    pasteis: { container: 'precosPasteisContainer', items: listaSaboresPasteis },
+                    casquinhas: { container: 'precosCasquinhasContainer', items: listaCasquinhas },
+                    caldo_cana: { container: 'precosCaldoCanaContainer', items: listaCaldoCana },
+                    refrigerantes: { container: 'precosRefrigerantesContainer', items: listaRefrigerantes },
+                    gelo: { container: 'precosGeloContainer', items: ['Gelo (Pacote)'] }
+                };
+
+                Object.entries(categories).forEach(([categoryKey, { container, items }]) => {
+                    const containerEl = document.getElementById(container);
+                    containerEl.innerHTML = '';
+
+                    items.forEach(item => {
+                        const key = this.generateItemKey(item);
+                        const price = prices[categoryKey]?.[key]?.preco || 0;
+
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between';
+                        div.innerHTML = `
+                            <label class="text-sm font-medium text-gray-700">${item}</label>
+                            <input type="number" 
+                                   step="0.01" 
+                                   min="0" 
+                                   value="${price.toFixed(2)}"
+                                   data-category="${categoryKey}"
+                                   data-item="${key}"
+                                   class="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-blue-500 focus:border-blue-500">
+                        `;
+                        containerEl.appendChild(div);
+                    });
+                });
+
+                document.getElementById('savePricesBtn').onclick = () => this.savePrices();
+            }
+
+            generateItemKey(item) {
+                return item.toLowerCase()
+                    .replace(/\s+/g, '_')
+                    .replace(/[çÇ]/g, 'c')
+                    .replace(/[ãâáàäÃÂÁÀÄ]/g, 'a')
+                    .replace(/[éêèëÉÊÈË]/g, 'e')
+                    .replace(/[íìîïÍÌÎÏ]/g, 'i')
+                    .replace(/[óôõòöÓÔÕÒÖ]/g, 'o')
+                    .replace(/[úùûüÚÙÛÜ]/g, 'u')
+                    .replace(/[\.]/g, '');
+            }
+
+            async savePrices() {
+                try {
+                    const inputs = document.querySelectorAll('#pricesModal input[data-category]');
+                    const priceUpdates = {};
+
+                    inputs.forEach(input => {
+                        const category = input.dataset.category;
+                        const item = input.dataset.item;
+                        const price = parseFloat(input.value) || 0;
+
+                        if (!priceUpdates[category]) {
+                            priceUpdates[category] = {};
+                        }
+                        priceUpdates[category][item] = { preco: price };
+                    });
+
+                    const batch = db.batch();
+                    Object.entries(priceUpdates).forEach(([category, items]) => {
+                        const docRef = db.collection('produtos').doc(category);
+                        batch.set(docRef, items, { merge: true });
+                    });
+
+                    await batch.commit();
+                    this.showToast('Preços atualizados com sucesso!', 'success');
+                    this.closeModal(document.getElementById('pricesModal'));
+                } catch (error) {
+                    console.error('Erro ao salvar preços:', error);
+                    this.showToast('Erro ao salvar preços', 'error');
+                }
+            }
+
+            async showUsersModal() {
+                const modal = document.getElementById('usersModal');
+                await this.loadUsers();
+                this.showModal(modal);
+
+                document.getElementById('formNovoUsuario').onsubmit = (e) => {
+                    e.preventDefault();
+                    this.addUser();
+                };
+            }
+
+            async loadUsers() {
+                try {
+                    const snapshot = await db.collection('usuarios').get();
+                    const container = document.getElementById('listaUsuariosContainer');
+                    container.innerHTML = '';
+
+                    if (snapshot.empty) {
+                        container.innerHTML = '<p class="text-gray-500 text-center py-4">Nenhum usuário cadastrado</p>';
+                        return;
+                    }
+
+                    snapshot.forEach(doc => {
+                        const user = doc.data();
+                        const div = document.createElement('div');
+                        div.className = 'flex items-center justify-between p-4 border rounded-lg';
+                        div.innerHTML = `
+                            <div>
+                                <p class="font-semibold text-gray-800">${user.nome || 'Sem nome'}</p>
+                                <p class="text-sm text-gray-600">${user.email || 'Sem email'}</p>
+                                <p class="text-xs text-gray-500">UID: ${doc.id}</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <select class="px-2 py-1 border rounded text-sm" onchange="dashboard.updateUserRole('${doc.id}', this.value)">
+                                    <option value="funcionario" ${user.role === 'funcionario' ? 'selected' : ''}>Funcionário</option>
+                                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                                </select>
+                                <button onclick="dashboard.deleteUser('${doc.id}')" class="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        `;
+                        container.appendChild(div);
+                    });
+                } catch (error) {
+                    console.error('Erro ao carregar usuários:', error);
+                    this.showToast('Erro ao carregar usuários', 'error');
+                }
+            }
+
+            async addUser() {
+                try {
+                    const uid = document.getElementById('novoUsuarioUid').value.trim();
+                    const nome = document.getElementById('novoUsuarioNome').value.trim();
+                    const email = document.getElementById('novoUsuarioEmail').value.trim();
+                    const role = document.getElementById('novoUsuarioRole').value;
+
+                    if (!uid || !nome || !email) {
+                        this.showToast('Preencha todos os campos obrigatórios', 'error');
+                        return;
+                    }
+
+                    await db.collection('usuarios').doc(uid).set({
+                        nome,
+                        email,
+                        role,
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+
+                    this.showToast('Usuário adicionado com sucesso!', 'success');
+                    document.getElementById('formNovoUsuario').reset();
+                    this.loadUsers();
+                } catch (error) {
+                    console.error('Erro ao adicionar usuário:', error);
+                    this.showToast('Erro ao adicionar usuário', 'error');
+                }
+            }
+
+            async updateUserRole(uid, newRole) {
+                try {
+                    await db.collection('usuarios').doc(uid).update({ role: newRole });
+                    this.showToast('Função do usuário atualizada!', 'success');
+                } catch (error) {
+                    console.error('Erro ao atualizar função:', error);
+                    this.showToast('Erro ao atualizar função do usuário', 'error');
+                }
+            }
+
+            async deleteUser(uid) {
+                if (!confirm('Tem certeza que deseja excluir este usuário?')) return;
+
+                try {
+                    await db.collection('usuarios').doc(uid).delete();
+                    this.showToast('Usuário excluído com sucesso!', 'success');
+                    this.loadUsers();
+                } catch (error) {
+                    console.error('Erro ao excluir usuário:', error);
+                    this.showToast('Erro ao excluir usuário', 'error');
+                }
+            }
+
+            showAlertDetails(turnoId) {
+                const modal = document.getElementById('alertModal');
+                document.getElementById('alertModalTitle').textContent = `Detalhes - Turno ${turnoId}`;
+                document.getElementById('alertModalContent').innerHTML = `
+                    <div class="space-y-4">
+                        <div>
+                            <h4 class="font-semibold text-gray-800 mb-2">Histórico de Divergências</h4>
+                            <div class="bg-gray-50 p-3 rounded">
+                                <p class="text-sm text-gray-600">Nenhuma ação anterior registrada para este turno.</p>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Justificativa para Resolução</label>
+                            <textarea id="resolveJustification" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" rows="3" placeholder="Descreva a justificativa para resolver esta divergência..."></textarea>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('resolveAlertBtn').onclick = () => this.resolveAlert(turnoId);
+                this.showModal(modal);
+            }
+
+            resolveAlert(turnoId) {
+                const justification = document.getElementById('resolveJustification')?.value || 'Resolvido pelo administrador';
+                
+                // Aqui você salvaria a resolução no banco de dados
+                this.showToast(`Divergência do turno ${turnoId} foi resolvida!`, 'success');
+                this.closeAllModals();
+                this.loadDashboardData();
+            }
+
+            showModal(modal) {
+                modal.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+
+            closeModal(modal) {
+                modal.classList.remove('show');
+                document.body.style.overflow = 'auto';
+            }
+
+            closeAllModals() {
+                document.querySelectorAll('.modal').forEach(modal => {
+                    this.closeModal(modal);
+                });
+            }
+
+            showToast(message, type = 'info') {
+                const container = document.getElementById('toastContainer');
+                const toast = document.createElement('div');
+                
+                const colors = {
+                    success: 'bg-green-500',
+                    error: 'bg-red-500',
+                    warning: 'bg-yellow-500',
+                    info: 'bg-blue-500'
+                };
+
+                const icons = {
+                    success: 'check-circle',
+                    error: 'exclamation-circle',
+                    warning: 'exclamation-triangle',
+                    info: 'info-circle'
+                };
+
+                toast.className = `toast ${colors[type]} text-white p-4 rounded-lg shadow-lg flex items-center space-x-3`;
+                toast.innerHTML = `
+                    <i class="fas fa-${icons[type]}"></i>
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.remove()" class="ml-auto">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+
+                container.appendChild(toast);
+                setTimeout(() => toast.classList.add('show'), 100);
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 5000);
+            }
+
+            formatCurrency(value) {
+                return new Intl.NumberFormat('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                }).format(value);
+            }
+
+            formatPaymentMethod(method) {
+                const methods = {
+                    dinheiro: 'Dinheiro',
+                    pixManual: 'PIX Manual',
+                    stoneDCV: 'Stone D/C/V',
+                    stoneVoucher: 'Stone Voucher',
+                    pagbankDCV: 'PagBank D/C/V'
+                };
+                return methods[method] || method;
+            }
+
+            formatProductName(key) {
+                return key.replace(/_/g, ' ')
+                    .replace(/\b\w/g, l => l.toUpperCase());
+            }
+
+            startRealTimeUpdates() {
+                setInterval(() => {
+                    this.checkForNewAlerts();
+                }, 30000);
+            }
+
+            checkForNewAlerts() {
+                // Simulação de verificação de novos alertas
+                if (Math.random() > 0.9) {
+                    this.showToast('Nova divergência detectada no Turno Tarde!', 'warning');
+                    this.updateNotificationBadge();
+                }
+            }
+
+            updateNotificationBadge() {
+                const badge = document.getElementById('notificationBadge');
+                const currentCount = parseInt(badge.textContent) || 0;
+                badge.textContent = currentCount + 1;
+                badge.classList.remove('hidden');
+            }
+
+            updateFilters() {
+                const activeFilters = document.querySelectorAll('.filter-chip.active');
+                this.activeFilters = {};
+                
+                activeFilters.forEach(filter => {
+                    const filterType = filter.dataset.filter;
+                    this.activeFilters[filterType] = true;
+                });
+
+                this.loadDashboardData();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            protectRoute(['admin']);
+            window.dashboard = new ModernAdminDashboard();
         });
     </script>
 </body>
