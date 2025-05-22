@@ -1285,194 +1285,327 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const timelineManager = new TimelineManager();
 
-    // Gerenciador de Preços
-    class PriceManager {
-        constructor() {
-            this.containers = {
-                precosPasteisContainer: 'pasteis',
-                precosCasquinhasContainer: 'casquinhas',
-                precosCaldoCanaContainer: 'caldo_cana',
-                precosRefrigerantesContainer: 'refrigerantes',
-                precosGeloContainer: 'gelo'
-            };
-        }
+// Gerenciador de Preços Corrigido
+class PriceManager {
+    constructor() {
+        this.containers = {
+            precosPasteisContainer: 'pasteis',
+            precosCasquinhasContainer: 'casquinhas', 
+            precosCaldoCanaContainer: 'caldo_cana',
+            precosRefrigerantesContainer: 'refrigerantes',
+            precosGeloContainer: 'gelo'
+        };
+        
+        // Definir produtos usando as listas do shared.js
+        this.produtosPorCategoria = {
+            pasteis: window.listaSaboresPasteis || [
+                "Carne", "Frango", "Queijo", "Pizza", "Bauru", "Calabresa", "Palmito",
+                "Especial de Carne", "Especial de Frango", "Especial de Calabresa"
+            ],
+            casquinhas: window.listaCasquinhas || [
+                "Casquinha Simples", "Casquinha com Cobertura", "Casquinha com Granulado"
+            ],
+            caldo_cana: window.listaCaldoCana || [
+                "Caldo de Cana 300ml", "Caldo de Cana 500ml", "Caldo de Cana 700ml", "Caldo de Cana 1litro"
+            ],
+            refrigerantes: window.listaRefrigerantes || [
+                "Coca-Cola 350ml", "Coca-Cola 600ml", "Coca-Cola 2L", "Guaraná 350ml", 
+                "Guaraná 600ml", "Guaraná 2L", "Fanta Laranja 350ml", "Fanta Laranja 600ml",
+                "Fanta Laranja 2L", "Fanta Uva 350ml", "Sprite 350ml", "Água Mineral 500ml"
+            ],
+            gelo: ["Gelo (Pacote)"]
+        };
+    }
 
-        async load() {
-            try {
-                toastManager.show('Carregando preços...', 'info', 2000);
-                appState.currentPrices = await dataManager.getPrecos();
-                this.populateForms();
-                this.setupFormHandler();
-                toastManager.show('Preços carregados com sucesso', 'success');
-            } catch (error) {
-                console.error('Erro ao carregar preços:', error);
-                toastManager.show('Erro ao carregar preços', 'error');
-            }
-        }
-
-        populateForms() {
-            Object.entries(this.containers).forEach(([containerId, categoryKey]) => {
-                const container = document.getElementById(containerId);
-                if (!container) return;
-                
-                container.innerHTML = '';
-                const products = PRODUTOS[categoryKey] || [];
-                
-                products.forEach(product => {
-                    const itemKey = this.generateItemKey(product);
-                    const currentPrice = appState.currentPrices[categoryKey]?.[itemKey]?.preco || 0;
-                    const priceDiv = this.createPriceInput(product, categoryKey, itemKey, currentPrice);
-                    container.appendChild(priceDiv);
-                });
-            });
-        }
-
-        generateItemKey(itemName) {
-            return itemName.toLowerCase()
-                .replace(/\s+/g, '_')
-                .replace(/[ç]/g, 'c')
-                .replace(/[ãâáàä]/g, 'a')
-                .replace(/[éêèë]/g, 'e')
-                .replace(/[íìîï]/g, 'i')
-                .replace(/[óôõòö]/g, 'o')
-                .replace(/[úùûü]/g, 'u')
-                .replace(/\./g, '')
-                .replace(/\d+ml/g, d => d.toLowerCase())
-                .replace(/\d+litro/g, d => d.toLowerCase());
-        }
-
-        createPriceInput(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
-            const div = document.createElement('div');
-            div.className = 'space-y-3 p-4 bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-all duration-200';
+    async load() {
+        try {
+            toastManager.show('Carregando preços...', 'info', 2000);
             
-            const label = document.createElement('label');
-            label.htmlFor = `preco_${categoryKey}_${itemKey}`;
-            label.className = 'block text-sm font-medium text-gray-700';
-            label.textContent = itemDisplayName;
+            // Carregar preços do Firebase
+            appState.currentPrices = await dataManager.getPrecos();
+            console.log('Preços carregados:', appState.currentPrices);
             
-            const inputContainer = document.createElement('div');
-            inputContainer.className = 'relative';
+            // Popular formulários
+            this.populateForms();
+            this.setupFormHandler();
             
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.id = `preco_${categoryKey}_${itemKey}`;
-            input.name = `preco_${categoryKey}_${itemKey}`;
-            input.step = '0.01';
-            input.min = '0';
-            input.required = true;
-            input.className = 'w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200';
-            input.value = parseFloat(currentPriceValue).toFixed(2);
-            input.dataset.categoryKey = categoryKey;
-            input.dataset.itemKey = itemKey;
-            
-            const currencySymbol = document.createElement('span');
-            currencySymbol.className = 'absolute left-3 top-3 text-gray-500 text-sm font-medium';
-            currencySymbol.textContent = 'R$';
-            
-            // Adicionar indicador de mudança
-            const changeIndicator = document.createElement('div');
-            changeIndicator.className = 'absolute right-3 top-3 opacity-0 transition-opacity duration-200';
-            changeIndicator.innerHTML = '<i class="fas fa-check text-success-500"></i>';
-            
-            input.addEventListener('input', () => {
-                changeIndicator.classList.remove('opacity-0');
-                setTimeout(() => changeIndicator.classList.add('opacity-0'), 2000);
-            });
-            
-            inputContainer.appendChild(currencySymbol);
-            inputContainer.appendChild(input);
-            inputContainer.appendChild(changeIndicator);
-            
-            // Valor atual formatado
-            const currentValueDiv = document.createElement('div');
-            currentValueDiv.className = 'text-xs text-gray-500 flex items-center justify-between';
-            currentValueDiv.innerHTML = `
-                <span>Valor atual: ${formatCurrency(currentPriceValue)}</span>
-                <span class="text-primary-600 font-medium">${itemKey}</span>
-            `;
-            
-            div.appendChild(label);
-            div.appendChild(inputContainer);
-            div.appendChild(currentValueDiv);
-            
-            return div;
-        }
-
-        setupFormHandler() {
-            const form = document.getElementById('formPrecos');
-            if (!form) return;
-            
-            form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                await this.saveAll();
-            });
-        }
-
-        async saveAll() {
-            const saveButton = document.querySelector('#formPrecos button[type="submit"]');
-            const originalText = saveButton.innerHTML;
-            
-            try {
-                saveButton.disabled = true;
-                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando preços...';
-                
-                const newPricesData = {};
-                const inputs = document.querySelectorAll('#formPrecos input[type="number"]');
-                let hasError = false;
-                
-                inputs.forEach(input => {
-                    const category = input.dataset.categoryKey;
-                    const item = input.dataset.itemKey;
-                    const price = parseFloat(input.value);
-                    
-                    if (isNaN(price) || price < 0) {
-                        input.classList.add('border-danger-500', 'bg-danger-50');
-                        hasError = true;
-                        return;
-                    }
-                    
-                    input.classList.remove('border-danger-500', 'bg-danger-50');
-                    
-                    if (!newPricesData[category]) {
-                        newPricesData[category] = {};
-                    }
-                    newPricesData[category][item] = { preco: price };
-                });
-                
-                if (hasError) {
-                    throw new Error('Alguns preços são inválidos. Verifique os campos destacados.');
-                }
-                
-                const batch = db.batch();
-                Object.keys(newPricesData).forEach(categoryKey => {
-                    const categoryDocRef = db.collection('produtos').doc(categoryKey);
-                    batch.set(categoryDocRef, newPricesData[categoryKey], { merge: true });
-                });
-                
-                await batch.commit();
-                
-                appState.currentPrices = { ...appState.currentPrices, ...newPricesData };
-                dataManager.clearCache();
-                
-                toastManager.show('Todos os preços foram salvos com sucesso!', 'success');
-                
-                // Animar inputs salvos
-                inputs.forEach(input => {
-                    input.classList.add('border-success-500', 'bg-success-50');
-                    setTimeout(() => {
-                        input.classList.remove('border-success-500', 'bg-success-50');
-                    }, 2000);
-                });
-                
-            } catch (error) {
-                console.error('Erro ao salvar preços:', error);
-                toastManager.show('Erro ao salvar preços: ' + error.message, 'error');
-            } finally {
-                saveButton.disabled = false;
-                saveButton.innerHTML = originalText;
-            }
+            toastManager.show('Preços carregados com sucesso', 'success');
+        } catch (error) {
+            console.error('Erro ao carregar preços:', error);
+            toastManager.show('Erro ao carregar preços: ' + error.message, 'error');
         }
     }
+
+    populateForms() {
+        Object.entries(this.containers).forEach(([containerId, categoryKey]) => {
+            const container = document.getElementById(containerId);
+            if (!container) {
+                console.warn(`Container ${containerId} não encontrado`);
+                return;
+            }
+            
+            // Limpar container
+            container.innerHTML = '';
+            
+            // Obter produtos da categoria
+            const products = this.produtosPorCategoria[categoryKey] || [];
+            console.log(`Populando ${categoryKey} com ${products.length} produtos`);
+            
+            // Criar inputs para cada produto
+            products.forEach(product => {
+                const itemKey = this.generateItemKey(product);
+                const currentPrice = appState.currentPrices[categoryKey]?.[itemKey]?.preco || 0;
+                const priceCard = this.createPriceCard(product, categoryKey, itemKey, currentPrice);
+                container.appendChild(priceCard);
+            });
+        });
+    }
+
+    generateItemKey(itemName) {
+        return itemName.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[ç]/g, 'c')
+            .replace(/[ãâáàä]/g, 'a')
+            .replace(/[éêèë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óôõòö]/g, 'o')
+            .replace(/[úùûü]/g, 'u')
+            .replace(/\./g, '')
+            .replace(/\d+ml/g, d => d.toLowerCase())
+            .replace(/\d+litro/g, d => d.toLowerCase());
+    }
+
+    createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
+        // Container principal do card
+        const cardDiv = document.createElement('div');
+        cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
+        
+        // Header do produto
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'flex items-center justify-between mb-4';
+        
+        const productIcon = document.createElement('div');
+        productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
+        
+        // Ícone baseado na categoria
+        const iconClass = this.getProductIcon(categoryKey);
+        productIcon.innerHTML = `<i class="${iconClass} text-primary-600"></i>`;
+        
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'flex-1 ml-3';
+        
+        const label = document.createElement('h3');
+        label.className = 'text-sm font-semibold text-gray-800 mb-1';
+        label.textContent = itemDisplayName;
+        
+        const keyLabel = document.createElement('p');
+        keyLabel.className = 'text-xs text-gray-500';
+        keyLabel.textContent = `ID: ${itemKey}`;
+        
+        titleDiv.appendChild(label);
+        titleDiv.appendChild(keyLabel);
+        headerDiv.appendChild(productIcon);
+        headerDiv.appendChild(titleDiv);
+        
+        // Input container
+        const inputContainer = document.createElement('div');
+        inputContainer.className = 'relative mb-4';
+        
+        const inputLabel = document.createElement('label');
+        inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
+        inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
+        inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500"></i>Preço Unitário';
+        
+        const inputWrapper = document.createElement('div');
+        inputWrapper.className = 'relative';
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.id = `preco_${categoryKey}_${itemKey}`;
+        input.name = `preco_${categoryKey}_${itemKey}`;
+        input.step = '0.01';
+        input.min = '0';
+        input.required = true;
+        input.className = 'w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold';
+        input.value = parseFloat(currentPriceValue).toFixed(2);
+        input.placeholder = '0.00';
+        input.dataset.categoryKey = categoryKey;
+        input.dataset.itemKey = itemKey;
+        
+        // Símbolo de moeda
+        const currencySymbol = document.createElement('div');
+        currencySymbol.className = 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold text-lg';
+        currencySymbol.textContent = 'R$';
+        
+        // Indicador de mudança
+        const changeIndicator = document.createElement('div');
+        changeIndicator.className = 'absolute right-3 top-1/2 transform -translate-y-1/2 opacity-0 transition-opacity duration-200';
+        changeIndicator.innerHTML = '<i class="fas fa-check text-success-500 text-lg"></i>';
+        
+        inputWrapper.appendChild(currencySymbol);
+        inputWrapper.appendChild(input);
+        inputWrapper.appendChild(changeIndicator);
+        
+        // Info atual
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
+        
+        const currentValueDiv = document.createElement('div');
+        currentValueDiv.className = 'flex items-center justify-between text-sm';
+        
+        const currentLabel = document.createElement('span');
+        currentLabel.className = 'text-gray-600';
+        currentLabel.textContent = 'Valor atual:';
+        
+        const currentValueSpan = document.createElement('span');
+        currentValueSpan.className = 'font-bold text-primary-600 text-lg';
+        currentValueSpan.textContent = formatCurrency(currentPriceValue);
+        
+        currentValueDiv.appendChild(currentLabel);
+        currentValueDiv.appendChild(currentValueSpan);
+        infoDiv.appendChild(currentValueDiv);
+        
+        // Event listeners
+        input.addEventListener('input', () => {
+            const newValue = parseFloat(input.value) || 0;
+            currentValueSpan.textContent = formatCurrency(newValue);
+            
+            // Mostrar indicador de mudança
+            changeIndicator.classList.remove('opacity-0');
+            setTimeout(() => changeIndicator.classList.add('opacity-0'), 2000);
+            
+            // Highlight do card quando modificado
+            if (newValue !== currentPriceValue) {
+                cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
+            } else {
+                cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
+            }
+        });
+        
+        input.addEventListener('focus', () => {
+            cardDiv.classList.add('ring-2', 'ring-primary-300');
+        });
+        
+        input.addEventListener('blur', () => {
+            cardDiv.classList.remove('ring-2', 'ring-primary-300');
+        });
+        
+        // Montar o card
+        inputContainer.appendChild(inputLabel);
+        inputContainer.appendChild(inputWrapper);
+        
+        cardDiv.appendChild(headerDiv);
+        cardDiv.appendChild(inputContainer);
+        cardDiv.appendChild(infoDiv);
+        
+        return cardDiv;
+    }
+
+    getProductIcon(categoryKey) {
+        const icons = {
+            pasteis: 'fas fa-utensils',
+            casquinhas: 'fas fa-ice-cream',
+            caldo_cana: 'fas fa-glass-whiskey',
+            refrigerantes: 'fas fa-bottle-water',
+            gelo: 'fas fa-cube'
+        };
+        return icons[categoryKey] || 'fas fa-tag';
+    }
+
+    setupFormHandler() {
+        const form = document.getElementById('formPrecos');
+        if (!form) return;
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.saveAll();
+        });
+    }
+
+    async saveAll() {
+        const saveButton = document.querySelector('#formPrecos button[type="submit"]');
+        const originalText = saveButton.innerHTML;
+        
+        try {
+            // Loading state
+            saveButton.disabled = true;
+            saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando preços...';
+            
+            const newPricesData = {};
+            const inputs = document.querySelectorAll('#formPrecos input[type="number"]');
+            let hasError = false;
+            let changedCount = 0;
+            
+            // Validar e coletar dados
+            inputs.forEach(input => {
+                const category = input.dataset.categoryKey;
+                const item = input.dataset.itemKey;
+                const price = parseFloat(input.value);
+                
+                if (isNaN(price) || price < 0) {
+                    input.classList.add('border-danger-500', 'bg-danger-50');
+                    hasError = true;
+                    return;
+                }
+                
+                input.classList.remove('border-danger-500', 'bg-danger-50');
+                
+                // Verificar se houve mudança
+                const currentPrice = appState.currentPrices[category]?.[item]?.preco || 0;
+                if (Math.abs(price - currentPrice) > 0.01) {
+                    changedCount++;
+                }
+                
+                if (!newPricesData[category]) {
+                    newPricesData[category] = {};
+                }
+                newPricesData[category][item] = { preco: price };
+            });
+            
+            if (hasError) {
+                throw new Error('Alguns preços são inválidos. Verifique os campos destacados em vermelho.');
+            }
+            
+            if (changedCount === 0) {
+                toastManager.show('Nenhuma alteração foi detectada nos preços.', 'info');
+                return;
+            }
+            
+            // Salvar no Firebase usando batch
+            const batch = db.batch();
+            Object.keys(newPricesData).forEach(categoryKey => {
+                const categoryDocRef = db.collection('produtos').doc(categoryKey);
+                batch.set(categoryDocRef, newPricesData[categoryKey], { merge: true });
+            });
+            
+            await batch.commit();
+            
+            // Atualizar estado local
+            appState.currentPrices = { ...appState.currentPrices, ...newPricesData };
+            dataManager.clearCache();
+            
+            // Feedback visual de sucesso
+            inputs.forEach(input => {
+                const card = input.closest('.price-card');
+                card.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
+                card.classList.add('ring-2', 'ring-success-200', 'bg-success-50');
+                
+                setTimeout(() => {
+                    card.classList.remove('ring-2', 'ring-success-200', 'bg-success-50');
+                }, 2000);
+            });
+            
+            toastManager.show(`${changedCount} preço(s) alterado(s) com sucesso!`, 'success', 5000);
+            
+        } catch (error) {
+            console.error('Erro ao salvar preços:', error);
+            toastManager.show('Erro ao salvar preços: ' + error.message, 'error');
+        } finally {
+            saveButton.disabled = false;
+            saveButton.innerHTML = originalText;
+        }
+    }
+}
 
     const priceManager = new PriceManager();
 
