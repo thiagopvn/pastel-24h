@@ -236,19 +236,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        async getPrecos() {
-            try {
-                const snapshot = await db.collection('produtos').get();
-                const precos = {};
-                snapshot.forEach(doc => {
-                    precos[doc.id] = doc.data();
-                });
-                return precos;
-            } catch (error) {
-                console.error('Erro ao buscar preços:', error);
-                return {};
-            }
-        }
+        // Substitua a função getPrecos() na classe DataManager
+
+async getPrecos() {
+    try {
+        console.log('🔍 Buscando preços no Firebase...');
+        
+        const snapshot = await db.collection('produtos').get();
+        const precos = {};
+        
+        console.log(`📦 Encontrados ${snapshot.size} documentos na coleção produtos`);
+        
+        snapshot.forEach(doc => {
+            const categoria = doc.id;  // pasteis, casquinhas, etc.
+            const dados = doc.data();
+            
+            console.log(`📋 Processando categoria: ${categoria}`, dados);
+            
+            precos[categoria] = dados;
+        });
+        
+        console.log('✅ Preços carregados com sucesso:', precos);
+        return precos;
+        
+    } catch (error) {
+        console.error('❌ Erro ao buscar preços:', error);
+        throw error;
+    }
+}
 
         async getUsuarios() {
             try {
