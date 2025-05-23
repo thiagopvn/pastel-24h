@@ -1,4 +1,4 @@
-// admin-controller.js - VERSÃO CORRIGIDA PARA ESTRUTURA REAL DO FIREBASE
+// admin-controller.js - VERSÃO COM DEBUG APRIMORADO
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Iniciando admin-controller.js");
     
@@ -13,6 +13,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("❌ auth ou db não estão definidos. Verifique firebase-config.js");
         alert("Erro crítico: Configuração do Firebase incompleta. Contate o suporte.");
         return;
+    }
+
+    // Teste de conexão com Firestore
+    console.log("🔍 Testando conexão com Firestore...");
+    try {
+        // Tenta fazer uma leitura simples para verificar conectividade
+        const testDoc = await db.collection('produtos').doc('pasteis').get();
+        console.log("✅ Conexão com Firestore OK. Documento existe?", testDoc.exists);
+    } catch (error) {
+        console.error("❌ Erro ao conectar com Firestore:", error);
+        alert("Erro ao conectar com o banco de dados. Verifique sua conexão.");
     }
 
     // Estado de autenticação
@@ -36,8 +47,26 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
         
-        console.log("✅ Usuário autenticado:", currentUser.email);
-        protectRoute(['admin']);
+        console.log("✅ Usuário autenticado:", currentUser.email, "UID:", currentUser.uid);
+        
+        // Verifica role antes de prosseguir
+        try {
+            const userDoc = await db.collection('usuarios').doc(currentUser.uid).get();
+            if (userDoc.exists) {
+                const userData = userDoc.data();
+                console.log("✅ Dados do usuário:", userData);
+                if (userData.role !== 'admin') {
+                    console.error("❌ Usuário não é admin");
+                    alert("Acesso negado. Apenas administradores podem acessar esta página.");
+                    window.location.href = 'funcionario.html';
+                    return;
+                }
+            } else {
+                console.warn("⚠️ Documento do usuário não encontrado em 'usuarios'");
+            }
+        } catch (error) {
+            console.error("❌ Erro ao verificar role do usuário:", error);
+        }
         
     } catch (error) {
         console.error("❌ Erro ao verificar autenticação:", error);
@@ -157,15 +186,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
             }
             
-            // CORREÇÃO: Mapeamento correto para os nomes no Firebase
-            this.firebaseCategoryMap = {
-                pasteis: 'pasteis',
-                casquinhas: 'casquinhas',
-                caldo_cana: 'caldo_cana', // CORREÇÃO: caldos_cana com 's'
-                refrigerantes: 'refrigerantes',
-                gelo: 'gelo'
-            };
-            
             // Lista de produtos por categoria
             this.produtosPorCategoria = {
                 pasteis: [
@@ -210,7 +230,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 // Verificar se os preços foram carregados corretamente
                 if (Object.keys(precos).length === 0) {
-                    throw new Error("Nenhum preço encontrado no banco de dados");
+                    console.warn("⚠️ Nenhum preço encontrado, usando valores padrão");
+                    this.populateWithDefaults();
+                    return;
                 }
                 
                 console.log("✅ Preços carregados:", precos);
@@ -246,61 +268,107 @@ document.addEventListener('DOMContentLoaded', async () => {
             const precos = {};
             
             try {
-                // Para cada categoria, buscar o documento correto no Firebase
-                for (const [categoriaLocal, categoriaFirebase] of Object.entries(this.firebaseCategoryMap)) {
-                    console.log(`📂 Buscando produtos da categoria: ${categoriaLocal} -> ${categoriaFirebase}`);
-                    precos[categoriaLocal] = {};
+                // Primeiro, vamos listar todos os documentos na coleção produtos para debug
+                console.log("📂 Listando todos os documentos na coleção 'produtos':");
+                const produtosSnapshot = await db.collection('produtos').get();
+                produtosSnapshot.forEach(doc => {
+                    console.log(`  - Documento: ${doc.id}`);
+                });
+
+                // Agora buscar cada categoria
+                const categorias = Object.keys(this.produtosPorCategoria);
+                
+                for (const categoria of categorias) {
+                    console.log(`\n📂 Buscando categoria: ${categoria}`);
+                    precos[categoria] = {};
                     
                     try {
-                        // Buscar diretamente o documento da categoria
-                        const categoriaDoc = await db.collection('produtos').doc(categoriaFirebase).get();
+                        const categoriaDoc = await db.collection('produtos').doc(categoria).get();
                         
                         if (categoriaDoc.exists) {
                             const data = categoriaDoc.data();
-                            console.log(`📄 Dados encontrados no documento ${categoriaFirebase}:`, data);
+                            console.log(`✅ Documento '${categoria}' encontrado. Campos:`, Object.keys(data));
                             
-                            // Extrair preços do documento - CORREÇÃO: os preços estão diretamente como campos
-                            Object.keys(data).forEach(key => {
-                                // Os preços estão armazenados diretamente como números
-                                if (typeof data[key] === 'number') {
-                                    precos[categoriaLocal][key] = { preco: data[key] };
-                                    console.log(`  ✓ ${key}: R$ ${data[key]}`);
+                            // Para cada campo esperado nesta categoria
+                            const produtosEsperados = this.produtosPorCategoria[categoria];
+                            console.log(`📋 Produtos esperados em ${categoria}:`, produtosEsperados);
+                            
+                            produtosEsperados.forEach(produtoKey => {
+                                if (data.hasOwnProperty(produtoKey)) {
+                                    const valor = data[produtoKey];
+                                    console.log(`  ✓ ${produtoKey}: ${valor} (tipo: ${typeof valor})`);
+                                    
+                                    // Aceita tanto número direto quanto objeto com propriedade preco
+                                    if (typeof valor === 'number') {
+                                        precos[categoria][produtoKey] = { preco: valor };
+                                    } else if (typeof valor === 'object' && valor !== null && valor.preco !== undefined) {
+                                        precos[categoria][produtoKey] = { preco: parseFloat(valor.preco) };
+                                    } else {
+                                        console.warn(`  ⚠️ ${produtoKey}: formato inesperado:`, valor);
+                                        precos[categoria][produtoKey] = { preco: 0 };
+                                    }
+                                } else {
+                                    console.warn(`  ❌ ${produtoKey}: não encontrado no documento`);
+                                    precos[categoria][produtoKey] = { preco: 0 };
                                 }
                             });
+                            
                         } else {
-                            console.warn(`⚠️ Documento '${categoriaFirebase}' não encontrado na coleção 'produtos'`);
+                            console.error(`❌ Documento '${categoria}' não encontrado na coleção 'produtos'`);
+                            
+                            // Inicializar com zeros
+                            this.produtosPorCategoria[categoria].forEach(produto => {
+                                precos[categoria][produto] = { preco: 0 };
+                            });
                         }
                     } catch (error) {
-                        console.error(`❌ Erro ao buscar categoria ${categoriaFirebase}:`, error);
+                        console.error(`❌ Erro ao buscar categoria ${categoria}:`, error);
+                        console.error("Detalhes do erro:", error.code, error.message);
+                        
+                        // Inicializar com zeros em caso de erro
+                        this.produtosPorCategoria[categoria].forEach(produto => {
+                            precos[categoria][produto] = { preco: 0 };
+                        });
                     }
                 }
                 
                 // Verificar se encontramos preços
                 let totalProdutos = 0;
+                let produtosComPreco = 0;
                 Object.values(precos).forEach(categoria => {
-                    totalProdutos += Object.keys(categoria).length;
+                    Object.values(categoria).forEach(item => {
+                        totalProdutos++;
+                        if (item.preco > 0) produtosComPreco++;
+                    });
                 });
                 
-                console.log(`📊 Total de produtos com preços: ${totalProdutos}`);
-                
-                if (totalProdutos === 0) {
-                    throw new Error("Nenhum produto com preço foi encontrado no banco de dados");
-                }
+                console.log(`\n📊 Resumo: ${produtosComPreco}/${totalProdutos} produtos com preço definido`);
                 
                 return precos;
                 
             } catch (error) {
-                console.error("❌ Erro ao buscar preços:", error);
+                console.error("❌ Erro geral ao buscar preços:", error);
+                console.error("Tipo de erro:", error.name);
+                console.error("Código do erro:", error.code);
+                console.error("Mensagem:", error.message);
                 throw error;
             }
         }
 
         populateForms() {
+            console.log("🎨 Populando formulários com os preços...");
+            
             Object.entries(this.containers).forEach(([containerId, container]) => {
-                if (!container) return;
+                if (!container) {
+                    console.warn(`⚠️ Container ${containerId} não encontrado`);
+                    return;
+                }
                 
                 const categoryKey = this.containerToCategoryMap[containerId];
-                if (!categoryKey) return;
+                if (!categoryKey) {
+                    console.warn(`⚠️ Categoria não mapeada para ${containerId}`);
+                    return;
+                }
                 
                 const products = this.produtosPorCategoria[categoryKey] || [];
                 
@@ -325,7 +393,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         currentPrice = appState.currentPrices[categoryKey][itemKey].preco;
                     }
                     
-                    console.log(`  - Produto: ${product}, Key: ${itemKey}, Preço: ${currentPrice}`);
+                    console.log(`  - ${product}: R$ ${currentPrice}`);
                     
                     // Formatar nome para exibição
                     const displayName = this.formatProductName(product);
@@ -347,6 +415,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         updateCounters() {
+            console.log("🔢 Atualizando contadores...");
+            
             Object.entries(this.containerToCategoryMap).forEach(([containerId, categoryKey]) => {
                 const categoryId = containerId.replace('precos', '').replace('Container', '');
                 
@@ -364,6 +434,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const element = document.getElementById(id);
                     if (element) {
                         counterElement = element;
+                        console.log(`✅ Contador encontrado: ${id}`);
                         break;
                     }
                 }
@@ -373,7 +444,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     counterElement.textContent = products.length;
                     console.log(`📊 Contador ${counterElement.id}: ${products.length} produtos`);
                 } else {
-                    console.warn(`⚠️ Contador não encontrado para categoria ${categoryKey}`);
+                    console.warn(`⚠️ Contador não encontrado para categoria ${categoryKey}. IDs tentados:`, possibleIds);
                 }
             });
         }
@@ -592,13 +663,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (Math.abs(price - currentPrice) > 0.01) {
                         changedCount++;
                         
-                        // Agrupar por categoria e usar o nome correto do Firebase
-                        const firebaseCategory = this.firebaseCategoryMap[category] || category;
-                        if (!updatesByCategory[firebaseCategory]) {
-                            updatesByCategory[firebaseCategory] = {};
+                        // Agrupar por categoria (sem mapeamento, usar diretamente)
+                        if (!updatesByCategory[category]) {
+                            updatesByCategory[category] = {};
                         }
-                        // CORREÇÃO: salvar diretamente como campo, não como objeto
-                        updatesByCategory[firebaseCategory][item] = price;
+                        // Salvar diretamente como campo
+                        updatesByCategory[category][item] = price;
                     }
                     
                     // Adicionar à estrutura de dados para salvar
@@ -626,6 +696,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 for (const [category, updates] of Object.entries(updatesByCategory)) {
                     const docRef = db.collection('produtos').doc(category);
+                    console.log(`Atualizando documento produtos/${category} com:`, updates);
                     batch.update(docRef, updates);
                 }
                 
@@ -748,7 +819,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         populateWithDefaults() {
+            console.log("📝 Usando preços padrão...");
             const defaultPrices = this.getDefaultPrices();
+            appState.currentPrices = defaultPrices;
             
             Object.entries(this.containers).forEach(([containerId, container]) => {
                 if (!container) return;
@@ -778,6 +851,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             
             this.updateCounters();
+            this.setupFormHandler();
         }
     }
 
@@ -894,6 +968,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 snapshot.forEach(doc => {
                     const userData = doc.data();
+                    console.log(`Usuário ${doc.id}:`, userData);
                     
                     // Garantir que os dados tenham os campos necessários
                     users.push({
@@ -933,6 +1008,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
             } catch (error) {
                 console.error("❌ Erro ao buscar usuários:", error);
+                console.error("Tipo de erro:", error.name);
+                console.error("Código do erro:", error.code);
+                console.error("Mensagem:", error.message);
                 throw error;
             }
         }
