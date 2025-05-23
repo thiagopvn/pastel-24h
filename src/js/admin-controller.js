@@ -1,4 +1,4 @@
-/// admin-controller.js - VERSÃO CORRIGIDA PARA ESTRUTURA CORRETA DO FIREBASE
+// admin-controller.js - VERSÃO CORRIGIDA PARA ESTRUTURA CORRETA DO FIREBASE
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Iniciando admin-controller.js");
     
@@ -237,7 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const precos = {};
             
             try {
-                // Para cada categoria, buscar todos os documentos (produtos)
+                // Para cada categoria, buscar o documento
                 const categorias = Object.keys(this.produtosPorCategoria);
                 
                 for (const categoria of categorias) {
@@ -245,40 +245,25 @@ document.addEventListener('DOMContentLoaded', async () => {
                     precos[categoria] = {};
                     
                     try {
-                        // Buscar todos os documentos da subcoleção
-                        const produtosSnapshot = await db.collection('produtos').doc(categoria).collection(categoria).get();
+                        // Buscar diretamente o documento da categoria
+                        const categoriaDoc = await db.collection('produtos').doc(categoria).get();
                         
-                        if (!produtosSnapshot.empty) {
-                            console.log(`📦 ${produtosSnapshot.size} produtos encontrados em ${categoria}`);
+                        if (categoriaDoc.exists) {
+                            const data = categoriaDoc.data();
+                            console.log(`📄 Dados encontrados no documento ${categoria}:`, Object.keys(data).length, 'produtos');
                             
-                            produtosSnapshot.forEach(doc => {
-                                const produtoData = doc.data();
-                                const produtoId = doc.id;
-                                
-                                // Adicionar o produto ao objeto de preços
-                                precos[categoria][produtoId] = {
-                                    preco: produtoData.preco || 0
-                                };
-                                
-                                console.log(`  ✓ ${produtoId}: R$ ${produtoData.preco || 0}`);
+                            // Extrair preços do documento
+                            Object.keys(data).forEach(key => {
+                                if (typeof data[key] === 'object' && data[key] !== null && data[key].preco !== undefined) {
+                                    precos[categoria][key] = { preco: parseFloat(data[key].preco) || 0 };
+                                    console.log(`  ✓ ${key}: R$ ${data[key].preco}`);
+                                } else if (typeof data[key] === 'number') {
+                                    precos[categoria][key] = { preco: parseFloat(data[key]) || 0 };
+                                    console.log(`  ✓ ${key}: R$ ${data[key]}`);
+                                }
                             });
                         } else {
-                            // Se não houver subcoleção, tentar buscar diretamente do documento
-                            const categoriaDoc = await db.collection('produtos').doc(categoria).get();
-                            
-                            if (categoriaDoc.exists) {
-                                const data = categoriaDoc.data();
-                                console.log(`📄 Dados encontrados no documento ${categoria}:`, data);
-                                
-                                // Extrair preços do documento
-                                Object.keys(data).forEach(key => {
-                                    if (typeof data[key] === 'object' && data[key].preco !== undefined) {
-                                        precos[categoria][key] = { preco: data[key].preco };
-                                    } else if (typeof data[key] === 'number') {
-                                        precos[categoria][key] = { preco: data[key] };
-                                    }
-                                });
-                            }
+                            console.warn(`⚠️ Documento '${categoria}' não encontrado na coleção 'produtos'`);
                         }
                     } catch (error) {
                         console.error(`❌ Erro ao buscar categoria ${categoria}:`, error);
@@ -292,6 +277,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 
                 console.log(`📊 Total de produtos com preços: ${totalProdutos}`);
+                
+                if (totalProdutos === 0) {
+                    throw new Error("Nenhum produto com preço foi encontrado no banco de dados");
+                }
                 
                 return precos;
                 
@@ -570,7 +559,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 let changedCount = 0;
                 
                 // Coletar todos os preços alterados
-                const updates = [];
+                const updatesByCategory = {};
                 
                 inputs.forEach(input => {
                     const category = input.dataset.categoryKey;
@@ -599,12 +588,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (Math.abs(price - currentPrice) > 0.01) {
                         changedCount++;
                         
-                        // Adicionar à lista de atualizações
-                        updates.push({
-                            category: category,
-                            item: item,
-                            price: price
-                        });
+                        // Agrupar por categoria
+                        if (!updatesByCategory[category]) {
+                            updatesByCategory[category] = {};
+                        }
+                        updatesByCategory[category][`${item}.preco`] = price;
                     }
                     
                     // Adicionar à estrutura de dados para salvar
@@ -624,26 +612,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     return;
                 }
                 
-                console.log('Salvando novos preços:', newPricesData);
+                console.log('Salvando novos preços:', updatesByCategory);
                 console.log(`${changedCount} itens alterados`);
                 
-                // Salvar no Firebase na estrutura correta
+                // Salvar no Firebase na estrutura correta (campos no documento)
                 const batch = db.batch();
                 
-                for (const update of updates) {
-                    // Tentar salvar como subcoleção primeiro
-                    const subDocRef = db.collection('produtos')
-                        .doc(update.category)
-                        .collection(update.category)
-                        .doc(update.item);
-                    
-                    batch.set(subDocRef, { preco: update.price }, { merge: true });
-                    
-                    // Também atualizar no documento principal (caso use estrutura de campos)
-                    const mainDocRef = db.collection('produtos').doc(update.category);
-                    batch.update(mainDocRef, {
-                        [`${update.item}.preco`]: update.price
-                    });
+                for (const [category, updates] of Object.entries(updatesByCategory)) {
+                    const docRef = db.collection('produtos').doc(category);
+                    batch.update(docRef, updates);
                 }
                 
                 await batch.commit();
@@ -671,7 +648,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const item = input.dataset.itemKey;
                     
                     if (category && item && newPricesData[category] && newPricesData[category][item]) {
-                        input.dataset.originalValue = newPricesData[category][item].preco;
+                        input.dataset.originalValue = newPricesData[category][item].preco.toFixed(2);
                     }
                 });
                 
