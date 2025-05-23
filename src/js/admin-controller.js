@@ -1319,13 +1319,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Verificar se a página foi carregada corretamente antes de inicializar
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(initialize, 0);
     } else {
         document.addEventListener('DOMContentLoaded', initialize);
     }
 
-    // Iniciar o sistema
+
     initialize();
 });
