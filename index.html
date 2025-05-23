@@ -66,11 +66,6 @@
             filter: drop-shadow(0 4px 6px rgba(249, 115, 22, 0.1));
         }
         
-        .input-icon {
-            top: 50%;
-            transform: translateY(-50%);
-        }
-        
         .pulse {
             animation: pulse 2s infinite;
         }
@@ -117,8 +112,8 @@
                 <div>
                     <label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
                     <div class="relative">
-                        <div class="absolute left-3 input-icon">
-                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
                                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                             </svg>
@@ -141,8 +136,8 @@
                         <a href="#" class="text-xs text-orange-600 hover:text-orange-800 transition duration-200">Esqueceu a senha?</a>
                     </div>
                     <div class="relative">
-                        <div class="absolute left-3 input-icon">
-                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                                 <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd" />
                             </svg>
                         </div>
@@ -268,6 +263,206 @@
                     if(loginSpinner) loginSpinner.classList.add('hidden');
                 }
             });
+        });
+    </script>
+
+    <!-- Script de correção para exibição de preços na interface administrativa -->
+    <script>
+        // price-manager-fix.js - Script para corrigir a exibição de preços na interface administrativa
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("🔧 Inicializando correção de exibição de preços...");
+            
+            // Classe aprimorada para gerenciamento de preços
+            class EnhancedPriceManager {
+                constructor() {
+                    this.containers = {
+                        precosPasteisContainer: document.getElementById('precosPasteisContainer'),
+                        precosCasquinhasContainer: document.getElementById('precosCasquinhasContainer'), 
+                        precosCaldoCanaContainer: document.getElementById('precosCaldoCanaContainer'),
+                        precosRefrigerantesContainer: document.getElementById('precosRefrigerantesContainer'),
+                        precosGeloContainer: document.getElementById('precosGeloContainer')
+                    };
+                    
+                    // Verificar se todos os containers existem
+                    const missingContainers = Object.entries(this.containers)
+                        .filter(([key, element]) => !element)
+                        .map(([key]) => key);
+                        
+                    if (missingContainers.length > 0) {
+                        console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
+                    }
+                    
+                    // Lista de produtos por categoria
+                    this.produtosPorCategoria = {
+                        pasteis: [
+                            "carne", "frango", "queijo", "pizza", "bauru", "calabresa", "palmito",
+                            "especial_de_carne", "especial_de_frango", "especial_de_calabresa"
+                        ],
+                        casquinhas: [
+                            "casquinha_simples", "casquinha_com_cobertura", "casquinha_com_granulado"
+                        ],
+                        caldo_cana: [
+                            "caldo_de_cana_300ml", "caldo_de_cana_500ml", "caldo_de_cana_700ml", "caldo_de_cana_1litro"
+                        ],
+                        refrigerantes: [
+                            "coca_cola_350ml", "coca_cola_600ml", "coca_cola_2l", "guarana_350ml", "guarana_600ml", 
+                            "guarana_2l", "fanta_laranja_350ml", "fanta_laranja_600ml", "fanta_laranja_2l", "fanta_uva_350ml", 
+                            "sprite_350ml", "agua_mineral_500ml"
+                        ],
+                        gelo: ["gelo_pacote"]
+                    };
+                    
+                    // Mapeamento de container para categoria
+                    this.containerToCategoryMap = {
+                        precosPasteisContainer: 'pasteis',
+                        precosCasquinhasContainer: 'casquinhas',
+                        precosCaldoCanaContainer: 'caldo_cana',
+                        precosRefrigerantesContainer: 'refrigerantes',
+                        precosGeloContainer: 'gelo'
+                    };
+                }
+
+                createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
+                    
+                    const headerDiv = document.createElement('div');
+                    headerDiv.className = 'flex items-center justify-between mb-4';
+                    
+                    const productIcon = document.createElement('div');
+                    productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
+                    
+                    const iconClass = this.getProductIcon(categoryKey);
+                    productIcon.innerHTML = `<i class="${iconClass} text-primary-600" aria-hidden="true"></i>`;
+                    
+                    const titleDiv = document.createElement('div');
+                    titleDiv.className = 'flex-1 ml-3';
+                    
+                    const label = document.createElement('h3');
+                    label.className = 'text-sm font-semibold text-gray-800 mb-1';
+                    label.textContent = itemDisplayName;
+                    
+                    const keyLabel = document.createElement('p');
+                    keyLabel.className = 'text-xs text-gray-500';
+                    keyLabel.textContent = `ID: ${itemKey}`;
+                    
+                    titleDiv.appendChild(label);
+                    titleDiv.appendChild(keyLabel);
+                    headerDiv.appendChild(productIcon);
+                    headerDiv.appendChild(titleDiv);
+                    
+                    const inputContainer = document.createElement('div');
+                    inputContainer.className = 'relative mb-4';
+                    
+                    const inputLabel = document.createElement('label');
+                    inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
+                    inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
+                    inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500" aria-hidden="true"></i>Preço Unitário';
+                    
+                    const inputWrapper = document.createElement('div');
+                    inputWrapper.className = 'relative';
+                    
+                    const input = document.createElement('input');
+                    input.type = 'number';
+                    input.id = `preco_${categoryKey}_${itemKey}`;
+                    input.name = `preco_${categoryKey}_${itemKey}`;
+                    input.step = '0.01';
+                    input.min = '0';
+                    input.required = true;
+                    input.className = 'w-full pl-16 pr-12 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold';
+                    input.value = parseFloat(currentPriceValue).toFixed(2);
+                    input.placeholder = '0.00';
+                    input.dataset.categoryKey = categoryKey;
+                    input.dataset.itemKey = itemKey;
+                    input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
+                    
+                    const currencySymbol = document.createElement('div');
+                    currencySymbol.className = 'absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none';
+                    currencySymbol.innerHTML = '<span class="text-gray-500 font-semibold text-lg">R$</span>';
+                    currencySymbol.setAttribute('aria-hidden', 'true');
+                    
+                    const changeIndicator = document.createElement('div');
+                    changeIndicator.className = 'absolute inset-y-0 right-0 flex items-center pr-3 opacity-0 transition-opacity duration-200 pointer-events-none';
+                    changeIndicator.innerHTML = '<i class="fas fa-check text-success-500 text-lg" aria-hidden="true"></i>';
+                    
+                    inputWrapper.appendChild(currencySymbol);
+                    inputWrapper.appendChild(input);
+                    inputWrapper.appendChild(changeIndicator);
+                    
+                    const infoDiv = document.createElement('div');
+                    infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
+                    
+                    const currentValueDiv = document.createElement('div');
+                    currentValueDiv.className = 'flex items-center justify-between text-sm';
+                    
+                    const currentLabel = document.createElement('span');
+                    currentLabel.className = 'text-gray-600';
+                    currentLabel.textContent = 'Valor atual:';
+                    
+                    const currentValueSpan = document.createElement('span');
+                    currentValueSpan.className = 'font-bold text-primary-600 text-lg';
+                    currentValueSpan.textContent = this.formatCurrency(currentPriceValue);
+                    
+                    currentValueDiv.appendChild(currentLabel);
+                    currentValueDiv.appendChild(currentValueSpan);
+                    infoDiv.appendChild(currentValueDiv);
+                    
+                    // Event listeners
+                    input.addEventListener('input', () => {
+                        const newValue = parseFloat(input.value) || 0;
+                        currentValueSpan.textContent = this.formatCurrency(newValue);
+                        
+                        const originalValue = parseFloat(input.dataset.originalValue);
+                        if (Math.abs(newValue - originalValue) > 0.01) {
+                            changeIndicator.classList.remove('opacity-0');
+                            cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
+                        } else {
+                            changeIndicator.classList.add('opacity-0');
+                            cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
+                        }
+                    });
+                    
+                    input.addEventListener('focus', () => {
+                        cardDiv.classList.add('ring-2', 'ring-primary-300');
+                    });
+                    
+                    input.addEventListener('blur', () => {
+                        cardDiv.classList.remove('ring-2', 'ring-primary-300');
+                    });
+                    
+                    inputContainer.appendChild(inputLabel);
+                    inputContainer.appendChild(inputWrapper);
+                    
+                    cardDiv.appendChild(headerDiv);
+                    cardDiv.appendChild(inputContainer);
+                    cardDiv.appendChild(infoDiv);
+                    
+                    return cardDiv;
+                }
+
+                getProductIcon(categoryKey) {
+                    const icons = {
+                        pasteis: 'fas fa-utensils',
+                        casquinhas: 'fas fa-ice-cream',
+                        caldo_cana: 'fas fa-glass-whiskey',
+                        refrigerantes: 'fas fa-bottle-water',
+                        gelo: 'fas fa-cube'
+                    };
+                    return icons[categoryKey] || 'fas fa-tag';
+                }
+
+                formatCurrency(value) {
+                    const valueNumber = parseFloat(value);
+                    if (isNaN(valueNumber)) return 'R$ 0,00';
+                    
+                    return `R$ ${valueNumber.toFixed(2).replace('.', ',')}`;
+                }
+            }
+
+            // Disponibilizar globalmente se estivermos na página admin
+            if (window.location.pathname.includes('admin')) {
+                window.enhancedPriceManager = new EnhancedPriceManager();
+            }
         });
     </script>
 </body>

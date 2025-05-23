@@ -3,10 +3,10 @@ if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0
   window.auth = window.auth || firebase.auth();
   window.db = window.db || firebase.firestore();
 } 
-// Caso o Firebase não tenha sido inicializado
+
 else if (typeof firebase !== 'undefined') {
   (function() {
-    // Verificar se a configuração já existe antes de declarar
+
     if (typeof window.firebaseConfig === 'undefined') {
       window.firebaseConfig = {
         apiKey: "AIzaSyAFiDHRY_DuJ6pLzDmR-M2bNhzgxsX9doE",
