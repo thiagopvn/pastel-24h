@@ -160,21 +160,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Lista de produtos por categoria
             this.produtosPorCategoria = {
                 pasteis: [
-                    "Carne", "Frango", "Queijo", "Pizza", "Bauru", "Calabresa", "Palmito",
-                    "Especial de Carne", "Especial de Frango", "Especial de Calabresa"
+                    "carne", "frango", "queijo", "pizza", "bauru", "calabresa", "palmito",
+                    "especial_de_carne", "especial_de_frango", "especial_de_calabresa"
                 ],
                 casquinhas: [
-                    "Casquinha Simples", "Casquinha com Cobertura", "Casquinha com Granulado"
+                    "casquinha_simples", "casquinha_com_cobertura", "casquinha_com_granulado"
                 ],
                 caldo_cana: [
-                    "Caldo de Cana 300ml", "Caldo de Cana 500ml", "Caldo de Cana 700ml", "Caldo de Cana 1litro"
+                    "caldo_de_cana_300ml", "caldo_de_cana_500ml", "caldo_de_cana_700ml", "caldo_de_cana_1litro"
                 ],
                 refrigerantes: [
-                    "Coca-Cola 350ml", "Coca-Cola 600ml", "Coca-Cola 2L", "Guaraná 350ml", "Guaraná 600ml", 
-                    "Guaraná 2L", "Fanta Laranja 350ml", "Fanta Laranja 600ml", "Fanta Laranja 2L", "Fanta Uva 350ml", 
-                    "Sprite 350ml", "Água Mineral 500ml"
+                    "coca_cola_350ml", "coca_cola_600ml", "coca_cola_2l", "guarana_350ml", "guarana_600ml", 
+                    "guarana_2l", "fanta_laranja_350ml", "fanta_laranja_600ml", "fanta_laranja_2l", "fanta_uva_350ml", 
+                    "sprite_350ml", "agua_mineral_500ml"
                 ],
-                gelo: ["Gelo (Pacote)"]
+                gelo: ["gelo_pacote"]
             };
             
             // Verificar se existem listas globais e usá-las se disponíveis
