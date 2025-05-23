@@ -449,122 +449,130 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
-            const cardDiv = document.createElement('div');
-            cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
-            
-            const headerDiv = document.createElement('div');
-            headerDiv.className = 'flex items-center justify-between mb-4';
-            
-            const productIcon = document.createElement('div');
-            productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
-            
-            const iconClass = this.getProductIcon(categoryKey);
-            productIcon.innerHTML = `<i class="${iconClass} text-primary-600"></i>`;
-            
-            const titleDiv = document.createElement('div');
-            titleDiv.className = 'flex-1 ml-3';
-            
-            const label = document.createElement('h3');
-            label.className = 'text-sm font-semibold text-gray-800 mb-1';
-            label.textContent = itemDisplayName;
-            
-            const keyLabel = document.createElement('p');
-            keyLabel.className = 'text-xs text-gray-500';
-            keyLabel.textContent = `ID: ${itemKey}`;
-            
-            titleDiv.appendChild(label);
-            titleDiv.appendChild(keyLabel);
-            headerDiv.appendChild(productIcon);
-            headerDiv.appendChild(titleDiv);
-            
-            const inputContainer = document.createElement('div');
-            inputContainer.className = 'relative mb-4';
-            
-            const inputLabel = document.createElement('label');
-            inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
-            inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
-            inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500"></i>Preço Unitário';
-            
-            const inputWrapper = document.createElement('div');
-            inputWrapper.className = 'relative';
-            
-            const input = document.createElement('input');
-            input.type = 'number';
-            input.id = `preco_${categoryKey}_${itemKey}`;
-            input.name = `preco_${categoryKey}_${itemKey}`;
-            input.step = '0.01';
-            input.min = '0';
-            input.required = true;
-            input.className = 'w-full pl-12 pr-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold';
-            input.value = parseFloat(currentPriceValue).toFixed(2);
-            input.placeholder = '0.00';
-            input.dataset.categoryKey = categoryKey;
-            input.dataset.itemKey = itemKey;
-            input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
-            
-            const currencySymbol = document.createElement('div');
-            currencySymbol.className = 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 font-semibold text-lg';
-            currencySymbol.textContent = 'R$';
-            
-            const changeIndicator = document.createElement('div');
-            changeIndicator.className = 'absolute right-3 top-1/2 transform -translate-y-1/2 opacity-0 transition-opacity duration-200';
-            changeIndicator.innerHTML = '<i class="fas fa-check text-success-500 text-lg"></i>';
-            
-            inputWrapper.appendChild(currencySymbol);
-            inputWrapper.appendChild(input);
-            inputWrapper.appendChild(changeIndicator);
-            
-            const infoDiv = document.createElement('div');
-            infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
-            
-            const currentValueDiv = document.createElement('div');
-            currentValueDiv.className = 'flex items-center justify-between text-sm';
-            
-            const currentLabel = document.createElement('span');
-            currentLabel.className = 'text-gray-600';
-            currentLabel.textContent = 'Valor atual:';
-            
-            const currentValueSpan = document.createElement('span');
-            currentValueSpan.className = 'font-bold text-primary-600 text-lg';
-            currentValueSpan.textContent = formatCurrency(currentPriceValue);
-            
-            currentValueDiv.appendChild(currentLabel);
-            currentValueDiv.appendChild(currentValueSpan);
-            infoDiv.appendChild(currentValueDiv);
-            
-            // Event listeners
-            input.addEventListener('input', () => {
-                const newValue = parseFloat(input.value) || 0;
-                currentValueSpan.textContent = formatCurrency(newValue);
-                
-                const originalValue = parseFloat(input.dataset.originalValue);
-                if (Math.abs(newValue - originalValue) > 0.01) {
-                    changeIndicator.classList.remove('opacity-0');
-                    cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
-                } else {
-                    changeIndicator.classList.add('opacity-0');
-                    cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
-                }
-            });
-            
-            input.addEventListener('focus', () => {
-                cardDiv.classList.add('ring-2', 'ring-primary-300');
-            });
-            
-            input.addEventListener('blur', () => {
-                cardDiv.classList.remove('ring-2', 'ring-primary-300');
-            });
-            
-            inputContainer.appendChild(inputLabel);
-            inputContainer.appendChild(inputWrapper);
-            
-            cardDiv.appendChild(headerDiv);
-            cardDiv.appendChild(inputContainer);
-            cardDiv.appendChild(infoDiv);
-            
-            return cardDiv;
+    createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
+    
+    // Cabeçalho do card
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'flex items-center justify-between mb-4';
+    
+    const productIcon = document.createElement('div');
+    productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
+    
+    const iconClass = this.getProductIcon(categoryKey);
+    productIcon.innerHTML = `<i class="${iconClass} text-primary-600"></i>`;
+    
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'flex-1 ml-3';
+    
+    const label = document.createElement('h3');
+    label.className = 'text-sm font-semibold text-gray-800 mb-1';
+    label.textContent = itemDisplayName;
+    
+    const keyLabel = document.createElement('p');
+    keyLabel.className = 'text-xs text-gray-500';
+    keyLabel.textContent = `ID: ${itemKey}`;
+    
+    titleDiv.appendChild(label);
+    titleDiv.appendChild(keyLabel);
+    headerDiv.appendChild(productIcon);
+    headerDiv.appendChild(titleDiv);
+    
+    // Seção de input com ícones
+    const inputContainer = document.createElement('div');
+    inputContainer.className = 'relative mb-4';
+    
+    const inputLabel = document.createElement('label');
+    inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
+    inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
+    inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500"></i>Preço Unitário';
+    
+    // CORREÇÃO: Usar wrapper para input e ícones
+    const inputWrapper = document.createElement('div');
+    inputWrapper.className = 'price-input-wrapper';
+    
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.id = `preco_${categoryKey}_${itemKey}`;
+    input.name = `preco_${categoryKey}_${itemKey}`;
+    input.step = '0.01';
+    input.min = '0';
+    input.required = true;
+    input.className = 'w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold py-3';
+    input.value = parseFloat(currentPriceValue).toFixed(2);
+    input.placeholder = '0.00';
+    input.dataset.categoryKey = categoryKey;
+    input.dataset.itemKey = itemKey;
+    input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
+    
+    // CORREÇÃO: Criar wrapper para o símbolo de moeda
+    const currencyWrapper = document.createElement('div');
+    currencyWrapper.className = 'currency-wrapper';
+    currencyWrapper.innerHTML = '<span class="text-gray-500 font-semibold text-lg">R$</span>';
+    
+    // CORREÇÃO: Criar wrapper para o ícone de check
+    const checkWrapper = document.createElement('div');
+    checkWrapper.className = 'check-wrapper';
+    checkWrapper.innerHTML = '<i class="fas fa-check text-success-500 text-lg"></i>';
+    
+    // Adicionar elementos na ordem correta
+    inputWrapper.appendChild(currencyWrapper);
+    inputWrapper.appendChild(input);
+    inputWrapper.appendChild(checkWrapper);
+    
+    // Informações de valor atual
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
+    
+    const currentValueDiv = document.createElement('div');
+    currentValueDiv.className = 'flex items-center justify-between text-sm';
+    
+    const currentLabel = document.createElement('span');
+    currentLabel.className = 'text-gray-600';
+    currentLabel.textContent = 'Valor atual:';
+    
+    const currentValueSpan = document.createElement('span');
+    currentValueSpan.className = 'font-bold text-primary-600 text-lg';
+    currentValueSpan.textContent = this.formatCurrency(currentPriceValue);
+    
+    currentValueDiv.appendChild(currentLabel);
+    currentValueDiv.appendChild(currentValueSpan);
+    infoDiv.appendChild(currentValueDiv);
+    
+    // Event listeners para os inputs
+    input.addEventListener('input', () => {
+        const newValue = parseFloat(input.value) || 0;
+        currentValueSpan.textContent = this.formatCurrency(newValue);
+        
+        const originalValue = parseFloat(input.dataset.originalValue);
+        if (Math.abs(newValue - originalValue) > 0.01) {
+            checkWrapper.classList.add('show');
+            cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
+        } else {
+            checkWrapper.classList.remove('show');
+            cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
         }
+    });
+    
+    input.addEventListener('focus', () => {
+        cardDiv.classList.add('ring-2', 'ring-primary-300');
+    });
+    
+    input.addEventListener('blur', () => {
+        cardDiv.classList.remove('ring-2', 'ring-primary-300');
+    });
+    
+    // Montar estrutura final
+    inputContainer.appendChild(inputLabel);
+    inputContainer.appendChild(inputWrapper);
+    
+    cardDiv.appendChild(headerDiv);
+    cardDiv.appendChild(inputContainer);
+    cardDiv.appendChild(infoDiv);
+    
+    return cardDiv;
+}
 
         getProductIcon(categoryKey) {
             const icons = {

@@ -919,3 +919,95 @@ a:focus, button:focus {
         background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
     }
 }
+
+/* Solução para o problema de ícones sobrepostos ao texto em inputs */
+
+/* Estilo base para containers de input com ícones */
+.input-with-icon,
+.price-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* ÍCONES À ESQUERDA (comum em campos de login) */
+.input-with-icon .icon-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 0.75rem;
+  pointer-events: none; /* Permite clicar "através" do ícone */
+}
+
+.input-with-icon input {
+  padding-left: 2.5rem !important; /* Espaço suficiente para o ícone */
+}
+
+/* CAMPOS DE PREÇO (R$ à esquerda e checkmark à direita) */
+.price-input-wrapper .currency-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  padding-left: 0.75rem;
+  pointer-events: none;
+}
+
+.price-input-wrapper input {
+  padding-left: 2.5rem !important; /* Espaço para o "R$" */
+  padding-right: 2.5rem !important; /* Espaço para o ícone de check */
+}
+
+.price-input-wrapper .check-wrapper {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 0.75rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.price-input-wrapper .check-wrapper.show {
+  opacity: 1;
+}
+
+/* ALTERNATIVA COM CLASSES TAILWIND */
+/* Para uso em templates sem acesso ao CSS externo */
+
+/* Container para o input com ícone */
+.tw-input-icon-container {
+  @apply relative w-full;
+}
+
+/* Ícone à esquerda */
+.tw-input-icon-left {
+  @apply absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none;
+}
+
+/* Ícone à direita */
+.tw-input-icon-right {
+  @apply absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none;
+}
+
+/* Input com ícone à esquerda */
+.tw-input-with-icon-left {
+  @apply pl-10 pr-3 w-full;
+}
+
+/* Input com ícone à direita */
+.tw-input-with-icon-right {
+  @apply pl-3 pr-10 w-full;
+}
+
+/* Input com ícones em ambos os lados */
+.tw-input-with-icons-both {
+  @apply pl-10 pr-10 w-full;
+}
