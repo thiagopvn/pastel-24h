@@ -1,4 +1,4 @@
-// admin-controller.js - VERSÃO CORRIGIDA PARA ESTRUTURA CORRETA DO FIREBASE
+// admin-controller.js - VERSÃO CORRIGIDA PARA ESTRUTURA REAL DO FIREBASE
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("🚀 Iniciando admin-controller.js");
     
@@ -157,6 +157,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
             }
             
+            // CORREÇÃO: Mapeamento correto para os nomes no Firebase
+            this.firebaseCategoryMap = {
+                pasteis: 'pasteis',
+                casquinhas: 'casquinhas',
+                caldo_cana: 'caldos_cana', // CORREÇÃO: caldos_cana com 's'
+                refrigerantes: 'refrigerantes',
+                gelo: 'gelo'
+            };
+            
             // Lista de produtos por categoria
             this.produtosPorCategoria = {
                 pasteis: [
@@ -237,36 +246,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             const precos = {};
             
             try {
-                // Para cada categoria, buscar o documento
-                const categorias = Object.keys(this.produtosPorCategoria);
-                
-                for (const categoria of categorias) {
-                    console.log(`📂 Buscando produtos da categoria: ${categoria}`);
-                    precos[categoria] = {};
+                // Para cada categoria, buscar o documento correto no Firebase
+                for (const [categoriaLocal, categoriaFirebase] of Object.entries(this.firebaseCategoryMap)) {
+                    console.log(`📂 Buscando produtos da categoria: ${categoriaLocal} -> ${categoriaFirebase}`);
+                    precos[categoriaLocal] = {};
                     
                     try {
                         // Buscar diretamente o documento da categoria
-                        const categoriaDoc = await db.collection('produtos').doc(categoria).get();
+                        const categoriaDoc = await db.collection('produtos').doc(categoriaFirebase).get();
                         
                         if (categoriaDoc.exists) {
                             const data = categoriaDoc.data();
-                            console.log(`📄 Dados encontrados no documento ${categoria}:`, Object.keys(data).length, 'produtos');
+                            console.log(`📄 Dados encontrados no documento ${categoriaFirebase}:`, data);
                             
-                            // Extrair preços do documento
+                            // Extrair preços do documento - CORREÇÃO: os preços estão diretamente como campos
                             Object.keys(data).forEach(key => {
-                                if (typeof data[key] === 'object' && data[key] !== null && data[key].preco !== undefined) {
-                                    precos[categoria][key] = { preco: parseFloat(data[key].preco) || 0 };
-                                    console.log(`  ✓ ${key}: R$ ${data[key].preco}`);
-                                } else if (typeof data[key] === 'number') {
-                                    precos[categoria][key] = { preco: parseFloat(data[key]) || 0 };
+                                // Os preços estão armazenados diretamente como números
+                                if (typeof data[key] === 'number') {
+                                    precos[categoriaLocal][key] = { preco: data[key] };
                                     console.log(`  ✓ ${key}: R$ ${data[key]}`);
                                 }
                             });
                         } else {
-                            console.warn(`⚠️ Documento '${categoria}' não encontrado na coleção 'produtos'`);
+                            console.warn(`⚠️ Documento '${categoriaFirebase}' não encontrado na coleção 'produtos'`);
                         }
                     } catch (error) {
-                        console.error(`❌ Erro ao buscar categoria ${categoria}:`, error);
+                        console.error(`❌ Erro ao buscar categoria ${categoriaFirebase}:`, error);
                     }
                 }
                 
@@ -290,7 +295,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // Restante dos métodos permanece o mesmo...
         populateForms() {
             Object.entries(this.containers).forEach(([containerId, container]) => {
                 if (!container) return;
@@ -588,11 +592,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (Math.abs(price - currentPrice) > 0.01) {
                         changedCount++;
                         
-                        // Agrupar por categoria
-                        if (!updatesByCategory[category]) {
-                            updatesByCategory[category] = {};
+                        // Agrupar por categoria e usar o nome correto do Firebase
+                        const firebaseCategory = this.firebaseCategoryMap[category] || category;
+                        if (!updatesByCategory[firebaseCategory]) {
+                            updatesByCategory[firebaseCategory] = {};
                         }
-                        updatesByCategory[category][`${item}.preco`] = price;
+                        // CORREÇÃO: salvar diretamente como campo, não como objeto
+                        updatesByCategory[firebaseCategory][item] = price;
                     }
                     
                     // Adicionar à estrutura de dados para salvar
@@ -615,7 +621,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Salvando novos preços:', updatesByCategory);
                 console.log(`${changedCount} itens alterados`);
                 
-                // Salvar no Firebase na estrutura correta (campos no documento)
+                // Salvar no Firebase na estrutura correta (campos diretos no documento)
                 const batch = db.batch();
                 
                 for (const [category, updates] of Object.entries(updatesByCategory)) {
@@ -1319,12 +1325,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Verificar se a página foi carregada corretamente antes de inicializar
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(initialize, 0);
     } else {
         document.addEventListener('DOMContentLoaded', initialize);
     }
 
-
+    // Iniciar o sistema
     initialize();
 });
