@@ -538,7 +538,7 @@
             </div>
         </div>
 
-        <!-- Conteúdo Preços (Completamente Reformulado) -->
+      <!-- Conteúdo Preços (VERSÃO CORRIGIDA E SIMPLIFICADA) -->
 <div id="tabContentPrecos" class="tab-content hidden">
     <div class="glass-effect rounded-2xl p-8">
         <!-- Header da seção -->
@@ -570,9 +570,11 @@
                         </span>
                     </div>
                     <div id="precosPasteisContainer" class="prices-grid">
-                        <div class="price-card-loading h-32 rounded-xl"></div>
-                        <div class="price-card-loading h-32 rounded-xl"></div>
-                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <!-- Cards de preços serão inseridos aqui pelo JavaScript -->
+                        <div class="text-center p-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando preços...</p>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -594,7 +596,10 @@
                         </span>
                     </div>
                     <div id="precosCasquinhasContainer" class="prices-grid">
-                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="text-center p-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando preços...</p>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -612,11 +617,14 @@
                         <p class="text-gray-600">Configure os preços do caldo de cana em diferentes tamanhos</p>
                         <span class="px-3 py-1 bg-primary-100 text-primary-700 rounded-full text-sm font-medium">
                             <i class="fas fa-info-circle mr-1"></i>
-                            <span id="caldoCanaCount">0</span> itens
+                            <span id="caldocanaCount">0</span> itens
                         </span>
                     </div>
                     <div id="precosCaldoCanaContainer" class="prices-grid">
-                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="text-center p-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando preços...</p>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -638,7 +646,10 @@
                         </span>
                     </div>
                     <div id="precosRefrigerantesContainer" class="prices-grid">
-                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="text-center p-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando preços...</p>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -660,7 +671,10 @@
                         </span>
                     </div>
                     <div id="precosGeloContainer" class="prices-grid">
-                        <div class="price-card-loading h-32 rounded-xl"></div>
+                        <div class="text-center p-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando preços...</p>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -679,7 +693,7 @@
                             <i class="fas fa-undo mr-2"></i>
                             Resetar Alterações
                         </button>
-                        <button type="submit" class="save-prices-btn px-8 py-3 text-white font-bold rounded-lg text-lg shadow-lg transition-all duration-300 flex items-center hover:scale-105">
+                        <button type="submit" class="save-prices-btn px-8 py-3 bg-gradient-to-r from-success-500 to-success-600 text-white font-bold rounded-lg text-lg shadow-lg transition-all duration-300 flex items-center hover:scale-105">
                             <i class="fas fa-save mr-2"></i>
                             <span>Salvar Alterações nos Preços</span>
                         </button>
@@ -697,7 +711,7 @@
                 <div id="precosErrorMsg" class="mt-4 text-center hidden">
                     <div class="inline-flex items-center px-4 py-2 bg-danger-100 text-danger-800 rounded-full text-sm font-medium">
                         <i class="fas fa-exclamation-circle mr-2"></i>
-                        <span>Erro ao salvar preços</span>
+                        <span>Erro ao salvar preços. Tente novamente.</span>
                     </div>
                 </div>
             </div>
@@ -705,71 +719,85 @@
     </div>
 </div>
 
-        <!-- Conteúdo Usuários (mantido da versão original, mas melhorado) -->
-        <div id="tabContentUsuarios" class="tab-content hidden">
-            <div class="glass-effect rounded-2xl p-6">
-                <h2 class="text-2xl font-semibold mb-6 text-gray-800 flex items-center">
-                    <i class="fas fa-users-cog mr-3 text-primary-600"></i>Gerenciar Usuários
-                </h2>
-                
-                <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
-                    <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
-                        <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
-                    </h3>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="novoUsuarioUid" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-fingerprint mr-1"></i>UID (do Firebase Auth)
-                            </label>
-                            <input type="text" id="novoUsuarioUid" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="UID copiado do Firebase Console">
-                        </div>
-                        <div>
-                            <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-user mr-1"></i>Nome Completo
-                            </label>
-                            <input type="text" id="novoUsuarioNome" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="Nome do Funcionário">
-                        </div>
-                        <div>
-                            <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-envelope mr-1"></i>Email
-                            </label>
-                            <input type="email" id="novoUsuarioEmail" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="email@exemplo.com">
-                        </div>
-                        <div>
-                            <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-user-tag mr-1"></i>Função
-                            </label>
-                            <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
-                                <option value="funcionario">Funcionário</option>
-                                <option value="admin">Administrador</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="mt-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
-                        <i class="fas fa-user-plus mr-2"></i>Adicionar Usuário
-                    </button>
-                    <p id="usuarioMsg" class="text-sm mt-3 text-center font-medium"></p>
-                </form>
-                
-                <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
-                    <i class="fas fa-users mr-2"></i>Usuários Existentes
-                </h3>
-                <div id="listaUsuariosContainer" class="space-y-4">
-                    <div class="flex items-center justify-center p-10">
-                        <div class="loading-shimmer w-16 h-16 rounded-full"></div>
-                        <span class="ml-3 text-gray-500 font-medium">Carregando usuários...</span>
+<!-- Conteúdo Usuários (VERSÃO CORRIGIDA) -->
+<div id="tabContentUsuarios" class="tab-content hidden">
+    <div class="glass-effect rounded-2xl p-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
+                <i class="fas fa-users text-white text-2xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Usuários</h2>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                Adicione, edite ou remova usuários do sistema. Configure suas permissões de acesso.
+            </p>
+        </div>
+        
+        <!-- Formulário para adicionar usuário -->
+        <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
+            <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
+                <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label for="novoUsuarioUid" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-fingerprint mr-1"></i>UID (do Firebase Auth)
+                    </label>
+                    <input type="text" id="novoUsuarioUid" required 
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="UID copiado do Firebase Console">
+                    <p class="text-xs text-gray-500 mt-1">Cole o UID do usuário criado no Firebase Authentication</p>
+                </div>
+                <div>
+                    <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user mr-1"></i>Nome Completo
+                    </label>
+                    <input type="text" id="novoUsuarioNome" required 
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="Nome do Funcionário">
+                </div>
+                <div>
+                    <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-envelope mr-1"></i>Email
+                    </label>
+                    <input type="email" id="novoUsuarioEmail" required 
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="email@exemplo.com">
+                </div>
+                <div>
+                    <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user-tag mr-1"></i>Função
+                    </label>
+                    <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
+                        <option value="funcionario">Funcionário</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="mt-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
+                <i class="fas fa-user-plus mr-2"></i>Adicionar Usuário
+            </button>
+        </form>
+        
+        <!-- Lista de usuários -->
+        <div>
+            <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-users mr-2"></i>Usuários Existentes
+            </h3>
+            <div id="listaUsuariosContainer" class="space-y-4">
+                <!-- Usuários serão listados aqui pelo JavaScript -->
+                <div class="flex items-center justify-center p-10">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500">Carregando usuários...</p>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
     </main>
 
     <!-- Modais -->
