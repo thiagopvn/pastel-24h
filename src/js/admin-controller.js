@@ -161,7 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             this.firebaseCategoryMap = {
                 pasteis: 'pasteis',
                 casquinhas: 'casquinhas',
-                caldo_cana: 'caldos_cana', // CORREÇÃO: caldos_cana com 's'
+                caldo_cana: 'caldo_cana', // CORREÇÃO: caldos_cana com 's'
                 refrigerantes: 'refrigerantes',
                 gelo: 'gelo'
             };
