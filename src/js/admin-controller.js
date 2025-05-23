@@ -1,4 +1,4 @@
-// admin-controller.js - VERSÃO CORRIGIDA
+// admin-controller.js - VERSÃO CORRIGIDA COM ESTRUTURA FIREBASE ADEQUADA
 document.addEventListener('DOMContentLoaded', async () => {
     // Aguarda um momento para garantir que Firebase esteja inicializado
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -236,7 +236,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // MÉTODO CORRIGIDO PARA BUSCAR PREÇOS
+        // MÉTODO CORRIGIDO PARA BUSCAR OU CRIAR PREÇOS
         async getPrecos() {
             try {
                 console.log('🔍 Iniciando busca de preços no Firebase...');
@@ -246,35 +246,22 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw new Error('Usuário não autenticado');
                 }
                 
+                // Primeiro, tenta buscar a coleção produtos
                 const snapshot = await db.collection('produtos').get();
-                const precos = {};
+                let precos = {};
                 
                 console.log(`📦 Encontrados ${snapshot.size} documentos na coleção produtos`);
                 
                 if (snapshot.empty) {
                     console.warn('⚠️ Nenhum documento encontrado na coleção produtos!');
-                    console.log('Verificando estrutura do banco...');
+                    console.log('📝 Criando estrutura inicial de preços...');
                     
-                    // Tenta buscar com outra estrutura possível
-                    const alternativeSnapshot = await db.collection('precos').get();
-                    if (!alternativeSnapshot.empty) {
-                        console.log('Encontrados dados em coleção "precos"');
-                        alternativeSnapshot.forEach(doc => {
-                            precos[doc.id] = doc.data();
-                        });
-                        return precos;
-                    }
-                    
-                    // Retorna estrutura vazia
-                    return {
-                        pasteis: {},
-                        casquinhas: {},
-                        caldo_cana: {},
-                        refrigerantes: {},
-                        gelo: {}
-                    };
+                    // Criar estrutura inicial de preços
+                    precos = await this.createInitialPrices();
+                    return precos;
                 }
                 
+                // Se existirem documentos, processa eles
                 snapshot.forEach(doc => {
                     const categoria = doc.id;
                     const dados = doc.data();
@@ -295,6 +282,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 });
                 
+                // Verifica se todas as categorias necessárias existem
+                const categoriasNecessarias = ['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes', 'gelo'];
+                const categoriasFaltando = categoriasNecessarias.filter(cat => !precos[cat]);
+                
+                if (categoriasFaltando.length > 0) {
+                    console.log(`📝 Criando categorias faltantes: ${categoriasFaltando.join(', ')}`);
+                    await this.createMissingCategories(precos, categoriasFaltando);
+                }
+                
                 console.log('✅ Preços carregados:', precos);
                 return precos;
                 
@@ -302,14 +298,130 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.error('❌ Erro ao buscar preços:', error);
                 console.error('Detalhes:', error.message, error.code);
                 
-                // Retorna estrutura vazia em caso de erro
-                return {
-                    pasteis: {},
-                    casquinhas: {},
-                    caldo_cana: {},
-                    refrigerantes: {},
-                    gelo: {}
-                };
+                // Em caso de erro, criar estrutura inicial
+                return await this.createInitialPrices();
+            }
+        }
+
+        // NOVO MÉTODO: Criar estrutura inicial de preços
+        async createInitialPrices() {
+            const precosIniciais = {
+                pasteis: {
+                    carne: { preco: 8.00 },
+                    frango: { preco: 8.00 },
+                    queijo: { preco: 8.00 },
+                    pizza: { preco: 8.00 },
+                    bauru: { preco: 8.00 },
+                    calabresa: { preco: 8.00 },
+                    palmito: { preco: 8.00 },
+                    especial_de_carne: { preco: 10.00 },
+                    especial_de_frango: { preco: 10.00 },
+                    especial_de_calabresa: { preco: 10.00 }
+                },
+                casquinhas: {
+                    casquinha_simples: { preco: 3.00 },
+                    casquinha_com_cobertura: { preco: 4.00 },
+                    casquinha_com_granulado: { preco: 4.50 }
+                },
+                caldo_cana: {
+                    caldo_de_cana_300ml: { preco: 5.00 },
+                    caldo_de_cana_500ml: { preco: 7.00 },
+                    caldo_de_cana_700ml: { preco: 9.00 },
+                    caldo_de_cana_1litro: { preco: 12.00 }
+                },
+                refrigerantes: {
+                    coca_cola_350ml: { preco: 5.00 },
+                    coca_cola_600ml: { preco: 7.00 },
+                    coca_cola_2l: { preco: 12.00 },
+                    guarana_350ml: { preco: 5.00 },
+                    guarana_600ml: { preco: 7.00 },
+                    guarana_2l: { preco: 12.00 },
+                    fanta_laranja_350ml: { preco: 5.00 },
+                    fanta_laranja_600ml: { preco: 7.00 },
+                    fanta_laranja_2l: { preco: 12.00 },
+                    fanta_uva_350ml: { preco: 5.00 },
+                    sprite_350ml: { preco: 5.00 },
+                    agua_mineral_500ml: { preco: 3.00 }
+                },
+                gelo: {
+                    gelo_pacote: { preco: 5.00 }
+                }
+            };
+
+            // Salvar no Firebase
+            try {
+                const batch = db.batch();
+                Object.keys(precosIniciais).forEach(categoria => {
+                    const docRef = db.collection('produtos').doc(categoria);
+                    batch.set(docRef, precosIniciais[categoria]);
+                });
+                await batch.commit();
+                console.log('✅ Estrutura inicial de preços criada no Firebase');
+            } catch (error) {
+                console.error('❌ Erro ao criar estrutura inicial:', error);
+            }
+
+            return precosIniciais;
+        }
+
+        // NOVO MÉTODO: Criar categorias faltantes
+        async createMissingCategories(precosExistentes, categoriasFaltando) {
+            const precosDefault = {
+                pasteis: {
+                    carne: { preco: 8.00 },
+                    frango: { preco: 8.00 },
+                    queijo: { preco: 8.00 },
+                    pizza: { preco: 8.00 },
+                    bauru: { preco: 8.00 },
+                    calabresa: { preco: 8.00 },
+                    palmito: { preco: 8.00 },
+                    especial_de_carne: { preco: 10.00 },
+                    especial_de_frango: { preco: 10.00 },
+                    especial_de_calabresa: { preco: 10.00 }
+                },
+                casquinhas: {
+                    casquinha_simples: { preco: 3.00 },
+                    casquinha_com_cobertura: { preco: 4.00 },
+                    casquinha_com_granulado: { preco: 4.50 }
+                },
+                caldo_cana: {
+                    caldo_de_cana_300ml: { preco: 5.00 },
+                    caldo_de_cana_500ml: { preco: 7.00 },
+                    caldo_de_cana_700ml: { preco: 9.00 },
+                    caldo_de_cana_1litro: { preco: 12.00 }
+                },
+                refrigerantes: {
+                    coca_cola_350ml: { preco: 5.00 },
+                    coca_cola_600ml: { preco: 7.00 },
+                    coca_cola_2l: { preco: 12.00 },
+                    guarana_350ml: { preco: 5.00 },
+                    guarana_600ml: { preco: 7.00 },
+                    guarana_2l: { preco: 12.00 },
+                    fanta_laranja_350ml: { preco: 5.00 },
+                    fanta_laranja_600ml: { preco: 7.00 },
+                    fanta_laranja_2l: { preco: 12.00 },
+                    fanta_uva_350ml: { preco: 5.00 },
+                    sprite_350ml: { preco: 5.00 },
+                    agua_mineral_500ml: { preco: 3.00 }
+                },
+                gelo: {
+                    gelo_pacote: { preco: 5.00 }
+                }
+            };
+
+            try {
+                const batch = db.batch();
+                categoriasFaltando.forEach(categoria => {
+                    if (precosDefault[categoria]) {
+                        const docRef = db.collection('produtos').doc(categoria);
+                        batch.set(docRef, precosDefault[categoria]);
+                        precosExistentes[categoria] = precosDefault[categoria];
+                    }
+                });
+                await batch.commit();
+                console.log('✅ Categorias faltantes criadas no Firebase');
+            } catch (error) {
+                console.error('❌ Erro ao criar categorias faltantes:', error);
             }
         }
 
