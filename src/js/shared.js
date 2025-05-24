@@ -1,7 +1,6 @@
 /**
  * shared.js - Funções compartilhadas robustas para o sistema Pastelaria 24h
  * Implementa manipulação de localStorage, formatação, utilidades de UI e sincronização de dados
- * VERSÃO 2.1 - Atualizada com suporte a controle de chegadas de estoque
  */
 
 // ===== CONSTANTES =====
@@ -618,68 +617,7 @@ function createInputCell(type, id, placeholder = '', value = '', readOnly = fals
 }
 
 /**
- * NOVA FUNÇÃO: Cria uma linha para um produto na tabela COM COLUNA CHEGADAS
- * @param {string} itemName - Nome do item
- * @param {string} itemKey - Chave do item (slug)
- * @param {string} categoryKey - Categoria do item
- * @param {Object} prices - Objeto de preços
- * @param {boolean} isReadOnly - Se os inputs são somente leitura
- * @returns {HTMLTableRowElement} - Linha TR configurada
- */
-function createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
-    const tr = document.createElement('tr');
-    tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
-    tr.dataset.itemKey = itemKey;
-    tr.dataset.categoryKey = categoryKey;
-
-    const tdName = document.createElement('td');
-    tdName.className = 'px-3 py-2 font-medium text-gray-800';
-    tdName.textContent = itemName;
-    tr.appendChild(tdName);
-
-    // Entrada (do turno anterior)
-    tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
-    
-    // NOVA COLUNA: Chegadas (editável durante o turno)
-    const tdChegadas = createInputCell('number', `${itemKey}_chegadas`, '0', '', isReadOnly, "w-full p-1 border rounded text-sm");
-    tdChegadas.classList.add('col-chegadas'); // Destaque visual
-    tr.appendChild(tdChegadas);
-    
-    tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
-    tr.appendChild(createInputCell('number', `${itemKey}_descarte`, '0', '', isReadOnly));
-    tr.appendChild(createInputCell('number', `${itemKey}_consumo`, '0', '', isReadOnly));
-    
-    const tdVendido = document.createElement('td');
-    tdVendido.className = 'px-1 py-1';
-    const inputVendido = document.createElement('input');
-    inputVendido.type = 'number';
-    inputVendido.id = `${itemKey}_vendido`;
-    inputVendido.name = `${itemKey}_vendido`;
-    inputVendido.className = 'w-full p-1 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed shadow-sm';
-    inputVendido.readOnly = true;
-    inputVendido.value = '0';
-    inputVendido.dataset.price = prices[categoryKey]?.[itemKey]?.preco || 0;
-    tdVendido.appendChild(inputVendido);
-    tr.appendChild(tdVendido);
-
-    const tdPreco = document.createElement('td');
-    tdPreco.className = 'px-3 py-2 text-sm text-gray-600 text-center';
-    const precoUnit = prices[categoryKey]?.[itemKey]?.preco || 0;
-    tdPreco.textContent = `R$ ${parseFloat(precoUnit).toFixed(2)}`;
-    tdPreco.id = `${itemKey}_preco_display`;
-    tr.appendChild(tdPreco);
-    
-    const tdTotalItem = document.createElement('td');
-    tdTotalItem.className = 'px-3 py-2 text-sm text-gray-700 font-semibold text-right';
-    tdTotalItem.id = `${itemKey}_total_item`;
-    tdTotalItem.textContent = `R$ 0.00`;
-    tr.appendChild(tdTotalItem);
-
-    return tr;
-}
-
-/**
- * Cria uma linha para um produto na tabela (versão original sem chegadas)
+ * Cria uma linha para um produto na tabela
  * @param {string} itemName - Nome do item
  * @param {string} itemKey - Chave do item (slug)
  * @param {string} categoryKey - Categoria do item
@@ -879,74 +817,9 @@ function criarResumoTransferencia(turnoOrigemId, turnoDestinoId, dadosTransferid
             caixaInfo.innerHTML = `<strong>Caixa transferido:</strong> <span class="transferencia-contagem">Sim</span>`;
             container.appendChild(caixaInfo);
         }
-        
-        // NOVO: Adicionar informação sobre chegadas
-        if (dadosTransferidos.chegadasTotais) {
-            const chegadasInfo = document.createElement('p');
-            chegadasInfo.innerHTML = `<strong>Total de chegadas registradas:</strong> <span class="transferencia-contagem">${dadosTransferidos.chegadasTotais}</span>`;
-            container.appendChild(chegadasInfo);
-        }
     }
     
     return container;
-}
-
-/**
- * NOVA FUNÇÃO: Calcula total de chegadas de um turno
- * @param {Object} turnoData - Dados do turno
- * @returns {number} - Total de chegadas
- */
-function calcularTotalChegadas(turnoData) {
-    let totalChegadas = 0;
-    
-    if (turnoData.itens) {
-        Object.values(turnoData.itens).forEach(categoria => {
-            Object.values(categoria).forEach(item => {
-                if (item.chegadas && typeof item.chegadas === 'number') {
-                    totalChegadas += item.chegadas;
-                }
-            });
-        });
-    }
-    
-    if (turnoData.gelo && turnoData.gelo.gelo_pacote && turnoData.gelo.gelo_pacote.chegadas) {
-        totalChegadas += turnoData.gelo.gelo_pacote.chegadas;
-    }
-    
-    return totalChegadas;
-}
-
-/**
- * NOVA FUNÇÃO: Valida se o cálculo de vendas está correto considerando chegadas
- * @param {Object} itemData - Dados do item
- * @returns {Object} - Resultado da validação com informações detalhadas
- */
-function validarCalculoVendas(itemData) {
-    const entrada = itemData.entrada || 0;
-    const chegadas = itemData.chegadas || 0;
-    const sobra = itemData.sobra || 0;
-    const descarte = itemData.descarte || 0;
-    const consumo = itemData.consumo || 0;
-    const vendido = itemData.vendido || 0;
-    
-    // NOVA FÓRMULA: (Entrada + Chegadas) - Sobra - Descarte - Consumo = Vendido
-    const vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
-    const diferenca = vendido - vendidoCalculado;
-    
-    return {
-        vendidoCalculado,
-        vendidoRegistrado: vendido,
-        diferenca,
-        isValid: Math.abs(diferenca) < 0.01, // Tolerância para arredondamento
-        detalhes: {
-            entrada,
-            chegadas,
-            sobra,
-            descarte,
-            consumo,
-            formula: `(${entrada} + ${chegadas}) - ${sobra} - ${descarte} - ${consumo} = ${vendidoCalculado}`
-        }
-    };
 }
 
 // ===== EXPORTAÇÃO DAS FUNÇÕES =====
@@ -997,7 +870,6 @@ if (typeof window !== 'undefined') {
     // Funções de UI
     window.createInputCell = createInputCell;
     window.createProductRow = createProductRow;
-    window.createProductRowWithChegadas = createProductRowWithChegadas; // NOVA
     window.formatCurrency = formatCurrency;
     window.extractNumberFromFormattedCurrency = extractNumberFromFormattedCurrency;
     window.showError = showError;
@@ -1007,12 +879,8 @@ if (typeof window !== 'undefined') {
     window.isOnline = isOnline;
     window.setupConnectivityListeners = setupConnectivityListeners;
     
-    // NOVAS funções para controle de chegadas
-    window.calcularTotalChegadas = calcularTotalChegadas;
-    window.validarCalculoVendas = validarCalculoVendas;
-    
     // Log de carregamento
-    console.log("shared.js v2.1 carregado com suporte a controle de chegadas de estoque.");
+    console.log("shared.js carregado com funções aprimoradas para transferência entre turnos.");
 }
 
 // Limpa dados potencialmente obsoletos a cada carregamento da página
