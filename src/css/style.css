@@ -1011,3 +1011,65 @@ a:focus, button:focus {
 .tw-input-with-icons-both {
   @apply pl-10 pr-10 w-full;
 }
+
+.transferred-field {
+    background-color: #e8f4fd !important;
+    border: 2px solid #007bff !important;
+    border-left-width: 4px !important;
+    cursor: not-allowed !important;
+    position: relative;
+}
+
+.transferred-field:hover {
+    background-color: #d1e7fd !important;
+}
+
+.field-lock-icon {
+    color: #007bff;
+    font-size: 16px;
+}
+
+.transfer-info-badge {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+.protection-warning {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Shift status indicator */
+.shift-status-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 40px;
+    background: linear-gradient(90deg, #28a745, #20c997);
+    color: white;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.shift-status-bar.closing {
+    background: linear-gradient(90deg, #ffc107, #fd7e14);
+}

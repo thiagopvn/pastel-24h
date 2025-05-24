@@ -1,3 +1,4 @@
+// funcionario-controller.js - Enhanced with persistence and data transfer
 document.addEventListener('DOMContentLoaded', async () => {
     // --- ELEMENTOS DA UI ---
     const btnAbrirTurno = document.getElementById('btnAbrirTurno');
@@ -28,6 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const divergenciaCaixaAlertaP = document.getElementById('divergenciaCaixaAlerta');
     const fechamentoDivergenciaAlertaGeralDiv = document.getElementById('fechamentoDivergenciaAlertaGeral');
 
+    // Estados do sistema
     let currentTurnoId = localStorage.getItem('currentTurnoId');
     let productPrices = {}; 
     let turnoAbertoLocalmente = false; 
@@ -36,92 +38,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     let turnoAnteriorData = null;
     let camposTransferidosAnterior = {};
 
-    // === FUNÇÕES DE FORMATAÇÃO DE MOEDA ===
+    // Estado de sincronização
+    let lastSyncTime = Date.now();
+    let pendingSyncOperations = [];
     
-    /**
-     * Aplica máscara de moeda brasileira ao input
-     * Corrige o problema de conversão incorreta (378 -> 37800)
-     */
-    function applyCurrencyMask(input) {
-        // Remove tudo que não é número
-        let value = input.value.replace(/[^\d]/g, '');
-        
-        // Se estiver vazio, define como 0
-        if (value === '') {
-            input.value = formatToBRL(0);
-            return 0;
-        }
-        
-        // Converte para centavos (divide por 100)
-        let numericValue = parseFloat(value) / 100;
-        
-        // Formata para moeda brasileira
-        input.value = formatToBRL(numericValue);
-        
-        return numericValue;
-    }
+    // --- FUNÇÕES DE CONTROLE DE PERSISTÊNCIA ---
 
     /**
-     * Converte valor formatado em moeda para número
+     * Salva os dados do turno no localStorage para persistência entre sessões
+     * @param {Object} turnoData - Dados do turno
      */
-    function parseCurrencyToNumber(formattedValue) {
-        if (!formattedValue) return 0;
-        
-        // Remove símbolos de moeda e converte vírgula para ponto
-        const cleaned = formattedValue
-            .replace(/[R$\s]/g, '')
-            .replace(/\./g, '')
-            .replace(',', '.');
-        
-        return parseFloat(cleaned) || 0;
-    }
-
-    /**
-     * Formata número para moeda brasileira
-     */
-    function formatToBRL(value) {
-        const numValue = parseFloat(value) || 0;
-        return numValue.toLocaleString('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-        });
-    }
-
-    /**
-     * Configura máscara de moeda para um campo
-     */
-    function setupCurrencyMask(inputElement) {
-        if (!inputElement) return;
-        
-        // Aplica máscara ao digitar
-        inputElement.addEventListener('input', function() {
-            applyCurrencyMask(this);
-            // Atualiza cálculos após aplicar máscara
-            setTimeout(() => {
-                updatePaymentTotalsAndDivergence();
-            }, 100);
-        });
-        
-        // Aplica máscara ao perder foco
-        inputElement.addEventListener('blur', function() {
-            applyCurrencyMask(this);
-            updatePaymentTotalsAndDivergence();
-        });
-        
-        // Aplica formatação inicial se já tiver valor
-        if (inputElement.value && !inputElement.readOnly) {
-            applyCurrencyMask(inputElement);
-        }
-    }
-
-    // === FUNÇÕES DE PERSISTÊNCIA LOCAL ===
     function saveTurnoLocal(turnoData) {
-        if (!turnoData) return;
-        localStorage.setItem('currentTurnoId', turnoData.id);
-        localStorage.setItem('turnoData', JSON.stringify(turnoData));
-        currentTurnoId = turnoData.id;
+        if (!turnoData || !turnoData.id) return;
+        
+        try {
+            // Salva o ID para acesso rápido
+            localStorage.setItem('currentTurnoId', turnoData.id);
+            
+            // Salva dados completos
+            localStorage.setItem('turnoData', JSON.stringify(turnoData));
+            
+            // Salva o status para verificação rápida
+            localStorage.setItem('turnoStatus', turnoData.status || 'desconhecido');
+            
+            // Salva timestamp para validação
+            localStorage.setItem('turnoLastUpdated', Date.now().toString());
+            
+            // Atualiza estado local
+            currentTurnoId = turnoData.id;
+            console.log(`Turno ${turnoData.id} salvo localmente`);
+        } catch (error) {
+            console.error("Erro ao salvar turno local:", error);
+        }
     }
 
+    /**
+     * Obtém dados do turno atual do localStorage
+     * @returns {Object|null} Dados do turno ou null
+     */
     function getTurnoLocal() {
         const turnoId = localStorage.getItem('currentTurnoId');
         if (!turnoId) return null;
@@ -137,11 +91,94 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
+    /**
+     * Remove dados do turno do localStorage
+     */
     function removeTurnoLocal() {
         localStorage.removeItem('currentTurnoId');
         localStorage.removeItem('turnoData');
+        localStorage.removeItem('turnoStatus');
         currentTurnoId = null;
         turnoAbertoLocalmente = false;
+    }
+
+    /**
+     * Verifica se o turno em questão está sincronizado com o Firestore
+     * @param {string} turnoId - ID do turno a verificar
+     * @returns {Promise<boolean>} Verdadeiro se o turno existe e está atualizado
+     */
+    async function verificarSincronizacaoTurno(turnoId) {
+        try {
+            const turnoDoc = await db.collection('turnos').doc(turnoId).get();
+            return turnoDoc.exists;
+        } catch (error) {
+            console.error("Erro ao verificar sincronização do turno:", error);
+            return false;
+        }
+    }
+
+    /**
+     * Adiciona indicador visual para campos transferidos do turno anterior
+     * @param {HTMLElement} elemento - Elemento que recebeu valor transferido
+     * @param {string} origem - ID do turno de origem
+     */
+    function adicionarIndicadorCampoTransferido(elemento, origem) {
+        if (!elemento) return;
+        
+        // Adiciona classe de estilo para destacar visualmente
+        elemento.classList.add('bg-blue-50', 'border-blue-300');
+        
+        // Armazena informação de que este campo veio do turno anterior
+        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+        elemento.dataset.valorOriginal = elemento.value;
+        
+        // Adiciona um pequeno indicador visual ao lado do campo
+        const parentElement = elemento.parentElement;
+        if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
+            const indicador = document.createElement('span');
+            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+            indicador.title = 'Valor transferido do turno anterior - Não editável';
+            parentElement.appendChild(indicador);
+        }
+        
+        // Rastreia este campo para validação
+        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
+        camposTransferidosAnterior[campoId] = {
+            elemento: elemento,
+            valorOriginal: elemento.value
+        };
+    }
+
+    /**
+     * Valida e impede a edição de campos transferidos
+     * @param {Event} event - Evento de input
+     * @returns {boolean} - Se a validação passou (true) ou falhou (false)
+     */
+    function validarCamposTransferidos(event) {
+        const target = event.target;
+        if (target && target.dataset && target.dataset.transferidoDoTurno) {
+            const valorOriginal = target.dataset.valorOriginal;
+            
+            // Verificar se o valor foi alterado
+            if (valorOriginal !== undefined && target.value !== valorOriginal) {
+                // Restaurar o valor original
+                target.value = valorOriginal;
+                
+                // Adicionar animação de "shake" para feedback visual
+                target.classList.add('shake-animation');
+                setTimeout(() => {
+                    target.classList.remove('shake-animation');
+                }, 500);
+                
+                // Exibir mensagem de erro
+                const msgErro = `O campo "${target.name || target.id}" foi transferido do turno anterior e não pode ser alterado.`;
+                showError(msgErro);
+                
+                return false;
+            }
+        }
+        return true;
     }
 
     // === FUNÇÕES DE INICIALIZAÇÃO E ESTADO ===
@@ -161,14 +198,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             // Verificar e armazenar dados do último turno fechado para transferência
             await carregarDadosTurnoAnterior();
             
-            // Verifica se existe um turno em andamento, primeiro localmente e depois no Firestore
+            // VERIFICAÇÃO ROBUSTA DE TURNO EXISTENTE
+            // 1. Primeiro verifica localStorage
             const localTurno = getTurnoLocal();
             
+            // 2. Caso tenha turno local, verifica se ainda é válido no Firestore
             if (localTurno && localTurno.status === 'aberto') {
-                // Temos um turno guardado localmente, vamos verificar se ele ainda existe no Firestore
-                await checkAndSyncTurnoWithFirestore(localTurno.id);
+                const turnoExisteNoFirestore = await verificarSincronizacaoTurno(localTurno.id);
+                
+                if (turnoExisteNoFirestore) {
+                    console.log(`Turno ${localTurno.id} encontrado localmente e validado no Firestore`);
+                    await checkAndSyncTurnoWithFirestore(localTurno.id);
+                } else {
+                    console.warn(`Turno ${localTurno.id} existe localmente mas não no Firestore - dados desatualizados`);
+                    // Remove dados locais que estão inválidos
+                    removeTurnoLocal();
+                    // Verifica se há outro turno aberto no Firestore
+                    await checkOpenTurnoInFirestore();
+                }
             } else {
-                // Caso não haja turno local, busca no Firestore (pode haver um aberto em outro dispositivo)
+                // 3. Caso não tenha turno local, busca no Firestore
+                console.log("Nenhum turno local encontrado, verificando no Firestore...");
                 await checkOpenTurnoInFirestore();
             }
             
@@ -190,7 +240,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // NOVA FUNÇÃO: Carrega dados do último turno fechado
     async function carregarDadosTurnoAnterior() {
         showLoadingState(true, "Verificando turnos anteriores...");
         try {
@@ -219,7 +268,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Novo método para estabelecer um listener em tempo real no Firestore
     function setupTurnoListener() {
         // Cancela qualquer listener anterior
         if (unsubscribeTurnoListener) {
@@ -264,7 +312,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
     }
 
-    // Verifica e sincroniza com Firestore um turno salvo localmente
     async function checkAndSyncTurnoWithFirestore(turnoId) {
         try {
             const turnoDoc = await db.collection('turnos').doc(turnoId).get();
@@ -315,7 +362,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Verifica se há turnos abertos no Firestore
     async function checkOpenTurnoInFirestore() {
         try {
             // Recupera o usuário atual
@@ -360,7 +406,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Método adaptado para usar os novos métodos
     async function checkOpenTurno() {
         showLoadingState(true, "Verificando turno...");
         try {
@@ -491,88 +536,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         trGelo.appendChild(tdTotalGelo);
         
         tabelaGeloBody.appendChild(trGelo);
-    }
-
-    // NOVA FUNÇÃO: Cria linha de produto com coluna CHEGADAS
-    function createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
-        const tr = document.createElement('tr');
-        tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
-        tr.dataset.itemKey = itemKey;
-        tr.dataset.categoryKey = categoryKey;
-
-        const tdName = document.createElement('td');
-        tdName.className = 'px-3 py-2 font-medium text-gray-800';
-        tdName.textContent = itemName;
-        tr.appendChild(tdName);
-
-        // Entrada (do turno anterior)
-        tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
-        
-        // NOVA COLUNA: Chegadas (editável durante o turno)
-        const tdChegadas = createInputCell('number', `${itemKey}_chegadas`, '0', '', isReadOnly, "w-full p-1 border rounded text-sm");
-        tdChegadas.classList.add('col-chegadas'); // Destaque visual
-        tr.appendChild(tdChegadas);
-        
-        tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
-        tr.appendChild(createInputCell('number', `${itemKey}_descarte`, '0', '', isReadOnly));
-        tr.appendChild(createInputCell('number', `${itemKey}_consumo`, '0', '', isReadOnly));
-        
-        const tdVendido = document.createElement('td');
-        tdVendido.className = 'px-1 py-1';
-        const inputVendido = document.createElement('input');
-        inputVendido.type = 'number';
-        inputVendido.id = `${itemKey}_vendido`;
-        inputVendido.name = `${itemKey}_vendido`;
-        inputVendido.className = 'w-full p-1 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed shadow-sm';
-        inputVendido.readOnly = true;
-        inputVendido.value = '0';
-        inputVendido.dataset.price = prices[categoryKey]?.[itemKey]?.preco || 0;
-        tdVendido.appendChild(inputVendido);
-        tr.appendChild(tdVendido);
-
-        const tdPreco = document.createElement('td');
-        tdPreco.className = 'px-3 py-2 text-sm text-gray-600 text-center';
-        const precoUnit = prices[categoryKey]?.[itemKey]?.preco || 0;
-        tdPreco.textContent = formatToBRL(parseFloat(precoUnit));
-        tdPreco.id = `${itemKey}_preco_display`;
-        tr.appendChild(tdPreco);
-        
-        const tdTotalItem = document.createElement('td');
-        tdTotalItem.className = 'px-3 py-2 text-sm text-gray-700 font-semibold text-right';
-        tdTotalItem.id = `${itemKey}_total_item`;
-        tdTotalItem.textContent = formatToBRL(0);
-        tr.appendChild(tdTotalItem);
-
-        return tr;
-    }
-
-    // NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
-    function adicionarIndicadorCampoTransferido(elemento, origem) {
-        if (!elemento) return;
-        
-        // Adiciona classe de estilo para destacar visualmente
-        elemento.classList.add('bg-blue-50', 'border-blue-300');
-        
-        // Armazena informação de que este campo veio do turno anterior
-        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
-        elemento.dataset.valorOriginal = elemento.value;
-        
-        // Adiciona um pequeno indicador visual ao lado do campo
-        const parentElement = elemento.parentElement;
-        if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
-            const indicador = document.createElement('span');
-            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
-            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
-            indicador.title = 'Valor transferido do turno anterior - Não editável';
-            parentElement.appendChild(indicador);
-        }
-        
-        // Rastreia este campo para validação
-        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
-        camposTransferidosAnterior[campoId] = {
-            elemento: elemento,
-            valorOriginal: elemento.value
-        };
     }
 
     function toggleFormInputs(isTurnoOpenForEditing) {
@@ -1179,7 +1142,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
     }
 
-    // 2. Adicionar função para criar resumo do turno anterior
     function adicionarResumoTurnoAnterior(turnoAnteriorId, estoqueAnterior) {
         if (!turnoAnteriorId) return;
         
@@ -1521,52 +1483,82 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isValid;
     }
 
-    // NOVA FUNÇÃO: Validar se valores transferidos não foram alterados
-    function validarCamposTransferidos(event) {
-        const target = event.target;
-        if (target && target.dataset && target.dataset.transferidoDoTurno) {
-            const valorOriginal = target.dataset.valorOriginal;
-            
-            // Verificar se o valor foi alterado
-            if (valorOriginal !== undefined && target.value !== valorOriginal) {
-                // Restaurar o valor original
-                target.value = valorOriginal;
-                
-                // Adicionar animação de "shake" para feedback visual
-                target.classList.add('shake-animation');
-                setTimeout(() => {
-                    target.classList.remove('shake-animation');
-                }, 500);
-                
-                // Exibir mensagem de erro
-                const msgErro = `O campo "${target.name || target.id}" foi transferido do turno anterior e não pode ser alterado.`;
-                
-                // Usar showError se disponível, caso contrário criar um alerta flutuante
-                if (typeof showError === 'function') {
-                    showError(msgErro);
-                } else {
-                    // Criar alerta visual temporário
-                    const alerta = document.createElement('div');
-                    alerta.className = 'alerta-campo-transferido';
-                    alerta.innerHTML = `
-                        <div class="flex items-center">
-                            <i class="fas fa-exclamation-circle mr-2"></i>
-                            <span>${msgErro}</span>
-                        </div>
-                    `;
-                    document.body.appendChild(alerta);
-                    
-                    // Remover o alerta após alguns segundos
-                    setTimeout(() => {
-                        alerta.style.opacity = '0';
-                        setTimeout(() => alerta.remove(), 300);
-                    }, 3000);
-                }
-                
-                return false;
-            }
+    // === FUNÇÕES DE FORMATAÇÃO DE MOEDA ===
+    
+    /**
+     * Aplica máscara de moeda brasileira ao input
+     * Corrige o problema de conversão incorreta (378 -> 37800)
+     */
+    function applyCurrencyMask(input) {
+        // Remove tudo que não é número
+        let value = input.value.replace(/[^\d]/g, '');
+        
+        // Se estiver vazio, define como 0
+        if (value === '') {
+            input.value = formatToBRL(0);
+            return 0;
         }
-        return true;
+        
+        // Converte para centavos (divide por 100)
+        let numericValue = parseFloat(value) / 100;
+        
+        // Formata para moeda brasileira
+        input.value = formatToBRL(numericValue);
+        
+        return numericValue;
+    }
+
+    /**
+     * Converte valor formatado em moeda para número
+     */
+    function parseCurrencyToNumber(formattedValue) {
+        if (!formattedValue) return 0;
+        
+        // Remove símbolos de moeda e converte vírgula para ponto
+        const cleaned = formattedValue
+            .replace(/[R$\s]/g, '')
+            .replace(/\./g, '')
+            .replace(',', '.');
+        
+        return parseFloat(cleaned) || 0;
+    }
+
+    /**
+     * Formata número para moeda brasileira
+     */
+    function formatToBRL(value) {
+        const numValue = parseFloat(value) || 0;
+        return numValue.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+    }
+
+    /**
+     * Configura máscara de moeda para um campo
+     */
+    function setupCurrencyMask(inputElement) {
+        if (!inputElement) return;
+        
+        // Aplica máscara ao digitar
+        inputElement.addEventListener('input', function() {
+            applyCurrencyMask(this);
+            // Atualiza cálculos após aplicar máscara
+            setTimeout(() => {
+                updatePaymentTotalsAndDivergence();
+            }, 100);
+        });
+        
+        // Aplica máscara ao perder foco
+        inputElement.addEventListener('blur', function() {
+            applyCurrencyMask(this);
+            updatePaymentTotalsAndDivergence();
+        });
+        
+        // Aplica formatação inicial se já tiver valor
+        if (inputElement.value && !inputElement.readOnly) {
+            applyCurrencyMask(inputElement);
+        }
     }
 
     // === CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ===
@@ -1966,12 +1958,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorMessagesP.textContent = '';
         errorMessagesP.classList.add('hidden');
     }
-    
-    // --- INICIALIZAÇÃO ---
-    // Adicionar event listener para detectar status de conectividade
+
+    // --- DETECÇÃO DE CONECTIVIDADE ---
     window.addEventListener('online', function() {
         console.log('Online - sincronizando dados...');
-        checkOpenTurno(); // Sincroniza quando ficar online novamente
+        // Sincroniza quando ficar online novamente
+        checkOpenTurno();
     });
     
     window.addEventListener('offline', function() {
@@ -1982,21 +1974,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Detecta se o usuário está saindo da página e salva os dados
-    window.addEventListener('beforeunload', function() {
-        // O localStorage já deve estar sendo atualizado ao longo do uso,
-        // mas podemos fazer uma última verificação aqui se necessário
+    // --- PROTEÇÃO CONTRA PERDA DE DADOS ---
+    window.addEventListener('beforeunload', function(e) {
+        // Se houver um turno aberto com alterações não salvas no servidor
         if (turnoAbertoLocalmente && currentTurnoId) {
-            // Os dados principais já devem estar salvos, mas poderia adicionar
-            // uma última sincronização se necessário
+            // Garante que os dados estão persistidos em localStorage
+            const turnoAtual = getTurnoLocal();
+            if (turnoAtual) {
+                saveTurnoLocal(turnoAtual);
+            }
+            
+            // Avisa o usuário antes de sair
+            const message = "Você tem um turno aberto. Tem certeza que deseja sair?";
+            e.returnValue = message;
+            return message;
         }
     });
     
-    // Inicializa a página e carrega os dados necessários
+    // --- INICIALIZAÇÃO PRINCIPAL ---
     initializePage();
 });
 
-// Helpers de shared.js (inclua shared.js antes deste script)
+// --- FUNÇÕES AUXILIARES PARA COMPARTILHAMENTO GLOBAL ---
+// Estas são implementações locais que podem ser substituídas por shared.js
 if (typeof getFormattedDate === 'undefined') {
     function getFormattedDate(date = new Date()) {
       const year = date.getFullYear();
