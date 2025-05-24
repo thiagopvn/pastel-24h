@@ -1,3 +1,4 @@
+// funcionario-controller.js - Enhanced with persistence and data transfer
 document.addEventListener('DOMContentLoaded', async () => {
     // --- ELEMENTOS DA UI ---
     const btnAbrirTurno = document.getElementById('btnAbrirTurno');
@@ -28,20 +29,53 @@ document.addEventListener('DOMContentLoaded', async () => {
     const divergenciaCaixaAlertaP = document.getElementById('divergenciaCaixaAlerta');
     const fechamentoDivergenciaAlertaGeralDiv = document.getElementById('fechamentoDivergenciaAlertaGeral');
 
+    // Estados do sistema
     let currentTurnoId = localStorage.getItem('currentTurnoId');
     let productPrices = {}; 
     let turnoAbertoLocalmente = false; 
     let isInitializing = false;
-    let unsubscribeTurnoListener = null; // Para armazenar a função de cancelamento do listener
+    let unsubscribeTurnoListener = null;
+    let turnoAnteriorData = null;
+    let camposTransferidosAnterior = {};
 
-    // --- FUNÇÕES DE PERSISTÊNCIA LOCAL ---
+    // Estado de sincronização
+    let lastSyncTime = Date.now();
+    let pendingSyncOperations = [];
+    
+    // --- FUNÇÕES DE CONTROLE DE PERSISTÊNCIA ---
+
+    /**
+     * Salva os dados do turno no localStorage para persistência entre sessões
+     * @param {Object} turnoData - Dados do turno
+     */
     function saveTurnoLocal(turnoData) {
-        if (!turnoData) return;
-        localStorage.setItem('currentTurnoId', turnoData.id);
-        localStorage.setItem('turnoData', JSON.stringify(turnoData));
-        currentTurnoId = turnoData.id;
+        if (!turnoData || !turnoData.id) return;
+        
+        try {
+            // Salva o ID para acesso rápido
+            localStorage.setItem('currentTurnoId', turnoData.id);
+            
+            // Salva dados completos
+            localStorage.setItem('turnoData', JSON.stringify(turnoData));
+            
+            // Salva o status para verificação rápida
+            localStorage.setItem('turnoStatus', turnoData.status || 'desconhecido');
+            
+            // Salva timestamp para validação
+            localStorage.setItem('turnoLastUpdated', Date.now().toString());
+            
+            // Atualiza estado local
+            currentTurnoId = turnoData.id;
+            console.log(`Turno ${turnoData.id} salvo localmente`);
+        } catch (error) {
+            console.error("Erro ao salvar turno local:", error);
+        }
     }
 
+    /**
+     * Obtém dados do turno atual do localStorage
+     * @returns {Object|null} Dados do turno ou null
+     */
     function getTurnoLocal() {
         const turnoId = localStorage.getItem('currentTurnoId');
         if (!turnoId) return null;
@@ -57,14 +91,97 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
+    /**
+     * Remove dados do turno do localStorage
+     */
     function removeTurnoLocal() {
         localStorage.removeItem('currentTurnoId');
         localStorage.removeItem('turnoData');
+        localStorage.removeItem('turnoStatus');
         currentTurnoId = null;
         turnoAbertoLocalmente = false;
     }
 
-    // --- FUNÇÕES DE INICIALIZAÇÃO E ESTADO ---
+    /**
+     * Verifica se o turno em questão está sincronizado com o Firestore
+     * @param {string} turnoId - ID do turno a verificar
+     * @returns {Promise<boolean>} Verdadeiro se o turno existe e está atualizado
+     */
+    async function verificarSincronizacaoTurno(turnoId) {
+        try {
+            const turnoDoc = await db.collection('turnos').doc(turnoId).get();
+            return turnoDoc.exists;
+        } catch (error) {
+            console.error("Erro ao verificar sincronização do turno:", error);
+            return false;
+        }
+    }
+
+    /**
+     * Adiciona indicador visual para campos transferidos do turno anterior
+     * @param {HTMLElement} elemento - Elemento que recebeu valor transferido
+     * @param {string} origem - ID do turno de origem
+     */
+    function adicionarIndicadorCampoTransferido(elemento, origem) {
+        if (!elemento) return;
+        
+        // Adiciona classe de estilo para destacar visualmente
+        elemento.classList.add('bg-blue-50', 'border-blue-300');
+        
+        // Armazena informação de que este campo veio do turno anterior
+        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+        elemento.dataset.valorOriginal = elemento.value;
+        
+        // Adiciona um pequeno indicador visual ao lado do campo
+        const parentElement = elemento.parentElement;
+        if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
+            const indicador = document.createElement('span');
+            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+            indicador.title = 'Valor transferido do turno anterior - Não editável';
+            parentElement.appendChild(indicador);
+        }
+        
+        // Rastreia este campo para validação
+        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
+        camposTransferidosAnterior[campoId] = {
+            elemento: elemento,
+            valorOriginal: elemento.value
+        };
+    }
+
+    /**
+     * Valida e impede a edição de campos transferidos
+     * @param {Event} event - Evento de input
+     * @returns {boolean} - Se a validação passou (true) ou falhou (false)
+     */
+    function validarCamposTransferidos(event) {
+        const target = event.target;
+        if (target && target.dataset && target.dataset.transferidoDoTurno) {
+            const valorOriginal = target.dataset.valorOriginal;
+            
+            // Verificar se o valor foi alterado
+            if (valorOriginal !== undefined && target.value !== valorOriginal) {
+                // Restaurar o valor original
+                target.value = valorOriginal;
+                
+                // Adicionar animação de "shake" para feedback visual
+                target.classList.add('shake-animation');
+                setTimeout(() => {
+                    target.classList.remove('shake-animation');
+                }, 500);
+                
+                // Exibir mensagem de erro
+                const msgErro = `O campo "${target.name || target.id}" foi transferido do turno anterior e não pode ser alterado.`;
+                showError(msgErro);
+                
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // === FUNÇÕES DE INICIALIZAÇÃO E ESTADO ===
     async function initializePage() {
         // Prevenção contra chamadas recursivas
         if (isInitializing) return;
@@ -75,14 +192,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             await loadProductPrices();
             populateProductTables();
             
-            // Verifica se existe um turno em andamento, primeiro localmente e depois no Firestore
+            // NOVO: Configura máscaras de moeda
+            setupAllCurrencyMasks();
+            
+            // Verificar e armazenar dados do último turno fechado para transferência
+            await carregarDadosTurnoAnterior();
+            
+            // VERIFICAÇÃO ROBUSTA DE TURNO EXISTENTE
+            // 1. Primeiro verifica localStorage
             const localTurno = getTurnoLocal();
             
+            // 2. Caso tenha turno local, verifica se ainda é válido no Firestore
             if (localTurno && localTurno.status === 'aberto') {
-                // Temos um turno guardado localmente, vamos verificar se ele ainda existe no Firestore
-                await checkAndSyncTurnoWithFirestore(localTurno.id);
+                const turnoExisteNoFirestore = await verificarSincronizacaoTurno(localTurno.id);
+                
+                if (turnoExisteNoFirestore) {
+                    console.log(`Turno ${localTurno.id} encontrado localmente e validado no Firestore`);
+                    await checkAndSyncTurnoWithFirestore(localTurno.id);
+                } else {
+                    console.warn(`Turno ${localTurno.id} existe localmente mas não no Firestore - dados desatualizados`);
+                    // Remove dados locais que estão inválidos
+                    removeTurnoLocal();
+                    // Verifica se há outro turno aberto no Firestore
+                    await checkOpenTurnoInFirestore();
+                }
             } else {
-                // Caso não haja turno local, busca no Firestore (pode haver um aberto em outro dispositivo)
+                // 3. Caso não tenha turno local, busca no Firestore
+                console.log("Nenhum turno local encontrado, verificando no Firestore...");
                 await checkOpenTurnoInFirestore();
             }
             
@@ -104,7 +240,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Novo método para estabelecer um listener em tempo real no Firestore
+    async function carregarDadosTurnoAnterior() {
+        showLoadingState(true, "Verificando turnos anteriores...");
+        try {
+            const turnoAnteriorRef = await db.collection('turnos')
+                .where('status', '==', 'fechado')
+                .orderBy('fechamento.hora', 'desc')
+                .limit(1)
+                .get();
+                
+            if (!turnoAnteriorRef.empty) {
+                const doc = turnoAnteriorRef.docs[0];
+                turnoAnteriorData = { id: doc.id, ...doc.data() };
+                console.log("Dados do turno anterior recuperados:", turnoAnteriorData.id);
+                return true;
+            } else {
+                console.log("Nenhum turno anterior fechado encontrado");
+                turnoAnteriorData = null;
+                return false;
+            }
+        } catch (error) {
+            console.error("Erro ao carregar dados do turno anterior:", error);
+            turnoAnteriorData = null;
+            return false;
+        } finally {
+            showLoadingState(false);
+        }
+    }
+
     function setupTurnoListener() {
         // Cancela qualquer listener anterior
         if (unsubscribeTurnoListener) {
@@ -149,7 +312,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
     }
 
-    // Verifica e sincroniza com Firestore um turno salvo localmente
     async function checkAndSyncTurnoWithFirestore(turnoId) {
         try {
             const turnoDoc = await db.collection('turnos').doc(turnoId).get();
@@ -200,7 +362,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Verifica se há turnos abertos no Firestore
     async function checkOpenTurnoInFirestore() {
         try {
             // Recupera o usuário atual
@@ -245,7 +406,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Método original adaptado para usar os novos métodos
     async function checkOpenTurno() {
         showLoadingState(true, "Verificando turno...");
         try {
@@ -316,31 +476,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         const localListaSaboresPasteis = typeof listaSaboresPasteis !== 'undefined' ? listaSaboresPasteis : [];
         localListaSaboresPasteis.forEach(sabor => {
             const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o').replace(/[úùûü]/g, 'u');
-            const row = createProductRow(sabor, key, 'pasteis', productPrices, true); // Inicialmente readonly
+            const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true); // Inicialmente readonly
             tabelaPasteisBody.appendChild(row);
         });
 
         const localListaCasquinhas = typeof listaCasquinhas !== 'undefined' ? listaCasquinhas : [];
         localListaCasquinhas.forEach(casquinha => {
             const key = casquinha.toLowerCase().replace(/\s+/g, '_');
-            const row = createProductRow(casquinha, key, 'casquinhas', productPrices, true);
+            const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
             tabelaCasquinhasBody.appendChild(row);
         });
 
         const localListaCaldoCana = typeof listaCaldoCana !== 'undefined' ? listaCaldoCana : [];
         localListaCaldoCana.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\d+ml/, d => d.toLowerCase()).replace(/\d+litro/, d => d.toLowerCase());
-            const row = createProductRow(item, key, 'caldo_cana', productPrices, true);
+            const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
             tabelaCaldoCanaBody.appendChild(row);
         });
 
         const localListaRefrigerantes = typeof listaRefrigerantes !== 'undefined' ? listaRefrigerantes : [];
         localListaRefrigerantes.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\./g, '');
-            const row = createProductRow(item, key, 'refrigerantes', productPrices, true);
+            const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
             tabelaRefrigerantesBody.appendChild(row);
         });
         
+        // GELO COM NOVA ESTRUTURA (Entrada + Chegadas)
         const geloKey = 'gelo_pacote';
         const trGelo = document.createElement('tr');
         trGelo.className = 'border-b item-row';
@@ -352,25 +513,26 @@ document.addEventListener('DOMContentLoaded', async () => {
         tdGeloName.textContent = 'Gelo (Pacote)';
         trGelo.appendChild(tdGeloName);
         
-        // Gelo usa a função createInputCell, mas as colunas são específicas
+        // Gelo: entrada, chegadas, sobra, vendas, consumo_interno
         trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm")); // entrada
+        trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas")); // chegadas
         trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));   // sobra
         const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm"); // vendas
         tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true"; // Marcação para event listener
         trGelo.appendChild(tdVendasGelo);
-        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));// consumo_interno (o de funcionario é diferente)
+        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));// consumo_interno
         
         const tdPrecoGelo = document.createElement('td');
         tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600';
         const precoGeloUnit = productPrices.gelo?.[geloKey]?.preco || 0;
-        tdPrecoGelo.textContent = `R$ ${precoGeloUnit.toFixed(2)}`;
+        tdPrecoGelo.textContent = formatToBRL(precoGeloUnit);
         tdPrecoGelo.id = `${geloKey}_preco_display`;
         trGelo.appendChild(tdPrecoGelo);
         
         const tdTotalGelo = document.createElement('td');
         tdTotalGelo.className = 'px-2 py-2 text-sm text-gray-700 font-semibold';
         tdTotalGelo.id = `${geloKey}_total_item`; 
-        tdTotalGelo.textContent = `R$ 0.00`;
+        tdTotalGelo.textContent = formatToBRL(0);
         trGelo.appendChild(tdTotalGelo);
         
         tabelaGeloBody.appendChild(trGelo);
@@ -396,6 +558,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 el.classList.add('bg-gray-100');
                 return;
             }
+            
+            // Se o campo foi transferido do turno anterior, ele deve permanecer readonly
+            if (el.dataset.transferidoDoTurno) {
+                el.readOnly = true;
+                return;
+            }
 
             // Lógica geral para os demais campos
             el.readOnly = !isTurnoOpenForEditing;
@@ -407,20 +575,33 @@ document.addEventListener('DOMContentLoaded', async () => {
                 el.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
             }
         });
-         // Após abrir o turno, 'entrada' e 'caixaInicial' devem ficar readonly.
+         // Após abrir o turno, 'entrada' deve ficar readonly, mas 'chegadas' editável
          if (turnoAbertoLocalmente || currentTurnoId) { // Significa que o turno está "em andamento"
             if(caixaInicioInput) caixaInicioInput.readOnly = true;
             if(caixaInicioInput) caixaInicioInput.classList.add('bg-gray-100');
+            
+            // Entrada fica readonly (vem do turno anterior)
             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
                 inp.readOnly = true;
                 inp.classList.add('bg-gray-100');
             });
-        } else { // Se nenhum turno aberto, caixa inicial e entradas estão disponíveis para o "Abrir Turno"
+            
+            // Chegadas ficam editáveis durante o turno (se não for transferido)
+            document.querySelectorAll('input[id$="_chegadas"]').forEach(inp => {
+                if (!inp.dataset.transferidoDoTurno) {
+                    inp.readOnly = false;
+                    inp.classList.remove('bg-gray-100');
+                    inp.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
+                }
+            });
+        } else { // Se nenhum turno aberto, entrada e chegadas estão disponíveis para o "Abrir Turno"
              if(caixaInicioInput) caixaInicioInput.readOnly = false;
              if(caixaInicioInput) caixaInicioInput.classList.remove('bg-gray-100');
-             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
-                inp.readOnly = false;
-                inp.classList.remove('bg-gray-100');
+             document.querySelectorAll('input[id$="_entrada"], input[id$="_chegadas"]').forEach(inp => {
+                if (!inp.dataset.transferidoDoTurno) {
+                    inp.readOnly = false;
+                    inp.classList.remove('bg-gray-100');
+                }
             });
         }
     }
@@ -450,15 +631,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Limpar totais e campos calculados para garantir que não haja lixo visual
         document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
-        document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = 'R$ 0.00');
-        if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = 'R$ 0.00';
-        if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = 'R$ 0.00';
-        if(caixaDiferencaInput) caixaDiferencaInput.value = 'R$ 0.00';
+        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0'); // NOVO: limpar chegadas
+        document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
+        if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
+        if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
+        if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
         if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md"; // Reseta cor de fundo
 
         document.querySelectorAll('td[id^="total"]').forEach(el => {
             if (el.id.includes('Vendido')) el.textContent = '0';
-            else if (el.id.includes('Valor')) el.textContent = 'R$ 0.00';
+            else if (el.id.includes('Valor')) el.textContent = formatToBRL(0);
         });
         if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
         if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
@@ -467,9 +649,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Limpa campos específicos de Gelo
         const geloKey = 'gelo_pacote';
         const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
-        if (totalGeloDisplay) totalGeloDisplay.textContent = 'R$ 0.00';
+        if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
         const totalFooterGelo = document.getElementById('totalGeloValor');
-        if (totalFooterGelo) totalFooterGelo.textContent = 'R$ 0.00';
+        if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
+        
+        // Remove todos os indicadores de campos transferidos
+        document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
+        document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
+            el.removeAttribute('data-transferido-do-turno');
+            el.removeAttribute('data-valor-original');
+            el.classList.remove('bg-blue-50', 'border-blue-300');
+        });
+        camposTransferidosAnterior = {};
+        
         calculateAll(); // Garante que os totais gerais sejam zerados
     }
     
@@ -483,11 +675,218 @@ document.addEventListener('DOMContentLoaded', async () => {
         turnoPeriodoSelect.classList.add('bg-gray-200');
     }
 
-    // --- AÇÕES DE TURNO ---
+    // === FUNÇÕES DE CONTROLE DE CAIXA ===
+
+    /**
+     * CORRIGIDO: Soma campos de pagamento, atualiza total registrado e calcula divergência
+     */
+    function updatePaymentTotalsAndDivergence() {
+        console.log("🔄 Atualizando totais de pagamento e divergências...");
+        
+        // Elementos dos campos de pagamento
+        const paymentInputs = {
+            dinheiro: document.getElementById('pagamentoDinheiro'),
+            pixManual: document.getElementById('pagamentoPixManual'),
+            stoneDCV: document.getElementById('pagamentoStoneDCV'),
+            stoneVoucher: document.getElementById('pagamentoStoneVoucher'),
+            pagbankDCV: document.getElementById('pagamentoPagBankDCV')
+        };
+        
+        // Soma todos os valores de pagamento
+        let totalRegistrado = 0;
+        const paymentValues = {};
+        
+        Object.entries(paymentInputs).forEach(([key, input]) => {
+            if (input) {
+                const value = parseCurrencyToNumber(input.value);
+                paymentValues[key] = value;
+                totalRegistrado += value;
+            }
+        });
+        
+        // Atualiza o campo "Total Registrado"
+        if (totalRegistradoPagamentosInput) {
+            totalRegistradoPagamentosInput.value = formatToBRL(totalRegistrado);
+        }
+        
+        // Calcula divergência com total vendido
+        const totalVendido = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput?.value || '0');
+        const divergenciaVendas = totalVendido - totalRegistrado;
+        
+        console.log(`📊 Total Vendido: ${formatToBRL(totalVendido)}`);
+        console.log(`💰 Total Registrado: ${formatToBRL(totalRegistrado)}`);
+        console.log(`⚖️ Divergência: ${formatToBRL(divergenciaVendas)}`);
+        
+        // Atualiza display de divergência de vendas vs pagamentos
+        updateSalesDivergenceDisplay(divergenciaVendas, totalVendido, totalRegistrado);
+        
+        // Atualiza também a diferença de caixa físico
+        updatePhysicalCashDifference();
+        
+        return {
+            totalRegistrado,
+            totalVendido,
+            divergenciaVendas,
+            paymentValues
+        };
+    }
+
+    /**
+     * NOVO: Atualiza display de divergência entre vendas e pagamentos
+     */
+    function updateSalesDivergenceDisplay(divergencia, totalVendido, totalRegistrado) {
+        let alertContainer = document.getElementById('salesDivergenceAlert');
+        
+        // Cria o container se não existir
+        if (!alertContainer) {
+            alertContainer = document.createElement('div');
+            alertContainer.id = 'salesDivergenceAlert';
+            alertContainer.className = 'mt-4 p-4 rounded-lg border';
+            
+            // Adiciona após o campo Total Registrado
+            const totalRegistradoParent = totalRegistradoPagamentosInput?.parentElement?.parentElement;
+            if (totalRegistradoParent) {
+                totalRegistradoParent.insertAdjacentElement('afterend', alertContainer);
+            }
+        }
+        
+        if (Math.abs(divergencia) < 0.01) {
+            // Sem divergência - sinal verde
+            alertContainer.className = 'mt-4 p-4 rounded-lg border bg-green-50 border-green-300';
+            alertContainer.innerHTML = `
+                <div class="flex items-center text-green-700">
+                    <i class="fas fa-check-circle mr-2 text-lg"></i>
+                    <div>
+                        <strong>✅ Valores conferem perfeitamente!</strong>
+                        <div class="text-sm mt-1">
+                            Vendas: ${formatToBRL(totalVendido)} = Pagamentos: ${formatToBRL(totalRegistrado)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        } else {
+            // Com divergência - sinal vermelho
+            alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
+            const diferenca = Math.abs(divergencia);
+            const tipo = divergencia > 0 ? 'faltam nos pagamentos' : 'sobram nos pagamentos';
+            
+            alertContainer.innerHTML = `
+                <div class="text-red-700">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
+                        <strong>🚨 Divergência detectada!</strong>
+                    </div>
+                    <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>📈 <strong>Total Vendido:</strong></div>
+                            <div>${formatToBRL(totalVendido)}</div>
+                            <div>💳 <strong>Total Pagamentos:</strong></div>
+                            <div>${formatToBRL(totalRegistrado)}</div>
+                            <div>⚖️ <strong>Diferença:</strong></div>
+                            <div class="font-bold text-red-600">${formatToBRL(diferenca)} (${tipo})</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    /**
+     * CORRIGIDO: Compara caixa físico contado vs (caixa inicial + pagamentos em dinheiro)
+     */
+    function updatePhysicalCashDifference() {
+        console.log("🏦 Atualizando diferença de caixa físico...");
+        
+        // Pega os valores
+        const caixaInicial = parseCurrencyToNumber(caixaInicioInput?.value || '0');
+        const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
+        const caixaFinalContado = parseCurrencyToNumber(caixaFinalContadoInput?.value || '0');
+        
+        // Calcula o que deveria ter no caixa físico
+        const caixaEsperado = caixaInicial + pagamentoDinheiro;
+        
+        // Calcula a diferença
+        const diferencaCaixa = caixaFinalContado - caixaEsperado;
+        
+        console.log(`💰 Caixa Inicial: ${formatToBRL(caixaInicial)}`);
+        console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
+        console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
+        console.log(`🔢 Caixa Contado: ${formatToBRL(caixaFinalContado)}`);
+        console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
+        
+        // Atualiza o display
+        if (caixaDiferencaInput) {
+            caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
+        }
+        
+        if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
+            if (Math.abs(diferencaCaixa) < 0.01) {
+                // Sem diferença - verde
+                caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
+                divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
+                divergenciaCaixaAlertaP.innerHTML = `
+                    <i class="fas fa-check-circle mr-1"></i>
+                    ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
+                `;
+            } else {
+                // Com diferença - vermelho ou amarelo
+                const isPositive = diferencaCaixa > 0;
+                const bgClass = isPositive ? 'bg-yellow-50 border-yellow-300' : 'bg-red-50 border-red-300';
+                const textClass = isPositive ? 'text-yellow-700' : 'text-red-700';
+                const tipo = isPositive ? 'sobra' : 'falta';
+                const icon = isPositive ? 'fa-info-circle' : 'fa-exclamation-triangle';
+                const emoji = isPositive ? '⚠️' : '🚨';
+                
+                caixaDiferencaContainer.className = `p-4 rounded-lg ${bgClass}`;
+                divergenciaCaixaAlertaP.className = `text-sm mt-2 ${textClass} font-medium`;
+                divergenciaCaixaAlertaP.innerHTML = `
+                    <i class="fas ${icon} mr-1"></i>
+                    ${emoji} ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico
+                    <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+                `;
+            }
+        }
+        
+        return {
+            caixaInicial,
+            pagamentoDinheiro,
+            caixaEsperado,
+            caixaFinalContado,
+            diferencaCaixa,
+            isValid: Math.abs(diferencaCaixa) < 0.01
+        };
+    }
+
+    /**
+     * Configura máscaras de moeda para todos os campos monetários
+     */
+    function setupAllCurrencyMasks() {
+        console.log("🎭 Configurando máscaras de moeda...");
+        
+        const currencyFields = [
+            'caixaInicio',
+            'pagamentoDinheiro',
+            'pagamentoPixManual', 
+            'pagamentoStoneDCV',
+            'pagamentoStoneVoucher',
+            'pagamentoPagBankDCV',
+            'caixaFinalContado'
+        ];
+        
+        currencyFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                setupCurrencyMask(field);
+                console.log(`✅ Máscara configurada para: ${fieldId}`);
+            }
+        });
+    }
+
+    // === AÇÕES DE TURNO ===
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
             clearError();
-            const caixaInicialVal = parseFloat(caixaInicioInput.value);
+            const caixaInicialVal = parseCurrencyToNumber(caixaInicioInput.value);
             if (isNaN(caixaInicialVal) || caixaInicialVal < 0) {
                 showError("Caixa Inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
                 caixaInicioInput.focus();
@@ -552,33 +951,62 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 populateTurnoDetails(aberturaDataObj); // Atualiza os campos de Mês, Data, Hora, Período no form
 
-                // Carrega 'sobra' do turno anterior para 'entrada' do atual
+                // MODIFICADO: Usar o turno anterior para preencher entradas e caixa inicial
                 const estoqueAnterior = await getEstoqueInicial(dataAtual, periodoSelecionado);
                 
-                // Preenche as entradas dos itens com base no estoque anterior
+                // TRANSFERÊNCIA AUTOMÁTICA: Preenche as entradas dos itens com base no estoque anterior
+                let itensTransferidosCount = 0;
+                
                 Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
                     Object.keys(estoqueAnterior.itens[categoryKey] || {}).forEach(itemKey => {
                         const inputEntrada = document.getElementById(`${itemKey}_entrada`);
-                        if (inputEntrada && !inputEntrada.value) { // Só preenche se o usuário não digitou nada
-                            inputEntrada.value = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                        if (inputEntrada) {
+                            const sobraAnterior = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
+                            inputEntrada.value = sobraAnterior;
+                                    
+                            // Marca como transferido para validação e estilo visual
+                            adicionarIndicadorCampoTransferido(inputEntrada, estoqueAnterior.turnoId);
+                            itensTransferidosCount++;
                         }
                     });
                 });
-                
+                        
                 const inputEntradaGelo = document.getElementById(`gelo_pacote_entrada`);
-                if (inputEntradaGelo && !inputEntradaGelo.value) {
-                     inputEntradaGelo.value = estoqueAnterior.gelo?.gelo_pacote?.sobra || 0;
+                if (inputEntradaGelo && estoqueAnterior.gelo?.gelo_pacote?.sobra) {
+                    inputEntradaGelo.value = estoqueAnterior.gelo.gelo_pacote.sobra;
+                            
+                    // Marca como transferido para validação e estilo visual
+                    adicionarIndicadorCampoTransferido(inputEntradaGelo, estoqueAnterior.turnoId);
+                    itensTransferidosCount++;
+                }
+                        
+                // TRANSFERÊNCIA AUTOMÁTICA: Se tiver caixa final no turno anterior, usar como caixa inicial
+                if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
+                    caixaInicioInput.value = formatToBRL(estoqueAnterior.caixaFinal);
+                            
+                    // Marca como transferido para validação e estilo visual
+                    adicionarIndicadorCampoTransferido(caixaInicioInput, estoqueAnterior.turnoId);
                 }
 
-                const initialItensData = collectItemData(true); // Coleta apenas entradas e preços unitários
+                if (estoqueAnterior.turnoId) {
+                    adicionarResumoTurnoAnterior(estoqueAnterior.turnoId, estoqueAnterior);
+                }
+
+                const initialItensData = collectItemData(true); // Coleta apenas entradas, chegadas e preços unitários
 
                 const turnoDataToSave = {
                     abertura: aberturaDataObj,
                     status: 'aberto',
-                    caixaInicial: caixaInicialVal,
+                    caixaInicial: parseCurrencyToNumber(caixaInicioInput.value) || 0,
                     itens: initialItensData.itens,
                     gelo: initialItensData.gelo,
                     turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
+                    dadosTransferidos: {
+                        quantidadeItens: itensTransferidosCount,
+                        caixaTransferido: estoqueAnterior.caixaFinal !== undefined,
+                        formasPagamentoAnterior: Object.keys(estoqueAnterior.formasPagamento || {}).length > 0,
+                        trocaGasAnterior: estoqueAnterior.trocaGas === 'sim'
+                    },
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 };
@@ -595,21 +1023,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                 turnoAbertoLocalmente = true;
                 btnAbrirTurno.disabled = true;
                 btnFecharTurno.disabled = false;
-                turnoStatusP.textContent = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
+                        
+                // Mensagem de status com informação sobre os dados transferidos
+                let statusMsg = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
+                if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
+                    statusMsg += ` Dados transferidos: ${itensTransferidosCount} item(ns)`;
+                    if (estoqueAnterior.caixaFinal !== undefined) {
+                        statusMsg += ` e caixa inicial (${formatToBRL(estoqueAnterior.caixaFinal)})`;
+                    }
+                }
+                turnoStatusP.textContent = statusMsg;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
-                toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly
+                
+                toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly, chegadas editáveis
                 
                 // Ativa listener para mudanças remotas
                 setupTurnoListener();
                 
                 calculateAll();
-                
+                        
             } catch (error) {
                 console.error("Erro ao abrir turno: ", error);
                 showError("Falha ao abrir turno: " + error.message + ". Verifique suas permissões ou contate o suporte.");
                 resetFormAndState("Erro ao tentar abrir o turno."); // Reseta se a abertura falhar
             } finally {
-                 showLoadingState(false);
+                showLoadingState(false);
             }
         });
     }
@@ -636,27 +1074,226 @@ document.addEventListener('DOMContentLoaded', async () => {
             const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
             if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
                 const dados = turnoAnteriorDoc.data();
-                const estoqueFinal = { itens: {}, gelo: {}, turnoId: idTurnoAnterior };
+                const estoqueFinal = { 
+                    itens: {}, 
+                    gelo: {}, 
+                    turnoId: idTurnoAnterior,
+                    caixaFinal: null,  // NOVO: Para transferir caixa
+                    formasPagamento: dados.formasPagamento || {},
+                    trocaGas: dados.trocaGas || 'nao',
+                    totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
+                    totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
+                    diferencaCaixa: dados.diferencaCaixaFinal,
+                    fechamentoData: dados.fechamento || {},
+                    fechamentoTimestamp: dados.closedAt || null
+                };
+                
+                // Transfere itens do inventário (apenas SOBRA vai para próxima ENTRADA)
                 if (dados.itens) {
                     Object.keys(dados.itens).forEach(cat => {
                         estoqueFinal.itens[cat] = {};
                         Object.keys(dados.itens[cat]).forEach(item => {
-                            estoqueFinal.itens[cat][item] = { sobra: dados.itens[cat][item].sobra || 0 };
+                            estoqueFinal.itens[cat][item] = { 
+                              sobra: dados.itens[cat][item].sobra || 0,
+                              precoUnitario: dados.itens[cat][item].precoUnitario,
+                              vendido: dados.itens[cat][item].vendido,
+                              totalItemValor: dados.itens[cat][item].totalItemValor,
+                              chegadas: dados.itens[cat][item].chegadas || 0
+                            };
                         });
                     });
                 }
-                 if (dados.gelo && dados.gelo.gelo_pacote) { 
-                    estoqueFinal.gelo.gelo_pacote = { sobra: dados.gelo.gelo_pacote.sobra || 0 };
-                 }
+                
+                // Transfere gelo (apenas SOBRA vai para próxima ENTRADA)
+                if (dados.gelo && dados.gelo.gelo_pacote) { 
+                    estoqueFinal.gelo.gelo_pacote = { 
+                        sobra: dados.gelo.gelo_pacote.sobra || 0,
+                        precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
+                        vendas: dados.gelo.gelo_pacote.vendas,
+                        totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
+                        chegadas: dados.gelo.gelo_pacote.chegadas || 0
+                    };
+                }
+                
+                // NOVO: TRANSFERÊNCIA DE CAIXA - Pegar o caixa final do turno anterior
+                if (dados.caixaFinalContado !== undefined) {
+                    estoqueFinal.caixaFinal = dados.caixaFinalContado;
+                    console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${idTurnoAnterior}`);
+                }
+                
                 return estoqueFinal;
             }
             console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não fechado. Iniciando com estoque zero.`);
         } catch (error) {
             console.error("Erro ao buscar estoque do turno anterior:", error);
         }
-        return { itens: {}, gelo: {}, turnoId: null };
+        return { 
+            itens: {}, 
+            gelo: {}, 
+            turnoId: null, 
+            caixaFinal: null,
+            formasPagamento: {},
+            trocaGas: 'nao',
+            totalVendidoCalculado: 0,
+            totalRegistradoPagamentos: 0,
+            diferencaCaixa: 0,
+            fechamentoData: {},
+            fechamentoTimestamp: null
+        };
     }
 
+    function adicionarResumoTurnoAnterior(turnoAnteriorId, estoqueAnterior) {
+        if (!turnoAnteriorId) return;
+        
+        // Remover resumo anterior se existir
+        const resumoExistente = document.getElementById('resumoTurnoAnterior');
+        if (resumoExistente) {
+            resumoExistente.remove();
+        }
+        
+        // Criar um elemento para mostrar informações do turno anterior
+        const resumoContainer = document.createElement('div');
+        resumoContainer.id = 'resumoTurnoAnterior';
+        resumoContainer.className = 'bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6 fade-in';
+        
+        // Título do resumo
+        const titulo = document.createElement('h3');
+        titulo.className = 'text-lg font-semibold text-blue-700 mb-2 flex items-center';
+        titulo.innerHTML = '<i class="fas fa-exchange-alt mr-2"></i> Resumo do Turno Anterior';
+        resumoContainer.appendChild(titulo);
+        
+        // Detalhes do turno anterior
+        const detalhes = document.createElement('div');
+        detalhes.className = 'text-sm grid grid-cols-1 md:grid-cols-2 gap-4';
+        
+        // Coluna da esquerda: Informações gerais
+        const colEsquerda = document.createElement('div');
+        colEsquerda.className = 'space-y-1';
+        
+        // Formatar data do turno anterior para exibição
+        const [dataAnterior, periodoAnterior] = turnoAnteriorId.split('_');
+        const dataFormatada = dataAnterior.split('-').reverse().join('/');
+        
+        // ID do turno anterior
+        const idTurno = document.createElement('p');
+        idTurno.innerHTML = `<strong>Turno:</strong> ${periodoAnterior} de ${dataFormatada}`;
+        colEsquerda.appendChild(idTurno);
+        
+        // Responsável pelo fechamento
+        if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.responsavelNome) {
+            const responsavel = document.createElement('p');
+            responsavel.innerHTML = `<strong>Fechado por:</strong> ${estoqueAnterior.fechamentoData.responsavelNome}`;
+            colEsquerda.appendChild(responsavel);
+        }
+        
+        // Hora do fechamento
+        if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.hora) {
+            const hora = document.createElement('p');
+            hora.innerHTML = `<strong>Horário:</strong> ${estoqueAnterior.fechamentoData.hora}`;
+            colEsquerda.appendChild(hora);
+        }
+        
+        // Caixa final do turno anterior
+        if (estoqueAnterior.caixaFinal !== undefined) {
+            const caixaFinal = document.createElement('p');
+            caixaFinal.className = 'text-green-700 font-medium';
+            caixaFinal.innerHTML = `<strong>Caixa Final:</strong> ${formatToBRL(estoqueAnterior.caixaFinal)}`;
+            colEsquerda.appendChild(caixaFinal);
+        }
+        
+        // Informação sobre troca de gás
+        if (estoqueAnterior.trocaGas === 'sim') {
+            const trocaGas = document.createElement('p');
+            trocaGas.className = 'text-orange-700 font-medium mt-2 bg-orange-50 p-1 rounded';
+            trocaGas.innerHTML = '<i class="fas fa-fire mr-1"></i> <strong>Houve troca de botijão no turno anterior</strong>';
+            colEsquerda.appendChild(trocaGas);
+        }
+        
+        detalhes.appendChild(colEsquerda);
+        
+        // Coluna da direita: Valores de vendas e pagamentos
+        const colDireita = document.createElement('div');
+        colDireita.className = 'space-y-1';
+        
+        // Total vendido no turno anterior
+        if (estoqueAnterior.totalVendidoCalculado) {
+            const totalVendido = document.createElement('p');
+            totalVendido.innerHTML = `<strong>Total Vendido:</strong> ${formatToBRL(estoqueAnterior.totalVendidoCalculado)}`;
+            colDireita.appendChild(totalVendido);
+        }
+        
+        // Total registrado em pagamentos
+        if (estoqueAnterior.totalRegistradoPagamentos) {
+            const totalPagamentos = document.createElement('p');
+            totalPagamentos.innerHTML = `<strong>Total Pagamentos:</strong> ${formatToBRL(estoqueAnterior.totalRegistradoPagamentos)}`;
+            colDireita.appendChild(totalPagamentos);
+        }
+        
+        // Diferença de caixa
+        if (estoqueAnterior.diferencaCaixa !== undefined) {
+            const diferencaCaixa = document.createElement('p');
+            if (Math.abs(estoqueAnterior.diferencaCaixa) > 0.01) {
+                diferencaCaixa.className = estoqueAnterior.diferencaCaixa > 0 ? 'text-green-700' : 'text-red-700';
+                diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> ${formatToBRL(estoqueAnterior.diferencaCaixa)}`;
+            } else {
+                diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> Sem diferença`;
+            }
+            colDireita.appendChild(diferencaCaixa);
+        }
+        
+        // Adicionar formas de pagamento em um único elemento para economizar espaço
+        if (estoqueAnterior.formasPagamento && Object.keys(estoqueAnterior.formasPagamento).length > 0) {
+            const pagamentos = document.createElement('div');
+            pagamentos.className = 'mt-2 bg-white bg-opacity-50 p-2 rounded';
+            
+            const pagamentosTitle = document.createElement('p');
+            pagamentosTitle.className = 'text-blue-800 font-medium';
+            pagamentosTitle.innerHTML = '<i class="fas fa-credit-card mr-1"></i> <strong>Formas de Pagamento:</strong>';
+            pagamentos.appendChild(pagamentosTitle);
+            
+            const pagamentosList = document.createElement('ul');
+            pagamentosList.className = 'grid grid-cols-2 gap-x-2 text-xs mt-1';
+            
+            // Mapeamento de nomes para exibição mais amigável
+            const nomeAmigavel = {
+                dinheiro: "Dinheiro",
+                pixManual: "PIX Manual",
+                stoneDCV: "Stone D/C/V",
+                stoneVoucher: "Stone Voucher",
+                pagbankDCV: "PagBank D/C/V"
+            };
+            
+            Object.entries(estoqueAnterior.formasPagamento).forEach(([metodo, valor]) => {
+                if (valor > 0) {
+                    const li = document.createElement('li');
+                    li.innerHTML = `${nomeAmigavel[metodo] || metodo}: <span class="font-medium">${formatToBRL(valor)}</span>`;
+                    pagamentosList.appendChild(li);
+                }
+            });
+            
+            pagamentos.appendChild(pagamentosList);
+            colDireita.appendChild(pagamentos);
+        }
+        
+        detalhes.appendChild(colDireita);
+        resumoContainer.appendChild(detalhes);
+        
+        // Adicionar botão para fechar o resumo
+        const btnFechar = document.createElement('button');
+        btnFechar.type = 'button';
+        btnFechar.className = 'text-blue-600 hover:text-blue-800 text-xs mt-3 flex items-center';
+        btnFechar.innerHTML = '<i class="fas fa-times-circle mr-1"></i> Fechar resumo';
+        btnFechar.onclick = () => resumoContainer.remove();
+        resumoContainer.appendChild(btnFechar);
+        
+        // Adicionar o resumo ao formulário
+        const formTurno = document.getElementById('formTurno');
+        if (formTurno && formTurno.firstChild) {
+            formTurno.insertBefore(resumoContainer, formTurno.firstChild);
+        }
+        
+        return resumoContainer;
+    }
 
     if (btnFecharTurno) {
         btnFecharTurno.addEventListener('click', async () => {
@@ -671,32 +1308,31 @@ document.addEventListener('DOMContentLoaded', async () => {
                  return;
             }
             
-            const totalVendidoCalc = parseFloat(totalVendidoTurnoCalculadoInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
-            const totalPagamentos = parseFloat(totalRegistradoPagamentosInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
+            const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
+            const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
 
             let divergenciaValorDetected = false;
             if (Math.abs(totalVendidoCalc - totalPagamentos) > 0.015) { // Tolerância aumentada um pouco
                 divergenciaValorDetected = true;
             }
             
-            const { divergente: divergenciaCaixaFisico } = updateCaixaDiferenca(); // Retorna se o caixa físico tem divergência
+            const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference(); // Retorna se o caixa físico tem divergência
             
             fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
             fechamentoDivergenciaAlertaGeralDiv.textContent = '';
             
             let confirmMsg = "Você está prestes a fechar o turno.";
-            if (divergenciaValorDetected || divergenciaCaixaFisico) {
+            if (divergenciaValorDetected || !caixaValido) {
                 let alertText = "ATENÇÃO: Divergências encontradas!\n";
                 if (divergenciaValorDetected) {
-                    alertText += `- Total Vendido (R$ ${totalVendidoCalc.toFixed(2)}) difere do Total de Pagamentos (R$ ${totalPagamentos.toFixed(2)}). Diferença: R$ ${(totalVendidoCalc - totalPagamentos).toFixed(2)}\n`;
+                    alertText += `- Total Vendido (${formatToBRL(totalVendidoCalc)}) difere do Total de Pagamentos (${formatToBRL(totalPagamentos)}). Diferença: ${formatToBRL(totalVendidoCalc - totalPagamentos)}\n`;
                 }
-                if (divergenciaCaixaFisico) {
-                     const difCaixaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
-                    alertText += `- Diferença no caixa físico: R$ ${difCaixaVal.toFixed(2)}\n`;
+                if (!caixaValido) {
+                    alertText += `- Diferença no caixa físico: ${formatToBRL(Math.abs(diferencaCaixa))}\n`;
                 }
                 alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
                 
-                fechamentoDivergenciaAlertaGeralDiv.textContent = alertText.replace(/\n/g, '<br>'); // Mostra na UI também
+                fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>'); // Mostra na UI também
                 fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
                 
                 if (!confirm(alertText)) {
@@ -710,7 +1346,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             showLoadingState(true, "Fechando turno...");
             btnFecharTurno.disabled = true;
-
 
             const user = auth.currentUser;
             if (!user) {
@@ -729,14 +1364,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dadosColetados = collectItemData(false); 
             
             const formasPagamentoObj = {
-                dinheiro: parseFloat(document.getElementById('pagamentoDinheiro').value) || 0,
-                pixManual: parseFloat(document.getElementById('pagamentoPixManual').value) || 0,
-                stoneDCV: parseFloat(document.getElementById('pagamentoStoneDCV').value) || 0,
-                stoneVoucher: parseFloat(document.getElementById('pagamentoStoneVoucher').value) || 0,
-                pagbankDCV: parseFloat(document.getElementById('pagamentoPagBankDCV').value) || 0,
+                dinheiro: parseCurrencyToNumber(document.getElementById('pagamentoDinheiro').value),
+                pixManual: parseCurrencyToNumber(document.getElementById('pagamentoPixManual').value),
+                stoneDCV: parseCurrencyToNumber(document.getElementById('pagamentoStoneDCV').value),
+                stoneVoucher: parseCurrencyToNumber(document.getElementById('pagamentoStoneVoucher').value),
+                pagbankDCV: parseCurrencyToNumber(document.getElementById('pagamentoPagBankDCV').value),
             };
-            const caixaFinalContadoVal = parseFloat(caixaFinalContadoInput.value) || 0;
-            const caixaDiferencaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '').replace(',', '.')) || 0;
+            const caixaFinalContadoVal = parseCurrencyToNumber(caixaFinalContadoInput.value);
+            const caixaDiferencaVal = Math.abs(diferencaCaixa);
 
             // Verificação de turno aberto remoto via transação atômica
             try {
@@ -768,7 +1403,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         totalVendidoCalculadoFinal: totalVendidoCalc,
                         totalRegistradoPagamentosFinal: totalPagamentos,
                         diferencaCaixaFinal: caixaDiferencaVal,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp() // Adiciona timestamp de fechamento para consultas
                     };
                     
                     // Atualiza o documento dentro da transação
@@ -792,7 +1428,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     unsubscribeTurnoListener = null;
                 }
                 
-                resetFormAndState();
+                // ADICIONADO: Atualizar os dados do turno anterior para o próximo que será aberto
+                await carregarDadosTurnoAnterior();
+                
+                resetFormAndState("Turno fechado com sucesso! Você já pode abrir um novo turno.");
 
             } catch (error) {
                 console.error("Erro ao fechar turno: ", error);
@@ -809,10 +1448,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         let isValid = true;
         const fieldsToValidate = [];
 
-        // Campos de Itens: Sobra, Descarte, Consumo Func.
+        // Campos de Itens: Chegadas, Sobra, Descarte, Consumo Func.
         document.querySelectorAll('.item-row').forEach(row => {
             const itemKey = row.dataset.itemKey;
-            const itemFields = itemKey === 'gelo_pacote' ? ['sobra', 'vendas', 'consumo_interno'] : ['sobra', 'descarte', 'consumo'];
+            const itemFields = itemKey === 'gelo_pacote' ? ['chegadas', 'sobra', 'vendas', 'consumo_interno'] : ['chegadas', 'sobra', 'descarte', 'consumo'];
             itemFields.forEach(fieldSuffix => {
                 fieldsToValidate.push(document.getElementById(`${itemKey}_${fieldSuffix}`));
             });
@@ -831,7 +1470,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         fieldsToValidate.forEach(input => {
             if (input) { // Verifica se o input existe
-                if (input.value.trim() === '' || (input.type === "number" && isNaN(parseFloat(input.value)))) {
+                const value = input.type === 'text' ? parseCurrencyToNumber(input.value) : parseFloat(input.value);
+                if (input.value.trim() === '' || isNaN(value)) {
                     input.classList.add('border-red-500');
                     isValid = false;
                 } else {
@@ -843,11 +1483,95 @@ document.addEventListener('DOMContentLoaded', async () => {
         return isValid;
     }
 
+    // === FUNÇÕES DE FORMATAÇÃO DE MOEDA ===
+    
+    /**
+     * Aplica máscara de moeda brasileira ao input
+     * Corrige o problema de conversão incorreta (378 -> 37800)
+     */
+    function applyCurrencyMask(input) {
+        // Remove tudo que não é número
+        let value = input.value.replace(/[^\d]/g, '');
+        
+        // Se estiver vazio, define como 0
+        if (value === '') {
+            input.value = formatToBRL(0);
+            return 0;
+        }
+        
+        // Converte para centavos (divide por 100)
+        let numericValue = parseFloat(value) / 100;
+        
+        // Formata para moeda brasileira
+        input.value = formatToBRL(numericValue);
+        
+        return numericValue;
+    }
 
-    // --- CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ---
+    /**
+     * Converte valor formatado em moeda para número
+     */
+    function parseCurrencyToNumber(formattedValue) {
+        if (!formattedValue) return 0;
+        
+        // Remove símbolos de moeda e converte vírgula para ponto
+        const cleaned = formattedValue
+            .replace(/[R$\s]/g, '')
+            .replace(/\./g, '')
+            .replace(',', '.');
+        
+        return parseFloat(cleaned) || 0;
+    }
+
+    /**
+     * Formata número para moeda brasileira
+     */
+    function formatToBRL(value) {
+        const numValue = parseFloat(value) || 0;
+        return numValue.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+    }
+
+    /**
+     * Configura máscara de moeda para um campo
+     */
+    function setupCurrencyMask(inputElement) {
+        if (!inputElement) return;
+        
+        // Aplica máscara ao digitar
+        inputElement.addEventListener('input', function() {
+            applyCurrencyMask(this);
+            // Atualiza cálculos após aplicar máscara
+            setTimeout(() => {
+                updatePaymentTotalsAndDivergence();
+            }, 100);
+        });
+        
+        // Aplica máscara ao perder foco
+        inputElement.addEventListener('blur', function() {
+            applyCurrencyMask(this);
+            updatePaymentTotalsAndDivergence();
+        });
+        
+        // Aplica formatação inicial se já tiver valor
+        if (inputElement.value && !inputElement.readOnly) {
+            applyCurrencyMask(inputElement);
+        }
+    }
+
+    // === CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ===
     function setupEventListeners() {
         formTurno.addEventListener('input', (e) => {
             const target = e.target;
+            
+            // NOVA VALIDAÇÃO: Verificar se está tentando alterar um campo transferido do turno anterior
+            if (!validarCamposTransferidos(e)) {
+                e.preventDefault();
+                return;
+            }
+            
             if (target.closest('.item-row') && target.type === 'number') {
                 const row = target.closest('.item-row');
                 const itemKey = row.dataset.itemKey;
@@ -861,29 +1585,37 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                     calculateTotals(); // Recalcula todos os totais agregados
                 }
-            } else if (target.classList.contains('payment-input')) {
+            } else if (target.classList.contains('payment-input') || target.id.includes('pagamento')) {
+                // CORRIGIDO: Atualiza totais quando campos de pagamento mudam
                 target.classList.remove('border-red-500');
-                updateTotalRegistradoPagamentos();
-                checkFechamentoDivergencia(); 
-            } else if (['caixaInicio', 'caixaFinalContado', 'pagamentoDinheiro'].includes(target.id)) {
+                setTimeout(() => {
+                    updatePaymentTotalsAndDivergence();
+                }, 100);
+            } else if (['caixaInicio', 'caixaFinalContado'].includes(target.id)) {
                 target.classList.remove('border-red-500');
-                updateCaixaDiferenca();
-                checkFechamentoDivergencia(); 
+                setTimeout(() => {
+                    updatePhysicalCashDifference();
+                    checkFechamentoDivergencia();
+                }, 100);
             }
         });
     }
     
+    // NOVA LÓGICA DE CÁLCULO: Entrada + Chegadas - Sobra - Descarte - Consumo = Vendido
     function calculateItemRow(rowElement) {
         const itemKey = rowElement.dataset.itemKey;
         if (!itemKey || itemKey === 'gelo_pacote') return; // Gelo tem cálculo separado
 
         const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
         const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
         const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
         const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
         
         const vendidoInput = document.getElementById(`${itemKey}_vendido`);
-        let vendidoCalculado = entrada - sobra - descarte - consumo;
+        
+        // NOVA FÓRMULA: (Entrada + Chegadas) - Sobra - Descarte - Consumo = Vendido
+        let vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
         
         if (vendidoCalculado < 0) {
             // Se negativo, podemos mostrar um alerta ou apenas zerar.
@@ -898,10 +1630,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (totalItemDisplay && vendidoInput) {
             const precoUnitario = parseFloat(vendidoInput.dataset.price) || 0;
             const totalItemValor = vendidoCalculado * precoUnitario;
-            totalItemDisplay.textContent = `R$ ${totalItemValor.toFixed(2)}`;
+            totalItemDisplay.textContent = formatToBRL(totalItemValor);
         }
     }
     
+    // NOVA LÓGICA PARA GELO: Vendas são informadas diretamente, não calculadas
     function calculateGeloTotal(rowElement) {
         const itemKey = rowElement.dataset.itemKey; // Deve ser 'gelo_pacote'
         if(itemKey !== 'gelo_pacote') return;
@@ -914,9 +1647,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (precoDisplay && totalItemDisplay) {
             const precoGeloTexto = precoDisplay.textContent; 
-            const precoUnitarioGelo = parseFloat(precoGeloTexto.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+            const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
             const totalGeloValor = vendasGelo * precoUnitarioGelo;
-            totalItemDisplay.textContent = `R$ ${totalGeloValor.toFixed(2)}`;
+            totalItemDisplay.textContent = formatToBRL(totalGeloValor);
         }
     }
     
@@ -932,7 +1665,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         localListaSaboresPasteis.forEach(sabor => {
             const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o').replace(/[úùûü]/g, 'u');
             const vendido = parseFloat(document.getElementById(`${key}_vendido`)?.value) || 0;
-            const valor = parseFloat(document.getElementById(`${key}_total_item`)?.textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+            const valor = parseCurrencyToNumber(document.getElementById(`${key}_total_item`)?.textContent);
             if (sabor.toLowerCase().includes('especial')) {
                 totalPasteisEspeciaisVendido += vendido;
                 totalPasteisEspeciaisValor += valor;
@@ -945,54 +1678,52 @@ document.addEventListener('DOMContentLoaded', async () => {
         localListaCasquinhas.forEach(casquinha => {
             const key = casquinha.toLowerCase().replace(/\s+/g, '_');
             const vendido = parseFloat(document.getElementById(`${key}_vendido`)?.value) || 0;
-            const valor = parseFloat(document.getElementById(`${key}_total_item`)?.textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+            const valor = parseCurrencyToNumber(document.getElementById(`${key}_total_item`)?.textContent);
             totalCasquinhasVendido += vendido;
             totalCasquinhasValor += valor;
         });
 
         document.getElementById('totalPasteisComunsVendido').textContent = totalPasteisComunsVendido;
-        document.getElementById('totalPasteisComunsValor').textContent = `R$ ${totalPasteisComunsValor.toFixed(2)}`;
+        document.getElementById('totalPasteisComunsValor').textContent = formatToBRL(totalPasteisComunsValor);
         document.getElementById('totalPasteisEspeciaisVendido').textContent = totalPasteisEspeciaisVendido;
-        document.getElementById('totalPasteisEspeciaisValor').textContent = `R$ ${totalPasteisEspeciaisValor.toFixed(2)}`;
+        document.getElementById('totalPasteisEspeciaisValor').textContent = formatToBRL(totalPasteisEspeciaisValor);
         document.getElementById('totalCasquinhasVendido').textContent = totalCasquinhasVendido;
-        document.getElementById('totalCasquinhasValor').textContent = `R$ ${totalCasquinhasValor.toFixed(2)}`;
+        document.getElementById('totalCasquinhasValor').textContent = formatToBRL(totalCasquinhasValor);
         
         const totalGeralPasteisVendido = totalPasteisComunsVendido + totalPasteisEspeciaisVendido; 
         const totalGeralPasteisValor = totalPasteisComunsValor + totalPasteisEspeciaisValor;
         document.getElementById('totalGeralPasteisVendido').textContent = totalGeralPasteisVendido;
-        document.getElementById('totalGeralPasteisValor').textContent = `R$ ${totalGeralPasteisValor.toFixed(2)}`;
+        document.getElementById('totalGeralPasteisValor').textContent = formatToBRL(totalGeralPasteisValor);
         
         // CALDO DE CANA
         const localListaCaldoCana = typeof listaCaldoCana !== 'undefined' ? listaCaldoCana : [];
         localListaCaldoCana.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\d+ml/, d => d.toLowerCase()).replace(/\d+litro/, d => d.toLowerCase());
             totalCaldoCanaVendido += parseFloat(document.getElementById(`${key}_vendido`)?.value) || 0;
-            totalCaldoCanaValor += parseFloat(document.getElementById(`${key}_total_item`)?.textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+            totalCaldoCanaValor += parseCurrencyToNumber(document.getElementById(`${key}_total_item`)?.textContent);
         });
         document.getElementById('totalCaldoCanaVendido').textContent = totalCaldoCanaVendido;
-        document.getElementById('totalCaldoCanaValor').textContent = `R$ ${totalCaldoCanaValor.toFixed(2)}`;
+        document.getElementById('totalCaldoCanaValor').textContent = formatToBRL(totalCaldoCanaValor);
 
         // REFRIGERANTES
         const localListaRefrigerantes = typeof listaRefrigerantes !== 'undefined' ? listaRefrigerantes : [];
         localListaRefrigerantes.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\./g, '');
             totalRefrigerantesVendido += parseFloat(document.getElementById(`${key}_vendido`)?.value) || 0;
-            totalRefrigerantesValor += parseFloat(document.getElementById(`${key}_total_item`)?.textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
+            totalRefrigerantesValor += parseCurrencyToNumber(document.getElementById(`${key}_total_item`)?.textContent);
         });
         document.getElementById('totalRefrigerantesVendido').textContent = totalRefrigerantesVendido;
-        document.getElementById('totalRefrigerantesValor').textContent = `R$ ${totalRefrigerantesValor.toFixed(2)}`;
+        document.getElementById('totalRefrigerantesValor').textContent = formatToBRL(totalRefrigerantesValor);
 
         // GELO (valor total de vendas de gelo)
-        const totalGeloValorVenda = parseFloat(document.getElementById(`gelo_pacote_total_item`)?.textContent.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-        document.getElementById('totalGeloValor').textContent = `R$ ${totalGeloValorVenda.toFixed(2)}`;
+        const totalGeloValorVenda = parseCurrencyToNumber(document.getElementById(`gelo_pacote_total_item`)?.textContent);
+        document.getElementById('totalGeloValor').textContent = formatToBRL(totalGeloValorVenda);
 
-
-        // TOTAL VENDIDO NO TURNO (CALCULADO PELOS ITENS)
+        // TOTAL VENDIDO NO TURNO (CALCULADO PELOS ITENS) - AGORA CONSIDERA CHEGADAS
         const granTotalVendidoValor = totalGeralPasteisValor + totalCasquinhasValor + totalCaldoCanaValor + totalRefrigerantesValor + totalGeloValorVenda;
-        totalVendidoTurnoCalculadoInput.value = `R$ ${granTotalVendidoValor.toFixed(2)}`;
+        totalVendidoTurnoCalculadoInput.value = formatToBRL(granTotalVendidoValor);
 
-        updateTotalRegistradoPagamentos(); 
-        updateCaixaDiferenca(); 
+        updatePaymentTotalsAndDivergence(); 
         checkFechamentoDivergencia(); 
     }
     
@@ -1005,65 +1736,61 @@ document.addEventListener('DOMContentLoaded', async () => {
         calculateTotals();
     }
 
+    // CORRIGIDO: Usa nova função de controle de caixa
     function updateTotalRegistradoPagamentos() {
-        let total = 0;
-        document.querySelectorAll('.payment-input').forEach(input => {
-            total += parseFloat(input.value) || 0;
-        });
-        totalRegistradoPagamentosInput.value = `R$ ${total.toFixed(2)}`;
+        updatePaymentTotalsAndDivergence();
     }
     
+    // CORRIGIDO: Usa nova função de controle de caixa
     function updateCaixaDiferenca() {
-        const caixaInicial = parseFloat(caixaInicioInput.value) || 0;
-        const dinheiroRecebido = parseFloat(pagamentoDinheiroInput.value) || 0;
-        const caixaFinalContadoVal = parseFloat(caixaFinalContadoInput.value) || 0;
-
-        const caixaEsperado = caixaInicial + dinheiroRecebido;
-        const diferenca = caixaFinalContadoVal - caixaEsperado;
-
-        caixaDiferencaInput.value = `R$ ${diferenca.toFixed(2)}`;
-        
-        let divergente = false;
-        if (caixaDiferencaContainer) { // Verifica se o container existe
-            if (Math.abs(diferenca) > 0.01) {
-                divergente = true;
-                divergenciaCaixaAlertaP.textContent = `Divergência de R$ ${diferenca.toFixed(2)} no caixa físico.`;
-                caixaDiferencaContainer.className = 'p-3 rounded-md ' + (diferenca > 0 ? 'bg-green-100 border border-green-300' : 'bg-red-100 border border-red-300');
-                divergenciaCaixaAlertaP.className = 'text-xs mt-1 font-semibold ' + (diferenca > 0 ? 'text-green-700' : 'text-red-700');
-            } else {
-                divergenciaCaixaAlertaP.textContent = 'Caixa físico confere.';
-                caixaDiferencaContainer.className = 'p-3 rounded-md bg-green-100 border border-green-300';
-                divergenciaCaixaAlertaP.className = 'text-xs mt-1 text-green-700';
-            }
-        }
-        return { divergente: divergente, diferenca: diferenca };
+        return updatePhysicalCashDifference();
     }
     
+    // CORRIGIDO: Verifica divergências gerais do fechamento
     function checkFechamentoDivergencia() {
         if (!totalVendidoTurnoCalculadoInput || !totalRegistradoPagamentosInput) return;
 
-        const totalVendidoCalc = parseFloat(totalVendidoTurnoCalculadoInput.value.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-        const totalPagamentos = parseFloat(totalRegistradoPagamentosInput.value.replace(/[^\d,.-]/g, '').replace(',', '.')) || 0;
-        const { divergente: caixaDivergente } = updateCaixaDiferenca(); 
+        const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
+        const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
+        const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference();
 
         const diffValores = Math.abs(totalVendidoCalc - totalPagamentos);
+        const temDivergenciaVendas = diffValores > 0.01;
 
-        if (diffValores > 0.015 || caixaDivergente) {
-            let message = "<strong>ATENÇÃO: DIVERGÊNCIAS DETECTADAS!</strong><br>";
-            if (diffValores > 0.015) {
-                message += `• Diferença entre Total Vendido Calculado (R$ ${totalVendidoCalc.toFixed(2)}) e Total Registrado em Pagamentos (R$ ${totalPagamentos.toFixed(2)}): <span class="font-bold">R$ ${(totalVendidoCalc - totalPagamentos).toFixed(2)}</span><br>`;
+        if (temDivergenciaVendas || !caixaValido) {
+            let message = "<strong>🚨 ATENÇÃO: DIVERGÊNCIAS DETECTADAS!</strong><br><br>";
+            
+            if (temDivergenciaVendas) {
+                message += `<div class="bg-white bg-opacity-50 p-3 rounded mb-2">`;
+                message += `📊 <strong>Vendas vs Pagamentos:</strong><br>`;
+                message += `• Total Vendido: ${formatToBRL(totalVendidoCalc)}<br>`;
+                message += `• Total Pagamentos: ${formatToBRL(totalPagamentos)}<br>`;
+                message += `• <span class="font-bold text-lg">Diferença: ${formatToBRL(totalVendidoCalc - totalPagamentos)}</span>`;
+                message += `</div>`;
             }
-            if (caixaDivergente) {
-                const difCaixaVal = parseFloat(caixaDiferencaInput.value.replace(/[^\d,.-]/g, '').replace('.', '.')) || 0;
-                message += `• Diferença no caixa físico (Dinheiro): <span class="font-bold">R$ ${difCaixaVal.toFixed(2)}</span>`;
+            
+            if (!caixaValido) {
+                message += `<div class="bg-white bg-opacity-50 p-3 rounded">`;
+                message += `🏦 <strong>Caixa Físico:</strong><br>`;
+                message += `• <span class="font-bold text-lg">Diferença: ${formatToBRL(Math.abs(diferencaCaixa))}</span>`;
+                message += `</div>`;
             }
+            
             fechamentoDivergenciaAlertaGeralDiv.innerHTML = message;
             fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
-            fechamentoDivergenciaAlertaGeralDiv.className = 'mt-6 p-4 bg-red-100 border border-red-400 rounded-md text-red-700 font-semibold text-left leading-relaxed';
+            fechamentoDivergenciaAlertaGeralDiv.className = 'mt-6 p-5 bg-red-100 border-l-4 border-red-500 text-red-700 text-left leading-relaxed';
         } else {
-            fechamentoDivergenciaAlertaGeralDiv.textContent = 'Todos os valores de fechamento parecem conferir. 🎉';
-            fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden', 'bg-red-100', 'border-red-400', 'text-red-700');
-            fechamentoDivergenciaAlertaGeralDiv.className = 'mt-6 p-4 bg-green-100 border border-green-400 rounded-md text-green-700 font-semibold text-center';
+            fechamentoDivergenciaAlertaGeralDiv.innerHTML = `
+                <div class="text-center">
+                    <i class="fas fa-check-circle text-2xl mb-2"></i>
+                    <div class="font-bold">✅ Todos os valores conferem perfeitamente! 🎉</div>
+                    <div class="text-sm mt-2 opacity-75">
+                        Vendas: ${formatToBRL(totalVendidoCalc)} | Pagamentos: ${formatToBRL(totalPagamentos)} | Caixa: OK
+                    </div>
+                </div>
+            `;
+            fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
+            fechamentoDivergenciaAlertaGeralDiv.className = 'mt-6 p-5 bg-green-100 border-l-4 border-green-500 text-green-700 text-center';
         }
     }
 
@@ -1080,12 +1807,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             section.querySelectorAll('.item-row').forEach(row => {
                 const itemKey = row.dataset.itemKey;
                 const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+                const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
                 // Usar productPrices carregado para pegar o preço unitário
                 const precoUnitario = productPrices[categoryKey]?.[itemKey]?.preco || 0;
 
                 if (isOpeningTurno) {
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
+                        chegadas: chegadas, // NOVO: salvar chegadas na abertura (geralmente 0)
                         precoUnitario: precoUnitario
                     };
                 } else { 
@@ -1096,6 +1825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
+                        chegadas: chegadas, // NOVO: salvar chegadas no fechamento
                         sobra: sobra,
                         descarte: descarte,
                         consumo: consumo,
@@ -1107,23 +1837,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        // Coleta de Gelo
+        // Coleta de Gelo - MODIFICADO para incluir chegadas
         const geloKey = 'gelo_pacote';
         const geloEntrada = parseFloat(document.getElementById(`${geloKey}_entrada`)?.value) || 0;
+        const geloChegadas = parseFloat(document.getElementById(`${geloKey}_chegadas`)?.value) || 0; // NOVO
         const precoUnitarioGelo = productPrices.gelo?.[geloKey]?.preco || 0;
 
         if (isOpeningTurno) {
              data.gelo[geloKey] = {
                 entrada: geloEntrada,
+                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo na abertura (geralmente 0)
                 precoUnitario: precoUnitarioGelo
              };
         } else {
             const geloSobra = parseFloat(document.getElementById(`${geloKey}_sobra`)?.value) || 0;
             const geloVendas = parseFloat(document.getElementById(`${geloKey}_vendas`)?.value) || 0; 
             const geloConsumoInterno = parseFloat(document.getElementById(`${geloKey}_consumo_interno`)?.value) || 0;
-            
             data.gelo[geloKey] = {
                 entrada: geloEntrada,
+                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo no fechamento
                 sobra: geloSobra,
                 vendas: geloVendas, 
                 consumoInterno: geloConsumoInterno,
@@ -1137,7 +1869,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     function loadTurnoDataToForm(turnoData) {
         if (!turnoData) return;
         
-        caixaInicioInput.value = turnoData.caixaInicial || 0;
+        if (caixaInicioInput) {
+            caixaInicioInput.value = formatToBRL(turnoData.caixaInicial || 0);
+        }
     
         if (turnoData.itens) {
             Object.keys(turnoData.itens).forEach(categoryKey => {
@@ -1147,6 +1881,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (item) {
                             const entradaInput = document.getElementById(`${itemKey}_entrada`);
                             if (entradaInput) entradaInput.value = item.entrada || 0;
+                            
+                            // NOVO: Carregar chegadas
+                            const chegadasInput = document.getElementById(`${itemKey}_chegadas`);
+                            if (chegadasInput) chegadasInput.value = item.chegadas || 0;
         
                             if (turnoData.status === 'fechado' || turnoAbertoLocalmente) { // Preenche mais se for para fechar
                                  const sobraInput = document.getElementById(`${itemKey}_sobra`);
@@ -1162,7 +1900,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                      vendidoInput.dataset.price = item.precoUnitario;
                                      // Atualiza também o display do preço na tabela, se aplicável (ou é feito ao popular tabelas)
                                      const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
-                                     if(precoDisplay) precoDisplay.textContent = `R$ ${parseFloat(item.precoUnitario).toFixed(2)}`;
+                                     if(precoDisplay) precoDisplay.textContent = formatToBRL(parseFloat(item.precoUnitario));
                                  }
                             }
                         }
@@ -1175,6 +1913,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             const geloItem = turnoData.gelo.gelo_pacote;
             const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
             if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
+            
+            // NOVO: Carregar chegadas de gelo
+            const geloChegadasInput = document.getElementById(`gelo_pacote_chegadas`);
+            if (geloChegadasInput) geloChegadasInput.value = geloItem.chegadas || 0;
 
             if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
                 const geloSobraInput = document.getElementById(`gelo_pacote_sobra`);
@@ -1187,7 +1929,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                  const precoGeloInputVendido = document.getElementById(`gelo_pacote_total_item`); // O total, não o 'vendido' input
                  const precoGeloDisplay = document.getElementById(`gelo_pacote_preco_display`);
                  if (geloItem.precoUnitario && precoGeloDisplay) {
-                     precoGeloDisplay.textContent = `R$ ${parseFloat(geloItem.precoUnitario).toFixed(2)}`;
+                     precoGeloDisplay.textContent = formatToBRL(parseFloat(geloItem.precoUnitario));
                  }
             }
         }
@@ -1198,10 +1940,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Object.keys(turnoData.formasPagamento).forEach(key => {
                     const inputId = 'pagamento' + key.charAt(0).toUpperCase() + key.slice(1);
                     const inputEl = document.getElementById(inputId);
-                    if (inputEl) inputEl.value = turnoData.formasPagamento[key] || 0;
+                    if (inputEl) inputEl.value = formatToBRL(turnoData.formasPagamento[key] || 0);
                 });
             }
-            if(caixaFinalContadoInput) caixaFinalContadoInput.value = turnoData.caixaFinalContado || 0;
+            if(caixaFinalContadoInput) caixaFinalContadoInput.value = formatToBRL(turnoData.caixaFinalContado || 0);
         }
         calculateAll(); 
     }
@@ -1216,12 +1958,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         errorMessagesP.textContent = '';
         errorMessagesP.classList.add('hidden');
     }
-    
-    // --- INICIALIZAÇÃO ---
-    // Adicionar event listener para detectar status de conectividade
+
+    // --- DETECÇÃO DE CONECTIVIDADE ---
     window.addEventListener('online', function() {
         console.log('Online - sincronizando dados...');
-        checkOpenTurno(); // Sincroniza quando ficar online novamente
+        // Sincroniza quando ficar online novamente
+        checkOpenTurno();
     });
     
     window.addEventListener('offline', function() {
@@ -1232,20 +1974,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // Detecta se o usuário está saindo da página e salva os dados
-    window.addEventListener('beforeunload', function() {
-        // O localStorage já deve estar sendo atualizado ao longo do uso,
-        // mas podemos fazer uma última verificação aqui se necessário
+    // --- PROTEÇÃO CONTRA PERDA DE DADOS ---
+    window.addEventListener('beforeunload', function(e) {
+        // Se houver um turno aberto com alterações não salvas no servidor
         if (turnoAbertoLocalmente && currentTurnoId) {
-            // Os dados principais já devem estar salvos, mas poderia adicionar
-            // uma última sincronização se necessário
+            // Garante que os dados estão persistidos em localStorage
+            const turnoAtual = getTurnoLocal();
+            if (turnoAtual) {
+                saveTurnoLocal(turnoAtual);
+            }
+            
+            // Avisa o usuário antes de sair
+            const message = "Você tem um turno aberto. Tem certeza que deseja sair?";
+            e.returnValue = message;
+            return message;
         }
     });
     
+    // --- INICIALIZAÇÃO PRINCIPAL ---
     initializePage();
 });
 
-// Helpers de shared.js (inclua shared.js antes deste script)
+// --- FUNÇÕES AUXILIARES PARA COMPARTILHAMENTO GLOBAL ---
+// Estas são implementações locais que podem ser substituídas por shared.js
 if (typeof getFormattedDate === 'undefined') {
     function getFormattedDate(date = new Date()) {
       const year = date.getFullYear();
@@ -1288,51 +2039,5 @@ if (typeof createInputCell === 'undefined') {
         }
         td.appendChild(input);
         return td;
-    }
-}
-if (typeof createProductRow === 'undefined') {
-    function createProductRow(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
-        const tr = document.createElement('tr');
-        tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
-        tr.dataset.itemKey = itemKey;
-        tr.dataset.categoryKey = categoryKey;
-
-        const tdName = document.createElement('td');
-        tdName.className = 'px-3 py-2 font-medium text-gray-800';
-        tdName.textContent = itemName;
-        tr.appendChild(tdName);
-
-        tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
-        tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
-        tr.appendChild(createInputCell('number', `${itemKey}_descarte`, '0', '', isReadOnly));
-        tr.appendChild(createInputCell('number', `${itemKey}_consumo`, '0', '', isReadOnly));
-        
-        const tdVendido = document.createElement('td');
-        tdVendido.className = 'px-1 py-1';
-        const inputVendido = document.createElement('input');
-        inputVendido.type = 'number';
-        inputVendido.id = `${itemKey}_vendido`;
-        inputVendido.name = `${itemKey}_vendido`;
-        inputVendido.className = 'w-full p-1 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed shadow-sm';
-        inputVendido.readOnly = true;
-        inputVendido.value = '0';
-        inputVendido.dataset.price = prices[categoryKey]?.[itemKey]?.preco || 0;
-        tdVendido.appendChild(inputVendido);
-        tr.appendChild(tdVendido);
-
-        const tdPreco = document.createElement('td');
-        tdPreco.className = 'px-3 py-2 text-sm text-gray-600 text-center';
-        const precoUnit = prices[categoryKey]?.[itemKey]?.preco || 0;
-        tdPreco.textContent = `R$ ${parseFloat(precoUnit).toFixed(2)}`;
-        tdPreco.id = `${itemKey}_preco_display`;
-        tr.appendChild(tdPreco);
-        
-        const tdTotalItem = document.createElement('td');
-        tdTotalItem.className = 'px-3 py-2 text-sm text-gray-700 font-semibold text-right';
-        tdTotalItem.id = `${itemKey}_total_item`;
-        tdTotalItem.textContent = `R$ 0.00`;
-        tr.appendChild(tdTotalItem);
-
-        return tr;
     }
 }
