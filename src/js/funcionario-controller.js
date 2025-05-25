@@ -215,7 +215,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             toggleFormInputs(true);
                             btnAbrirTurno.disabled = true;
                             btnFecharTurno.disabled = false;
-                            turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                            const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
+                            turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
                             turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
                         }
                     } else if (turnoData.status === 'fechado') {
@@ -360,16 +361,45 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function setInitialPeriodo() {
-        if (turnoAbertoLocalmente || currentTurnoId) return; // Não muda se já houver um turno
-        const currentHour = new Date().getHours();
-        if (currentHour >= 6 && currentHour < 14) {
-            turnoPeriodoSelect.value = 'Manhã';
-        } else if (currentHour >= 14 && currentHour < 22) {
-            turnoPeriodoSelect.value = 'Tarde';
-        } else { 
-            turnoPeriodoSelect.value = 'Noite'; 
+    if (turnoAbertoLocalmente || currentTurnoId) return; // Não muda se já houver um turno
+    
+    const currentHour = new Date().getHours();
+    
+    // Array de objetos com informações dos turnos
+    const turnos = [
+        { value: "Manhã", inicio: 6, fim: 14 },
+        { value: "Manhã-07-15", inicio: 7, fim: 15 },
+        { value: "Manhã-07-19", inicio: 7, fim: 19 },
+        { value: "Tarde", inicio: 14, fim: 22 },
+        { value: "Tarde-14-21", inicio: 14, fim: 21 },
+        { value: "Tarde-14-22", inicio: 14, fim: 22 },
+        { value: "Noite", inicio: 22, fim: 6 }, // Noite cruza meia-noite
+        { value: "Noite-21-07", inicio: 21, fim: 7 }, // Noite cruza meia-noite
+        { value: "Noite-19-2330", inicio: 19, fim: 23.5 }, // .5 para representar 23:30
+        { value: "Noite-19-07", inicio: 19, fim: 7 } // Noite cruza meia-noite
+    ];
+    
+    // Encontrar o turno mais adequado para a hora atual
+    let turnoSelecionado = "Manhã"; // Valor padrão caso nenhum turno corresponda
+    
+    for (const turno of turnos) {
+        if (turno.inicio < turno.fim) {
+            // Turno normal que não cruza a meia-noite
+            if (currentHour >= turno.inicio && currentHour < turno.fim) {
+                turnoSelecionado = turno.value;
+                break;
+            }
+        } else {
+            // Turno que cruza a meia-noite
+            if (currentHour >= turno.inicio || currentHour < turno.fim) {
+                turnoSelecionado = turno.value;
+                break;
+            }
         }
     }
+    
+    turnoPeriodoSelect.value = turnoSelecionado;
+}
 
     async function loadProductPrices() {
     try {
@@ -451,7 +481,8 @@ function setupPriceListener() {
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
                 setTimeout(() => {
                     if (currentTurnoId) {
-                        turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                        const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
+                        turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
                         turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
                     } else {
                         turnoStatusP.textContent = "Nenhum turno aberto.";
@@ -1604,7 +1635,8 @@ function setupPriceListener() {
                     };
                 });
                 
-                turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} fechado com sucesso.`;
+                const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
+                turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
                 
                 // Remover dados locais
