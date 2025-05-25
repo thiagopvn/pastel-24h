@@ -1015,7 +1015,7 @@ class UserManager {
     id: doc.id,
     nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
     email: userData.email || 'Sem email',
-    funcao: userData.role || 'funcionario', // Mantém 'funcao' mas lê de 'role'
+    role: userData.role || 'funcionario', 
     createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp()
 });
         });
@@ -1046,9 +1046,9 @@ class UserManager {
                                     <i class="fas fa-fingerprint mr-1"></i>
                                     <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
                                 </span>
-                                <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.funcao)}">
-                                    <i class="fas ${this.getRoleIcon(usuario.funcao)} mr-1"></i>
-                                    ${this.getRoleText(usuario.funcao)}
+                                <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
+                                    <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
+                                    ${this.getRoleText(usuario.role)}
                                 </span>
                             </div>
                         </div>
@@ -1075,18 +1075,18 @@ class UserManager {
         this.attachEventListeners();
     }
 
-    getRoleBadgeClass(funcao) {
-    return funcao === 'admin' ? 
+    getRoleBadgeClass(role) {
+    return role === 'admin' ? 
         'bg-danger-100 text-danger-800' : 
         'bg-blue-100 text-blue-800';
     }
 
-    getRoleIcon(funcao) {
-    return funcao === 'admin' ? 'fa-user-shield' : 'fa-user';
+    getRoleIcon(role) {
+    return role === 'admin' ? 'fa-user-shield' : 'fa-user';
     }
 
-    getRoleText(funcao) {
-    return funcao === 'admin' ? 'Administrador' : 'Funcionário';
+    getRoleText(role) {
+    return role === 'admin' ? 'admin' : 'funcionario';
     }
 
     attachEventListeners() {
@@ -1252,7 +1252,7 @@ class UserManager {
                 await db.collection('usuarios').doc(newUser.uid).set({
                     nome: nome,
                     email: email,
-                    funcao: role === 'admin' ? 'Administrador' : 'Funcionário',
+                    role: role === 'admin' ? 'Administrador' : 'Funcionário',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
                 
@@ -1264,7 +1264,7 @@ class UserManager {
                     id: newUser.uid,
                     nome: nome,
                     email: email,
-                    funcao: role === 'admin' ? 'Administrador' : 'Funcionário',
+                    role: role === 'admin' ? 'Administrador' : 'Funcionário',
                     createdAt: { toDate: () => new Date() }
                 });
                 
