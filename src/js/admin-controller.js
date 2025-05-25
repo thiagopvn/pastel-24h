@@ -1,20 +1,24 @@
 document.addEventListener('DOMContentLoaded', async () => {
 
+    // Garantir função formatCurrency global
     if (typeof window.formatCurrency !== 'function') {
-    window.formatCurrency = function(value, decimals = 2) {
-        try {
-            const valueNumber = parseFloat(value);
-            if (isNaN(valueNumber)) return 'R$ 0,00';
-            
-            return `R$ ${valueNumber.toFixed(decimals).replace('.', ',')}`;
-        } catch (error) {
-            console.error("Erro ao formatar moeda:", error);
-            return 'R$ 0,00';
-        }
-    };
-}
-    console.log("🚀 Iniciando admin-controller.js");
-      if (typeof firebase === 'undefined') {
+        window.formatCurrency = function(value, decimals = 2) {
+            try {
+                const valueNumber = parseFloat(value);
+                if (isNaN(valueNumber)) return 'R$ 0,00';
+                
+                return `R$ ${valueNumber.toFixed(decimals).replace('.', ',')}`;
+            } catch (error) {
+                console.error("Erro ao formatar moeda:", error);
+                return 'R$ 0,00';
+            }
+        };
+    }
+
+    console.log("🚀 Iniciando admin-controller.js v2.0");
+    
+    // Verificações iniciais do Firebase
+    if (typeof firebase === 'undefined') {
         console.error("❌ Firebase não está definido. Verifique se os scripts Firebase foram carregados.");
         alert("Erro crítico: Firebase não está carregado. Verifique sua conexão com a internet ou contate o suporte.");
         return;
@@ -25,15 +29,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("Erro crítico: Configuração do Firebase incompleta. Contate o suporte.");
         return;
     }
+
     console.log("🔍 Testando conexão com Firestore...");
     try {
-        // Tenta fazer uma leitura simples para verificar conectividade
         const testDoc = await db.collection('produtos').doc('pasteis').get();
         console.log("✅ Conexão com Firestore OK. Documento existe?", testDoc.exists);
     } catch (error) {
         console.error("❌ Erro ao conectar com Firestore:", error);
         alert("Erro ao conectar com o banco de dados. Verifique sua conexão.");
     }
+
     console.log("🔍 Verificando autenticação...");
     const waitForAuth = new Promise((resolve) => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -53,6 +58,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         console.log("✅ Usuário autenticado:", currentUser.email, "UID:", currentUser.uid);
+        
         try {
             const userDoc = await db.collection('usuarios').doc(currentUser.uid).get();
             if (userDoc.exists) {
@@ -76,12 +82,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("Erro ao verificar autenticação. Tente recarregar a página.");
         return;
     }
+
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
         }).format(value || 0);
     };
+
+    // Classe NotificationManager
     class NotificationManager {
         constructor() {
             this.container = document.getElementById('toast-container');
@@ -98,12 +107,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const toast = document.createElement('div');
             toast.className = `toast bg-white border-l-4 rounded-lg shadow-lg p-4 mb-2 transform transition-all duration-300`;
+            
             const colors = {
                 success: 'border-green-500 text-green-800',
                 error: 'border-red-500 text-red-800',
                 warning: 'border-yellow-500 text-yellow-800',
                 info: 'border-blue-500 text-blue-800'
             };
+            
             const icons = {
                 success: 'fa-check-circle',
                 error: 'fa-exclamation-circle',
@@ -122,16 +133,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </button>
                 </div>
             `;
+            
             this.container.appendChild(toast);
+            
             toast.querySelector('button').addEventListener('click', () => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateX(100%)';
                 setTimeout(() => toast.remove(), 300);
             });
+            
             setTimeout(() => {
                 toast.style.opacity = '1';
                 toast.style.transform = 'translateX(0)';
             }, 10);
+            
             if (duration > 0) {
                 setTimeout(() => {
                     toast.style.opacity = '0';
@@ -145,11 +160,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const notifications = new NotificationManager();
-    window.notifications = notifications; 
+    window.notifications = notifications;
+    
     const appState = {
         currentPrices: {},
         users: []
     };
+
+    // Classe PriceManager atualizada
     class PriceManager {
         constructor() {
             this.containers = {
@@ -159,6 +177,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 precosRefrigerantesContainer: document.getElementById('precosRefrigerantesContainer'),
                 precosGeloContainer: document.getElementById('precosGeloContainer')
             };
+            
             const missingContainers = Object.entries(this.containers)
                 .filter(([key, element]) => !element)
                 .map(([key]) => key);
@@ -166,27 +185,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (missingContainers.length > 0) {
                 console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
             }
-            this.produtosPorCategoria = {
-    pasteis: [
-        "carne_com_queijo", "carne", "frango_com_catupiry", "frango_com_queijo",
-        "carioca", "pizza", "palmito", "queijo", "4_queijos", "bauru",
-        "calabresa", "portuguesa", "carne_seca", "especial_carne_seca",
-        "especial_de_carne", "especial_de_calabresa"
-    ],
-    casquinhas: [
-        "casquinha_crua", "casquinha_frita"
-    ],
-    caldo_cana: [
-        "fardo_de_cana", "copo_300ml", "copo_400ml", "copo_500ml",
-        "garrafa_500ml", "garrafa_1_litro"
-    ],
-    refrigerantes: [
-        "coca_cola", "fanta_laranja", "fanta_uva", "guarana",
-        "refri_limao", "refri_zero", "itubaina", "agua",
-        "agua_c_gas", "cerveja_longneck", "cerveja_lata"
-    ],
-    gelo: ["gelo_pacote"]
-};
+
+            // Listas originais de produtos
+            this.produtosOriginais = {
+                pasteis: [
+                    "Carne com Queijo", "Carne", "Frango com Catupiry", "Frango com Queijo",
+                    "Carioca", "Pizza", "Palmito", "Queijo", "4 Queijos", "Bauru",
+                    "Calabresa", "Portuguesa", "Carne Seca", "Especial Carne Seca",
+                    "Especial de Carne", "Especial de Calabresa"
+                ],
+                casquinhas: ["Casquinha Crua", "Casquinha Frita"],
+                caldo_cana: ["Fardo de Cana", "Copo 300ml", "Copo 400ml", "Copo 500ml", "Garrafa 500ml", "Garrafa 1 Litro"],
+                refrigerantes: [
+                    "Coca-Cola", "Fanta Laranja", "Fanta Uva", "Guaraná",
+                    "Refri Limão", "Refri. Zero", "Itubaina", "Água",
+                    "Água c/ Gás", "Cerveja Longneck", "Cerveja Lata"
+                ],
+                gelo: ["Gelo (Pacote)"]
+            };
+
+            // Produtos normalizados para as chaves
+            this.produtosPorCategoria = {};
+            Object.entries(this.produtosOriginais).forEach(([categoria, produtos]) => {
+                this.produtosPorCategoria[categoria] = produtos.map(produto => 
+                    this.normalizeKey(produto)
+                );
+            });
+
             this.containerToCategoryMap = {
                 precosPasteisContainer: 'pasteis',
                 precosCasquinhasContainer: 'casquinhas',
@@ -195,27 +220,58 @@ document.addEventListener('DOMContentLoaded', async () => {
                 precosGeloContainer: 'gelo'
             };
         }
-        formatCurrency(value) {
-        const valueNumber = parseFloat(value);
-        if (isNaN(valueNumber)) return 'R$ 0,00';
-        return `R$ ${valueNumber.toFixed(2).replace('.', ',')}`;
+
+        // Nova função para normalizar chaves
+        normalizeKey(text) {
+            let normalized = text.toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[ç]/g, 'c')
+                .replace(/[ãâáàä]/g, 'a')
+                .replace(/[éêèë]/g, 'e')
+                .replace(/[íìîï]/g, 'i')
+                .replace(/[óôõòö]/g, 'o')
+                .replace(/[úùûü]/g, 'u')
+                .replace(/\./g, '') // Remove pontos
+                .replace(/\//g, '_') // Substitui / por _
+                .replace(/[\(\)]/g, ''); // Remove parênteses
+
+            // Tratamento especial para gelo
+            if (normalized === 'gelo_pacote') {
+                return 'gelo_pacote';
+            }
+            
+            return normalized;
         }
+
+        formatCurrency(value) {
+            const valueNumber = parseFloat(value);
+            if (isNaN(valueNumber)) return 'R$ 0,00';
+            return `R$ ${valueNumber.toFixed(2).replace('.', ',')}`;
+        }
+
         async load() {
             console.log("🔄 Iniciando carregamento de preços...");
             notifications.showMessage("Carregando preços...", "info");
             this.clearContainers();
+            
             try {
+                // Garantir estrutura no Firebase
+                await this.ensureFirebaseStructure();
+                
                 const precos = await this.fetchPrices();
                 appState.currentPrices = precos;
+                
                 if (Object.keys(precos).length === 0) {
                     console.warn("⚠️ Nenhum preço encontrado, usando valores padrão");
                     this.populateWithDefaults();
                     return;
                 }
+                
                 console.log("✅ Preços carregados:", precos);
                 this.populateForms();
                 this.setupFormHandler();
                 this.updateCounters();
+                
                 notifications.showMessage("Preços carregados com sucesso!", "success");
             } catch (error) {
                 console.error("❌ Erro ao carregar preços:", error);
@@ -223,37 +279,71 @@ document.addEventListener('DOMContentLoaded', async () => {
                 this.populateWithDefaults();
             }
         }
-       clearContainers() {
+
+        async ensureFirebaseStructure() {
+            console.log("🔨 Verificando estrutura do Firebase...");
+            const categorias = ['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes', 'gelo'];
+            
+            for (const categoria of categorias) {
+                const docRef = db.collection('produtos').doc(categoria);
+                const doc = await docRef.get();
+                
+                if (!doc.exists) {
+                    console.log(`📝 Criando documento para categoria: ${categoria}`);
+                    const defaultPrices = this.getDefaultPrices();
+                    const categoryData = {};
+                    
+                    // Converter estrutura de { key: { preco: value } } para { key: value }
+                    Object.entries(defaultPrices[categoria] || {}).forEach(([key, data]) => {
+                        categoryData[key] = data.preco;
+                    });
+                    
+                    await docRef.set(categoryData);
+                    console.log(`✅ Documento criado para ${categoria}`);
+                }
+            }
+        }
+
+        clearContainers() {
             Object.values(this.containers).forEach(container => {
                 if (container) {
                     container.innerHTML = '<div class="text-center p-4 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando preços...</div>';
                 }
             });
         }
+
         async fetchPrices() {
             console.log("🔍 Buscando preços no Firebase...");
             const precos = {};
+            
             try {
                 console.log("📂 Listando todos os documentos na coleção 'produtos':");
                 const produtosSnapshot = await db.collection('produtos').get();
                 produtosSnapshot.forEach(doc => {
                     console.log(`  - Documento: ${doc.id}`);
                 });
+                
                 const categorias = Object.keys(this.produtosPorCategoria);
+                
                 for (const categoria of categorias) {
                     console.log(`\n📂 Buscando categoria: ${categoria}`);
                     precos[categoria] = {};
+                    
                     try {
                         const categoriaDoc = await db.collection('produtos').doc(categoria).get();
+                        
                         if (categoriaDoc.exists) {
                             const data = categoriaDoc.data();
                             console.log(`✅ Documento '${categoria}' encontrado. Campos:`, Object.keys(data));
+                            
                             const produtosEsperados = this.produtosPorCategoria[categoria];
                             console.log(`📋 Produtos esperados em ${categoria}:`, produtosEsperados);
+                            
                             produtosEsperados.forEach(produtoKey => {
                                 if (data.hasOwnProperty(produtoKey)) {
                                     const valor = data[produtoKey];
                                     console.log(`  ✓ ${produtoKey}: ${valor} (tipo: ${typeof valor})`);
+                                    
                                     if (typeof valor === 'number') {
                                         precos[categoria][produtoKey] = { preco: valor };
                                     } else if (typeof valor === 'object' && valor !== null && valor.preco !== undefined) {
@@ -282,6 +372,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         });
                     }
                 }
+                
                 let totalProdutos = 0;
                 let produtosComPreco = 0;
                 Object.values(precos).forEach(categoria => {
@@ -290,8 +381,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (item.preco > 0) produtosComPreco++;
                     });
                 });
+                
                 console.log(`\n📊 Resumo: ${produtosComPreco}/${totalProdutos} produtos com preço definido`);
                 return precos;
+                
             } catch (error) {
                 console.error("❌ Erro geral ao buscar preços:", error);
                 console.error("Tipo de erro:", error.name);
@@ -300,35 +393,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw error;
             }
         }
+
         populateForms() {
             console.log("🎨 Populando formulários com os preços...");
+            
             Object.entries(this.containers).forEach(([containerId, container]) => {
                 if (!container) {
                     console.warn(`⚠️ Container ${containerId} não encontrado`);
                     return;
                 }
+                
                 const categoryKey = this.containerToCategoryMap[containerId];
                 if (!categoryKey) {
                     console.warn(`⚠️ Categoria não mapeada para ${containerId}`);
                     return;
                 }
-                const products = this.produtosPorCategoria[categoryKey] || [];
+                
+                const productsOriginal = this.produtosOriginais[categoryKey] || [];
+                const productsKeys = this.produtosPorCategoria[categoryKey] || [];
+                
                 container.innerHTML = '';
-                if (products.length === 0) {
+                
+                if (productsKeys.length === 0) {
                     container.innerHTML = '<div class="text-center p-4 text-gray-500">Nenhum produto nesta categoria</div>';
                     return;
                 }
-                console.log(`📋 Populando ${products.length} produtos na categoria ${categoryKey}`);
-                products.forEach(product => {
-                    const itemKey = product;
+                
+                console.log(`📋 Populando ${productsKeys.length} produtos na categoria ${categoryKey}`);
+                
+                productsKeys.forEach((productKey, index) => {
+                    const itemKey = productKey;
+                    const displayName = productsOriginal[index] || this.formatProductName(productKey);
+                    
                     let currentPrice = 0;
                     if (appState.currentPrices[categoryKey] && 
                         appState.currentPrices[categoryKey][itemKey] && 
                         appState.currentPrices[categoryKey][itemKey].preco !== undefined) {
                         currentPrice = appState.currentPrices[categoryKey][itemKey].preco;
                     }
-                    console.log(`  - ${product}: R$ ${currentPrice}`);
-                    const displayName = this.formatProductName(product);
+                    
+                    console.log(`  - ${displayName} (${productKey}): R$ ${currentPrice}`);
+                    
                     const priceCard = this.createPriceCard(displayName, categoryKey, itemKey, currentPrice);
                     container.appendChild(priceCard);
                 });
@@ -351,7 +456,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             Object.entries(this.containerToCategoryMap).forEach(([containerId, categoryKey]) => {
                 const categoryId = containerId.replace('precos', '').replace('Container', '');
                 
-                // Tentar diferentes possibilidades de ID para o contador
                 const possibleIds = [
                     `${categoryKey}Count`,
                     `${categoryKey.replace('_', '')}Count`,
@@ -380,130 +484,127 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-    createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
-    const cardDiv = document.createElement('div');
-    cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
-    
-    // Cabeçalho do card
-    const headerDiv = document.createElement('div');
-    headerDiv.className = 'flex items-center justify-between mb-4';
-    
-    const productIcon = document.createElement('div');
-    productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
-    
-    const iconClass = this.getProductIcon(categoryKey);
-    productIcon.innerHTML = `<i class="${iconClass} text-primary-600"></i>`;
-    
-    const titleDiv = document.createElement('div');
-    titleDiv.className = 'flex-1 ml-3';
-    
-    const label = document.createElement('h3');
-    label.className = 'text-sm font-semibold text-gray-800 mb-1';
-    label.textContent = itemDisplayName;
-    
-    const keyLabel = document.createElement('p');
-    keyLabel.className = 'text-xs text-gray-500';
-    keyLabel.textContent = `ID: ${itemKey}`;
-    
-    titleDiv.appendChild(label);
-    titleDiv.appendChild(keyLabel);
-    headerDiv.appendChild(productIcon);
-    headerDiv.appendChild(titleDiv);
-    
-    // Seção de input com ícones
-    const inputContainer = document.createElement('div');
-    inputContainer.className = 'relative mb-4';
-    
-    const inputLabel = document.createElement('label');
-    inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
-    inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
-    inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500"></i>Preço Unitário';
-    
-    // CORREÇÃO: Usar wrapper para input e ícones
-    const inputWrapper = document.createElement('div');
-    inputWrapper.className = 'price-input-wrapper';
-    
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.id = `preco_${categoryKey}_${itemKey}`;
-    input.name = `preco_${categoryKey}_${itemKey}`;
-    input.step = '0.01';
-    input.min = '0';
-    input.required = true;
-    input.className = 'w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold py-3';
-    input.value = parseFloat(currentPriceValue).toFixed(2);
-    input.placeholder = '0.00';
-    input.dataset.categoryKey = categoryKey;
-    input.dataset.itemKey = itemKey;
-    input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
-    
-    // CORREÇÃO: Criar wrapper para o símbolo de moeda
-    const currencyWrapper = document.createElement('div');
-    currencyWrapper.className = 'currency-wrapper';
-    currencyWrapper.innerHTML = '<span class="text-gray-500 font-semibold text-lg">R$</span>';
-    
-    // CORREÇÃO: Criar wrapper para o ícone de check
-    const checkWrapper = document.createElement('div');
-    checkWrapper.className = 'check-wrapper';
-    checkWrapper.innerHTML = '<i class="fas fa-check text-success-500 text-lg"></i>';
-    
-    // Adicionar elementos na ordem correta
-    inputWrapper.appendChild(currencyWrapper);
-    inputWrapper.appendChild(input);
-    inputWrapper.appendChild(checkWrapper);
-    
-    // Informações de valor atual
-    const infoDiv = document.createElement('div');
-    infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
-    
-    const currentValueDiv = document.createElement('div');
-    currentValueDiv.className = 'flex items-center justify-between text-sm';
-    
-    const currentLabel = document.createElement('span');
-    currentLabel.className = 'text-gray-600';
-    currentLabel.textContent = 'Valor atual:';
-    
-    const currentValueSpan = document.createElement('span');
-    currentValueSpan.className = 'font-bold text-primary-600 text-lg';
-    currentValueSpan.textContent = this.formatCurrency(currentPriceValue);
-    
-    currentValueDiv.appendChild(currentLabel);
-    currentValueDiv.appendChild(currentValueSpan);
-    infoDiv.appendChild(currentValueDiv);
-    
-    // Event listeners para os inputs
-    input.addEventListener('input', () => {
-        const newValue = parseFloat(input.value) || 0;
-        currentValueSpan.textContent = this.formatCurrency(newValue);
-        
-        const originalValue = parseFloat(input.dataset.originalValue);
-        if (Math.abs(newValue - originalValue) > 0.01) {
-            checkWrapper.classList.add('show');
-            cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
-        } else {
-            checkWrapper.classList.remove('show');
-            cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
+        createPriceCard(itemDisplayName, categoryKey, itemKey, currentPriceValue) {
+            const cardDiv = document.createElement('div');
+            cardDiv.className = 'price-card bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-lg hover:border-primary-200 transition-all duration-300 transform hover:-translate-y-1';
+            
+            // Cabeçalho do card
+            const headerDiv = document.createElement('div');
+            headerDiv.className = 'flex items-center justify-between mb-4';
+            
+            const productIcon = document.createElement('div');
+            productIcon.className = 'w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center';
+            
+            const iconClass = this.getProductIcon(categoryKey);
+            productIcon.innerHTML = `<i class="${iconClass} text-primary-600"></i>`;
+            
+            const titleDiv = document.createElement('div');
+            titleDiv.className = 'flex-1 ml-3';
+            
+            const label = document.createElement('h3');
+            label.className = 'text-sm font-semibold text-gray-800 mb-1';
+            label.textContent = itemDisplayName;
+            
+            const keyLabel = document.createElement('p');
+            keyLabel.className = 'text-xs text-gray-500';
+            keyLabel.textContent = `ID: ${itemKey}`;
+            
+            titleDiv.appendChild(label);
+            titleDiv.appendChild(keyLabel);
+            headerDiv.appendChild(productIcon);
+            headerDiv.appendChild(titleDiv);
+            
+            // Seção de input com ícones
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'relative mb-4';
+            
+            const inputLabel = document.createElement('label');
+            inputLabel.htmlFor = `preco_${categoryKey}_${itemKey}`;
+            inputLabel.className = 'block text-sm font-medium text-gray-700 mb-2';
+            inputLabel.innerHTML = '<i class="fas fa-dollar-sign mr-1 text-primary-500"></i>Preço Unitário';
+            
+            const inputWrapper = document.createElement('div');
+            inputWrapper.className = 'price-input-wrapper';
+            
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.id = `preco_${categoryKey}_${itemKey}`;
+            input.name = `preco_${categoryKey}_${itemKey}`;
+            input.step = '0.01';
+            input.min = '0';
+            input.required = true;
+            input.className = 'w-full border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-lg font-semibold py-3';
+            input.value = parseFloat(currentPriceValue).toFixed(2);
+            input.placeholder = '0.00';
+            input.dataset.categoryKey = categoryKey;
+            input.dataset.itemKey = itemKey;
+            input.dataset.originalValue = parseFloat(currentPriceValue).toFixed(2);
+            
+            const currencyWrapper = document.createElement('div');
+            currencyWrapper.className = 'currency-wrapper';
+            currencyWrapper.innerHTML = '<span class="text-gray-500 font-semibold text-lg">R$</span>';
+            
+            const checkWrapper = document.createElement('div');
+            checkWrapper.className = 'check-wrapper';
+            checkWrapper.innerHTML = '<i class="fas fa-check text-success-500 text-lg"></i>';
+            
+            // Adicionar elementos na ordem correta
+            inputWrapper.appendChild(currencyWrapper);
+            inputWrapper.appendChild(input);
+            inputWrapper.appendChild(checkWrapper);
+            
+            // Informações de valor atual
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'bg-gray-50 p-3 rounded-lg';
+            
+            const currentValueDiv = document.createElement('div');
+            currentValueDiv.className = 'flex items-center justify-between text-sm';
+            
+            const currentLabel = document.createElement('span');
+            currentLabel.className = 'text-gray-600';
+            currentLabel.textContent = 'Valor atual:';
+            
+            const currentValueSpan = document.createElement('span');
+            currentValueSpan.className = 'font-bold text-primary-600 text-lg';
+            currentValueSpan.textContent = this.formatCurrency(currentPriceValue);
+            
+            currentValueDiv.appendChild(currentLabel);
+            currentValueDiv.appendChild(currentValueSpan);
+            infoDiv.appendChild(currentValueDiv);
+            
+            // Event listeners para os inputs
+            input.addEventListener('input', () => {
+                const newValue = parseFloat(input.value) || 0;
+                currentValueSpan.textContent = this.formatCurrency(newValue);
+                
+                const originalValue = parseFloat(input.dataset.originalValue);
+                if (Math.abs(newValue - originalValue) > 0.01) {
+                    checkWrapper.classList.add('show');
+                    cardDiv.classList.add('ring-2', 'ring-primary-200', 'bg-primary-50');
+                } else {
+                    checkWrapper.classList.remove('show');
+                    cardDiv.classList.remove('ring-2', 'ring-primary-200', 'bg-primary-50');
+                }
+            });
+            
+            input.addEventListener('focus', () => {
+                cardDiv.classList.add('ring-2', 'ring-primary-300');
+            });
+            
+            input.addEventListener('blur', () => {
+                cardDiv.classList.remove('ring-2', 'ring-primary-300');
+            });
+            
+            // Montar estrutura final
+            inputContainer.appendChild(inputLabel);
+            inputContainer.appendChild(inputWrapper);
+            
+            cardDiv.appendChild(headerDiv);
+            cardDiv.appendChild(inputContainer);
+            cardDiv.appendChild(infoDiv);
+            
+            return cardDiv;
         }
-    });
-    
-    input.addEventListener('focus', () => {
-        cardDiv.classList.add('ring-2', 'ring-primary-300');
-    });
-    
-    input.addEventListener('blur', () => {
-        cardDiv.classList.remove('ring-2', 'ring-primary-300');
-    });
-    
-    // Montar estrutura final
-    inputContainer.appendChild(inputLabel);
-    inputContainer.appendChild(inputWrapper);
-    
-    cardDiv.appendChild(headerDiv);
-    cardDiv.appendChild(inputContainer);
-    cardDiv.appendChild(infoDiv);
-    
-    return cardDiv;
-}
 
         getProductIcon(categoryKey) {
             const icons = {
@@ -553,7 +654,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             notifications.showMessage('Preços resetados para valores originais', 'info');
         }
 
-        // MÉTODO CORRIGIDO PARA SALVAR NA ESTRUTURA CORRETA
         async saveAll() {
             const saveButton = document.querySelector('#formPrecos button[type="submit"]');
             if (!saveButton) {
@@ -602,7 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (Math.abs(price - currentPrice) > 0.01) {
                         changedCount++;
                         
-                        // Agrupar por categoria (sem mapeamento, usar diretamente)
+                        // Agrupar por categoria
                         if (!updatesByCategory[category]) {
                             updatesByCategory[category] = {};
                         }
@@ -715,41 +815,47 @@ document.addEventListener('DOMContentLoaded', async () => {
         getDefaultPrices() {
             return {
                 pasteis: {
+                    carne_com_queijo: { preco: 8.00 },
                     carne: { preco: 8.00 },
-                    frango: { preco: 8.00 },
-                    queijo: { preco: 8.00 },
+                    frango_com_catupiry: { preco: 8.00 },
+                    frango_com_queijo: { preco: 8.00 },
+                    carioca: { preco: 8.00 },
                     pizza: { preco: 8.00 },
+                    palmito: { preco: 8.00 },
+                    queijo: { preco: 8.00 },
+                    '4_queijos': { preco: 8.00 },
                     bauru: { preco: 8.00 },
                     calabresa: { preco: 8.00 },
-                    palmito: { preco: 8.00 },
+                    portuguesa: { preco: 8.00 },
+                    carne_seca: { preco: 10.00 },
+                    especial_carne_seca: { preco: 10.00 },
                     especial_de_carne: { preco: 10.00 },
-                    especial_de_frango: { preco: 10.00 },
                     especial_de_calabresa: { preco: 10.00 }
                 },
                 casquinhas: {
-                    casquinha_simples: { preco: 3.00 },
-                    casquinha_com_cobertura: { preco: 4.00 },
-                    casquinha_com_granulado: { preco: 4.50 }
+                    casquinha_crua: { preco: 3.00 },
+                    casquinha_frita: { preco: 4.00 }
                 },
                 caldo_cana: {
-                    caldo_de_cana_300ml: { preco: 5.00 },
-                    caldo_de_cana_500ml: { preco: 7.00 },
-                    caldo_de_cana_700ml: { preco: 9.00 },
-                    caldo_de_cana_1litro: { preco: 12.00 }
+                    fardo_de_cana: { preco: 15.00 },
+                    copo_300ml: { preco: 5.00 },
+                    copo_400ml: { preco: 6.00 },
+                    copo_500ml: { preco: 7.00 },
+                    garrafa_500ml: { preco: 8.00 },
+                    garrafa_1_litro: { preco: 12.00 }
                 },
                 refrigerantes: {
-                    coca_cola_350ml: { preco: 5.00 },
-                    coca_cola_600ml: { preco: 7.00 },
-                    coca_cola_2l: { preco: 12.00 },
-                    guarana_350ml: { preco: 5.00 },
-                    guarana_600ml: { preco: 7.00 },
-                    guarana_2l: { preco: 12.00 },
-                    fanta_laranja_350ml: { preco: 5.00 },
-                    fanta_laranja_600ml: { preco: 7.00 },
-                    fanta_laranja_2l: { preco: 12.00 },
-                    fanta_uva_350ml: { preco: 5.00 },
-                    sprite_350ml: { preco: 5.00 },
-                    agua_mineral_500ml: { preco: 3.00 }
+                    'coca-cola': { preco: 5.00 },
+                    fanta_laranja: { preco: 5.00 },
+                    fanta_uva: { preco: 5.00 },
+                    guarana: { preco: 5.00 },
+                    refri_limao: { preco: 5.00 },
+                    refri_zero: { preco: 5.00 },
+                    itubaina: { preco: 5.00 },
+                    agua: { preco: 3.00 },
+                    agua_c_gas: { preco: 4.00 },
+                    cerveja_longneck: { preco: 8.00 },
+                    cerveja_lata: { preco: 6.00 }
                 },
                 gelo: {
                     gelo_pacote: { preco: 5.00 }
@@ -768,22 +874,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const categoryKey = this.containerToCategoryMap[containerId];
                 if (!categoryKey) return;
                 
-                const products = this.produtosPorCategoria[categoryKey] || [];
+                const productsOriginal = this.produtosOriginais[categoryKey] || [];
+                const productsKeys = this.produtosPorCategoria[categoryKey] || [];
                 
                 container.innerHTML = '';
                 
-                if (products.length === 0) {
+                if (productsKeys.length === 0) {
                     container.innerHTML = '<div class="text-center p-4 text-gray-500">Nenhum produto nesta categoria</div>';
                     return;
                 }
                 
-                products.forEach(product => {
-                    const itemKey = product;
+                productsKeys.forEach((productKey, index) => {
+                    const itemKey = productKey;
+                    const displayName = productsOriginal[index] || this.formatProductName(productKey);
                     const defaultPrice = (defaultPrices[categoryKey] && defaultPrices[categoryKey][itemKey]) 
                         ? defaultPrices[categoryKey][itemKey].preco 
                         : 0;
                     
-                    const displayName = this.formatProductName(product);
                     const priceCard = this.createPriceCard(displayName, categoryKey, itemKey, defaultPrice);
                     container.appendChild(priceCard);
                 });
@@ -794,7 +901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Gerenciador de Usuários CORRIGIDO
+    // Gerenciador de Usuários
     class UserManager {
         constructor() {
             this.container = document.getElementById('listaUsuariosContainer');
@@ -813,15 +920,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log("🔄 Iniciando carregamento de usuários...");
             notifications.showMessage("Carregando usuários...", "info");
             
-            // Mostrar carregamento
             this.showLoading();
             
             try {
-                // Buscar usuários
                 const users = await this.fetchUsers();
                 appState.users = users;
                 
-                // Verificar se usuários foram carregados
                 if (users.length === 0) {
                     console.warn("⚠️ Nenhum usuário encontrado");
                     this.showEmpty();
@@ -830,7 +934,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     this.renderUsers();
                 }
                 
-                // Configurar manipulador de formulário
                 this.setupFormHandler();
                 
                 notifications.showMessage("Usuários carregados com sucesso!", "success");
@@ -886,18 +989,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // MÉTODO CORRIGIDO PARA BUSCAR USUÁRIOS
         async fetchUsers() {
             console.log("🔍 Buscando usuários no Firebase...");
             
-            // Verificação de autenticação
             if (!auth.currentUser) {
                 console.error("❌ Usuário não autenticado ao buscar usuários");
                 throw new Error("Usuário não autenticado");
             }
             
             try {
-                // Buscar da coleção 'usuarios'
                 console.log("🔍 Buscando da coleção 'usuarios'...");
                 const snapshot = await db.collection('usuarios').get();
                 
@@ -909,7 +1009,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const userData = doc.data();
                     console.log(`Usuário ${doc.id}:`, userData);
                     
-                    // Garantir que os dados tenham os campos necessários
                     users.push({
                         id: doc.id,
                         nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
@@ -919,7 +1018,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     });
                 });
                 
-                // Se não encontrou nenhum usuário, criar o atual como admin
                 if (users.length === 0) {
                     console.log("🔨 Nenhum usuário encontrado. Criando usuário atual como admin...");
                     
@@ -931,7 +1029,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
                     
-                    // Salvar o usuário atual no Firestore
                     await db.collection('usuarios').doc(currentUser.uid).set(currentUserData);
                     
                     users.push({
@@ -1046,10 +1143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Salvando...';
                     
                     try {
-                        // Atualizar no Firebase
                         await db.collection('usuarios').doc(userId).update({ role: newRole });
                         
-                        // Atualizar no estado local
                         const userIndex = appState.users.findIndex(u => u.id === userId);
                         if (userIndex !== -1) {
                             appState.users[userIndex].role = newRole;
@@ -1062,7 +1157,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error("❌ Erro ao atualizar função:", error);
                         notifications.showMessage('Erro ao atualizar função: ' + error.message, 'error');
                         
-                        // Reverter a mudança no select
                         const originalRole = appState.users.find(u => u.id === userId)?.role || 'funcionario';
                         if (roleSelect) {
                             roleSelect.value = originalRole;
@@ -1079,7 +1173,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const userId = btn.dataset.userId;
                     const userName = btn.dataset.userName;
                     
-                    // Não permitir excluir o próprio usuário
                     if (userId === auth.currentUser.uid) {
                         notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
                         return;
@@ -1094,10 +1187,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Excluindo...';
                     
                     try {
-                        // Excluir no Firebase
                         await db.collection('usuarios').doc(userId).delete();
                         
-                        // Atualizar no estado local
                         appState.users = appState.users.filter(u => u.id !== userId);
                         
                         notifications.showMessage(`Usuário "${userName}" excluído com sucesso`, 'success');
@@ -1124,7 +1215,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         async addUser() {
-            // Verificar se os campos obrigatórios existem
             const uidInput = document.getElementById('novoUsuarioUid');
             const nomeInput = document.getElementById('novoUsuarioNome');
             const emailInput = document.getElementById('novoUsuarioEmail');
@@ -1168,13 +1258,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 submitBtn.disabled = true;
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Adicionando usuário...';
                 
-                // Verificar se já existe um usuário com este UID
                 const existingUser = appState.users.find(u => u.id === uid);
                 if (existingUser) {
                     throw new Error('Já existe um usuário com este UID');
                 }
                 
-                // Dados do usuário
                 const userData = {
                     nome: nome,
                     email: email,
@@ -1182,10 +1270,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
                 
-                // Salvar no Firebase
                 await db.collection('usuarios').doc(uid).set(userData);
                 
-                // Adicionar ao estado local
                 appState.users.push({
                     id: uid,
                     ...userData,
@@ -1206,7 +1292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Gerenciador de Abas Aprimorado
+    // Gerenciador de Abas
     class TabManager {
         constructor() {
             this.tabs = {
@@ -1224,7 +1310,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             };
             
-            // Verificar se os elementos existem
             Object.entries(this.tabs).forEach(([tabName, tab]) => {
                 if (!tab.button) {
                     console.warn(`⚠️ Botão da aba '${tabName}' não encontrado`);
@@ -1295,7 +1380,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         break;
                         
                     case 'dashboard':
-                        // Implementação básica do dashboard aqui
                         notifications.showMessage("Dashboard carregado", "success");
                         break;
                 }
@@ -1308,7 +1392,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Inicialização
     function initialize() {
-        console.log("🚀 Inicializando o sistema...");
+        console.log("🚀 Inicializando o sistema administrativo...");
         
         try {
             // Inicializar gerenciador de abas
@@ -1332,16 +1416,20 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabParam && ['dashboard', 'precos', 'usuarios'].includes(tabParam)) {
                 tabManager.switchTab(tabParam);
             }
-            notifications.showMessage("Sistema inicializado com sucesso!", "success");
+            
+            notifications.showMessage("Sistema administrativo inicializado com sucesso!", "success");
+            
         } catch (error) {
             console.error("❌ Erro na inicialização:", error);
             notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
         }
     }
+
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(initialize, 0);
     } else {
         document.addEventListener('DOMContentLoaded', initialize);
     }
+    
     initialize();
 });
