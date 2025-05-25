@@ -1090,54 +1090,251 @@ class UserManager {
 }
 
     attachEventListeners() {
-        // Event listeners para botões de exclusão
-        document.querySelectorAll('.delete-user-btn').forEach(btn => {
-            btn.addEventListener('click', async () => {
-                const userId = btn.dataset.userId;
-                const userName = btn.dataset.userName;
-                
-                if (userId === auth.currentUser.uid) {
-                    notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
-                    return;
-                }
-                
-                if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"?\n\nEsta ação não pode ser desfeita.`)) {
-                    return;
-                }
-                
-                const originalText = btn.innerHTML;
+    // Event listeners para botões de exclusão
+    document.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            
+            // Verificação de segurança - não pode excluir a si mesmo
+            if (userId === auth.currentUser.uid) {
+                notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
+                return;
+            }
+            
+            // Confirmação com detalhes
+            const confirmMessage = `⚠️ ATENÇÃO: Tem certeza que deseja excluir o usuário "${userName}"?\n\n` +
+                                 `Esta ação irá:\n` +
+                                 `• Remover o usuário do sistema de autenticação\n` +
+                                 `• Apagar todos os dados do usuário\n` +
+                                 `• Esta ação NÃO pode ser desfeita!\n\n` +
+                                 `Deseja continuar?`;
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+            
+            // Segunda confirmação para operações críticas
+            const secondConfirm = prompt(`Para confirmar a exclusão, digite o nome do usuário: ${userName}`);
+            if (secondConfirm !== userName) {
+                notifications.showMessage('Exclusão cancelada - nome não corresponde', 'info');
+                return;
+            }
+            
+            // Salvar estado original do botão
+            const originalText = btn.innerHTML;
+            const originalClasses = btn.className;
+            
+            try {
+                // Atualizar UI para estado de carregamento
                 btn.disabled = true;
+                btn.className = 'bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed';
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Excluindo...';
                 
-                try {
-                    // Chama a Cloud Function para deletar o usuário
-                    const deleteFn = firebase.functions().httpsCallable('deleteUserAuth');
-                    await deleteFn({ uid: userId });
-                    
-                    // Remove da lista local
+                // Verificar se Firebase Functions está disponível
+                if (typeof firebase.functions !== 'function') {
+                    throw new Error('Firebase Functions não está configurado. Adicione a biblioteca firebase-functions.js ao HTML.');
+                }
+                
+                // Log para debug
+                console.log(`🗑️ Iniciando exclusão do usuário: ${userName} (${userId})`);
+                
+                // Chamar a Cloud Function para deletar o usuário
+                const functions = firebase.functions();
+                
+                // Em desenvolvimento, pode usar o emulador local
+                if (window.location.hostname === 'localhost') {
+                    // functions.useEmulator('localhost', 5001); // Descomente se estiver usando emulador
+                }
+                
+                const deleteUserAuth = functions.httpsCallable('deleteUserAuth');
+                
+                // Executar a função com timeout
+                const deletePromise = deleteUserAuth({ uid: userId });
+                const timeoutPromise = new Promise((_, reject) => 
+                    setTimeout(() => reject(new Error('Timeout: A operação demorou muito')), 30000)
+                );
+                
+                const result = await Promise.race([deletePromise, timeoutPromise]);
+                
+                console.log('✅ Resposta da Cloud Function:', result);
+                
+                // Verificar se a operação foi bem-sucedida
+                if (result.data && result.data.status === 'ok') {
+                    // Remover da lista local
                     appState.users = appState.users.filter(u => u.id !== userId);
                     
-                    notifications.showMessage(`Usuário "${userName}" excluído com sucesso`, 'success');
+                    // Mostrar notificação de sucesso
+                    notifications.showMessage(
+                        `✅ Usuário "${userName}" foi excluído completamente do sistema`, 
+                        'success',
+                        5000
+                    );
+                    
+                    // Re-renderizar a lista de usuários
                     this.renderUsers();
                     
-                } catch (error) {
-                    console.error("❌ Erro ao excluir usuário:", error);
-                    let errorMessage = 'Erro ao excluir usuário';
+                    // Log de auditoria (opcional)
+                    console.log(`✅ Usuário ${userId} excluído com sucesso por ${auth.currentUser.email}`);
                     
-                    if (error.code === 'permission-denied') {
-                        errorMessage = 'Você não tem permissão para excluir usuários';
-                    } else if (error.message) {
-                        errorMessage = error.message;
+                } else {
+                    throw new Error('A função retornou um status inesperado');
+                }
+                
+            } catch (error) {
+                console.error("❌ Erro ao excluir usuário:", error);
+                
+                // Tratamento detalhado de erros
+                let errorMessage = 'Erro ao excluir usuário';
+                let errorDetails = '';
+                
+                // Erros específicos do Firebase Functions
+                if (error.code) {
+                    switch (error.code) {
+                        case 'functions/unauthenticated':
+                            errorMessage = 'Você não está autenticado';
+                            errorDetails = 'Faça login novamente e tente outra vez';
+                            break;
+                            
+                        case 'functions/permission-denied':
+                            errorMessage = 'Permissão negada';
+                            errorDetails = 'Apenas administradores podem excluir usuários';
+                            break;
+                            
+                        case 'functions/invalid-argument':
+                            errorMessage = 'Dados inválidos';
+                            errorDetails = error.message || 'Verifique os dados e tente novamente';
+                            break;
+                            
+                        case 'functions/not-found':
+                            errorMessage = 'Usuário não encontrado';
+                            errorDetails = 'O usuário pode já ter sido excluído';
+                            // Remover da lista local mesmo assim
+                            appState.users = appState.users.filter(u => u.id !== userId);
+                            this.renderUsers();
+                            break;
+                            
+                        case 'functions/unavailable':
+                            errorMessage = 'Serviço indisponível';
+                            errorDetails = 'O servidor está temporariamente indisponível. Tente novamente em alguns minutos';
+                            break;
+                            
+                        case 'functions/deadline-exceeded':
+                        case 'functions/timeout':
+                            errorMessage = 'Tempo esgotado';
+                            errorDetails = 'A operação demorou muito. Verifique se o usuário foi excluído';
+                            break;
+                            
+                        case 'functions/internal':
+                            errorMessage = 'Erro interno do servidor';
+                            errorDetails = 'Ocorreu um erro no servidor. Tente novamente';
+                            break;
+                            
+                        default:
+                            errorMessage = `Erro: ${error.code}`;
+                            errorDetails = error.message || '';
                     }
-                    
-                    notifications.showMessage(errorMessage, 'error');
-                } finally {
+                } else if (error.message) {
+                    // Outros erros
+                    if (error.message.includes('Firebase Functions não está configurado')) {
+                        errorMessage = 'Configuração incompleta';
+                        errorDetails = 'Firebase Functions não está carregado. Verifique as importações no HTML';
+                    } else if (error.message.includes('Timeout')) {
+                        errorMessage = 'Operação muito demorada';
+                        errorDetails = 'Verifique se o usuário foi excluído e tente recarregar a página';
+                    } else {
+                        errorDetails = error.message;
+                    }
+                }
+                
+                // Mostrar erro detalhado
+                const fullErrorMessage = errorDetails ? 
+                    `${errorMessage}: ${errorDetails}` : 
+                    errorMessage;
+                
+                notifications.showMessage(fullErrorMessage, 'error', 8000);
+                
+                // Se for erro de "não encontrado", atualizar a lista
+                if (error.code === 'functions/not-found') {
+                    setTimeout(() => {
+                        notifications.showMessage(
+                            'A lista foi atualizada para refletir o estado atual', 
+                            'info'
+                        );
+                    }, 2000);
+                }
+                
+            } finally {
+                // Restaurar estado do botão
+                if (btn && btn.parentElement) { // Verificar se o botão ainda existe
                     btn.disabled = false;
+                    btn.className = originalClasses;
                     btn.innerHTML = originalText;
+                }
+            }
+        });
+    });
+    
+    // Event listeners para botões de edição (se existirem)
+    document.querySelectorAll('.edit-user-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            
+            // Implementar lógica de edição aqui
+            notifications.showMessage('Função de edição em desenvolvimento', 'info');
+        });
+    });
+    
+    // Event listener para botão de refresh (se existir)
+    const refreshBtn = document.getElementById('refreshUsers');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.disabled = true;
+            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Atualizando...';
+            
+            try {
+                await this.load();
+                notifications.showMessage('Lista de usuários atualizada', 'success');
+            } catch (error) {
+                notifications.showMessage('Erro ao atualizar lista', 'error');
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Atualizar';
+            }
+        });
+    }
+    
+    // Event listener para filtro de usuários (se existir)
+    const filterInput = document.getElementById('filterUsers');
+    if (filterInput) {
+        filterInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            
+            document.querySelectorAll('[data-uid]').forEach(row => {
+                const userName = row.querySelector('.font-semibold').textContent.toLowerCase();
+                const userEmail = row.querySelector('.text-gray-600').textContent.toLowerCase();
+                
+                if (userName.includes(searchTerm) || userEmail.includes(searchTerm)) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
                 }
             });
         });
     }
+    
+    // Event listener para ordenação (se existir)
+    document.querySelectorAll('.sort-users-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const sortBy = btn.dataset.sortBy;
+            
+            // Implementar lógica de ordenação
+            this.sortUsers(sortBy);
+            this.renderUsers();
+        });
+    });
+}
 
     setupFormHandler() {
         if (!this.form) return;
