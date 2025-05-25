@@ -66,15 +66,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 // Redirecionamento baseado na role do usuário
-                const userRole = localStorage.getItem('userRole');
+const userRole = localStorage.getItem('userRole');
+
+if (userRole === 'admin') {
+    // Admin pode acessar admin.html e fechamento.html
+    if (currentPage !== 'admin.html' && currentPage !== 'fechamento.html') {
+        console.log("Redirecionando admin para admin.html de", currentPage);
+        executeRedirect('admin.html');
+        return;
+    }
+} else if (userRole === 'funcionario') {
+    if (currentPage !== 'funcionario.html') {
+        console.log("Redirecionando funcionário para funcionario.html de", currentPage);
+        executeRedirect('funcionario.html');
+        return;
+    }
+}
                 
-                if (userRole === 'admin') {
-                    if (currentPage !== 'admin.html') {
-                        console.log("Redirecionando admin para admin.html de", currentPage);
-                        executeRedirect('admin.html');
-                        return;
-                    }
-                } else if (userRole === 'funcionario') {
+                else if (userRole === 'funcionario') {
                     if (currentPage !== 'funcionario.html') {
                         console.log("Redirecionando funcionário para funcionario.html de", currentPage);
                         executeRedirect('funcionario.html');
