@@ -1308,6 +1308,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     button: document.getElementById('btnTabUsuarios'),
                     content: document.getElementById('tabContentUsuarios')
                 }
+                
             };
             
             Object.entries(this.tabs).forEach(([tabName, tab]) => {

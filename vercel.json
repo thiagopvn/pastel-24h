@@ -10,8 +10,9 @@
   ],
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
-    { "source": "/funcionario", "destination": "/funcionario" },
-    { "source": "/admin", "destination": "/admin" }
+    { "source": "/funcionario", "destination": "/funcionario.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/fechamento", "destination": "/fechamento.html" }
   ],
   "cleanUrls": true,
   "trailingSlash": false

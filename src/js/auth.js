@@ -186,14 +186,16 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Mapeamento robusto para URLs limpas
         const pathMappings = {
-            '/': 'index.html',
-            '/index': 'index.html',
-            '/index.html': 'index.html',
-            '/admin': 'admin.html',
-            '/admin.html': 'admin.html',
-            '/funcionario': 'funcionario.html',
-            '/funcionario.html': 'funcionario.html'
-        };
+    '/': 'index.html',
+    '/index': 'index.html',
+    '/index.html': 'index.html',
+    '/admin': 'admin.html',
+    '/admin.html': 'admin.html',
+    '/funcionario': 'funcionario.html',
+    '/funcionario.html': 'funcionario.html',
+    '/fechamento': 'fechamento.html', 
+    '/fechamento.html': 'fechamento.html' 
+};
 
         // Log detalhado de detecção de página
         const detectedPage = pathMappings[path] || 

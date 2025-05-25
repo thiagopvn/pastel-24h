@@ -312,7 +312,7 @@
                 <button id="btnTabUsuarios" class="tab-button px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg shadow hover:bg-gray-300 transition-all flex items-center">
                     <i class="fas fa-users mr-2"></i>Usuários
                 </button>
-                <button id="btnFechamento" onclick="window.location.href='fechamento.html'" class="tab-button px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg shadow hover:bg-gray-300 transition-all flex items-center">
+               <button id="btnFechamento" onclick="window.location.pathname='/fechamento'" class="tab-button px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg shadow hover:bg-gray-300 transition-all flex items-center">
                     <i class="fas fa-calculator mr-2"></i>Fechamento
                 </button>
             </nav>
@@ -1859,6 +1859,13 @@
             setupPeriodFilters();
             setupKPIModals();
             setupEventListeners();
+
+             const btnFechamento = document.getElementById('btnFechamento');
+                if (btnFechamento) {
+                 btnFechamento.addEventListener('click', () => {
+            window.location.pathname = '/fechamento';
+        });
+    }
             
             // Carregar dados iniciais
             loadDashboardData();
