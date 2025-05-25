@@ -904,18 +904,196 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Gerenciador de Usuários
     // Atualizar a classe UserManager completamente
 class UserManager {
-    constructor() {
-        this.container = document.getElementById('listaUsuariosContainer');
-        this.form = document.getElementById('formNovoUsuario');
+
+    
+        constructor() {
+            this.container = document.getElementById('listaUsuariosContainer');
+            this.form = document.getElementById('formNovoUsuario');
+            this.showInactive = false; // Adicione esta linha
+            
+            if (!this.container) {
+                console.warn("⚠️ Container 'listaUsuariosContainer' não encontrado");
+            }
+            
+            if (!this.form) {
+                console.warn("⚠️ Formulário 'formNovoUsuario' não encontrado");
+            }
+        }
+
+        // Adicione estes métodos na classe UserManager
+
+sortUsers(sortBy, order = 'asc') {
+    const compareFunction = (a, b) => {
+        let valueA, valueB;
         
-        if (!this.container) {
-            console.warn("⚠️ Container 'listaUsuariosContainer' não encontrado");
+        switch(sortBy) {
+            case 'name':
+                valueA = (a.nome || '').toLowerCase();
+                valueB = (b.nome || '').toLowerCase();
+                break;
+                
+            case 'email':
+                valueA = (a.email || '').toLowerCase();
+                valueB = (b.email || '').toLowerCase();
+                break;
+                
+            case 'role':
+                valueA = a.role || 'funcionario';
+                valueB = b.role || 'funcionario';
+                break;
+                
+            case 'date':
+                valueA = a.createdAt?.toDate?.() || new Date(0);
+                valueB = b.createdAt?.toDate?.() || new Date(0);
+                return order === 'asc' ? valueA - valueB : valueB - valueA;
+                
+            default:
+                return 0;
         }
         
-        if (!this.form) {
-            console.warn("⚠️ Formulário 'formNovoUsuario' não encontrado");
+        // Para strings
+        if (order === 'asc') {
+            return valueA.localeCompare(valueB, 'pt-BR');
+        } else {
+            return valueB.localeCompare(valueA, 'pt-BR');
+        }
+    };
+    
+    appState.users.sort(compareFunction);
+    console.log(`✅ Usuários ordenados por ${sortBy} (${order})`);
+}
+
+updateBulkActions() {
+    const checkedBoxes = document.querySelectorAll('.user-checkbox:checked');
+    const bulkActionsContainer = document.getElementById('bulkActions');
+    
+    if (bulkActionsContainer) {
+        if (checkedBoxes.length > 0) {
+            bulkActionsContainer.classList.remove('hidden');
+            
+            // Atualizar contador
+            const counter = bulkActionsContainer.querySelector('.selected-count');
+            if (counter) {
+                counter.textContent = `${checkedBoxes.length} selecionado(s)`;
+            }
+        } else {
+            bulkActionsContainer.classList.add('hidden');
         }
     }
+}
+
+// Método atualizado fetchUsers para incluir usuários inativos opcionalmente
+async fetchUsers() {
+    console.log("🔍 Buscando usuários no Firebase...");
+    
+    if (!auth.currentUser) {
+        console.error("❌ Usuário não autenticado ao buscar usuários");
+        throw new Error("Usuário não autenticado");
+    }
+    
+    try {
+        console.log("🔍 Buscando da coleção 'usuarios'...");
+        
+        let query = db.collection('usuarios');
+        
+        // Se não estiver mostrando inativos, filtrar
+        if (!this.showInactive) {
+            query = query.where('status', '!=', 'inativo');
+        }
+        
+        const snapshot = await query.get();
+        
+        console.log(`📊 Encontrados ${snapshot.size} documentos`);
+        
+        const users = [];
+        
+        snapshot.forEach(doc => {
+            const userData = doc.data();
+            console.log(`Usuário ${doc.id}:`, userData);
+            
+            // Filtrar manualmente se a query where não funcionar
+            if (!this.showInactive && userData.status === 'inativo') {
+                return; // Pular usuários inativos
+            }
+            
+            users.push({
+                id: doc.id,
+                nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                email: userData.email || 'Sem email',
+                role: userData.role || 'funcionario',
+                status: userData.status || 'ativo',
+                createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                deletedAt: userData.deletedAt || null
+            });
+        });
+        
+        // Ordenar por nome por padrão
+        users.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        
+        return users;
+        
+    } catch (error) {
+        console.error("❌ Erro ao buscar usuários:", error);
+        
+        // Se o erro for porque o campo 'status' não existe, fazer busca manual
+        if (error.code === 'failed-precondition' || error.message?.includes('status')) {
+            console.log("Campo 'status' não existe em todos os documentos, fazendo busca completa...");
+            
+            const snapshot = await db.collection('usuarios').get();
+            const users = [];
+            
+            snapshot.forEach(doc => {
+                const userData = doc.data();
+                
+                // Filtrar manualmente
+                if (!this.showInactive && (userData.status === 'inativo' || userData.active === false)) {
+                    return;
+                }
+                
+                users.push({
+                    id: doc.id,
+                    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                    email: userData.email || 'Sem email',
+                    role: userData.role || 'funcionario',
+                    status: userData.status || 'ativo',
+                    createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp()
+                });
+            });
+            
+            return users;
+        }
+        
+        throw error;
+    }
+}
+
+// Método para reativar usuário (caso precise)
+async reactivateUser(userId) {
+    try {
+        await db.collection('usuarios').doc(userId).update({
+            status: 'ativo',
+            active: true,
+            reactivatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            reactivatedBy: auth.currentUser.uid
+        });
+        
+        // Criar log de auditoria
+        await db.collection('audit_logs').add({
+            action: 'user_reactivated',
+            targetUserId: userId,
+            performedBy: auth.currentUser.uid,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        notifications.showMessage('Usuário reativado com sucesso', 'success');
+        await this.load();
+        
+    } catch (error) {
+        console.error('Erro ao reativar usuário:', error);
+        notifications.showMessage('Erro ao reativar usuário', 'error');
+        throw error;
+    }
+}
 
     async load() {
         console.log("🔄 Iniciando carregamento de usuários...");
@@ -1029,51 +1207,144 @@ class UserManager {
 }
 
     renderUsers() {
-        if (!this.container) return;
+    if (!this.container) return;
+    
+    // Atualizar contador total
+    const totalCount = document.getElementById('totalUsersCount');
+    if (totalCount) {
+        totalCount.textContent = appState.users.length;
+    }
+    
+    // Se não houver usuários
+    if (appState.users.length === 0) {
+        this.container.innerHTML = `
+            <div class="text-center py-12 text-gray-500">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-users text-2xl text-gray-400"></i>
+                </div>
+                <p class="text-lg font-medium">Nenhum usuário encontrado</p>
+                <p class="text-sm text-gray-400 mt-1">
+                    ${this.showInactive ? 'Não há usuários cadastrados' : 'Todos os usuários estão inativos'}
+                </p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Renderizar lista de usuários
+    this.container.innerHTML = appState.users.map(usuario => {
+        const isInactive = usuario.status === 'inativo';
+        const isCurrentUser = usuario.id === auth.currentUser.uid;
         
-        this.container.innerHTML = appState.users.map(usuario => `
-            <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4">
+        return `
+            <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4 ${isInactive ? 'opacity-60' : ''}" 
+                 data-uid="${usuario.id}"
+                 data-status="${usuario.status || 'ativo'}">
+                 
                 <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-                    <div class="flex-1 flex items-center space-x-4">
-                        <div class="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-lg">
-                            <i class="fas fa-user text-white text-lg"></i>
-                        </div>
-                        <div class="flex-1">
-                            <h4 class="text-lg font-semibold text-gray-800">${usuario.nome || 'Nome não informado'}</h4>
-                            <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
-                            <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                                <span class="flex items-center">
-                                    <i class="fas fa-fingerprint mr-1"></i>
-                                    <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
-                                </span>
-                                <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
-                                    <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
-                                    ${this.getRoleText(usuario.role)}
-                                </span>
+                    <!-- Checkbox para seleção em lote -->
+                    <div class="flex items-center space-x-4 flex-1">
+                        ${!isCurrentUser ? `
+                            <input type="checkbox" 
+                                   class="user-checkbox w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                   data-uid="${usuario.id}">
+                        ` : '<div class="w-4"></div>'}
+                        
+                        <!-- Avatar e informações -->
+                        <div class="flex items-center space-x-4 flex-1">
+                            <div class="w-14 h-14 bg-gradient-to-br ${isInactive ? 'from-gray-400 to-gray-500' : 'from-primary-500 to-primary-600'} rounded-full flex items-center justify-center shadow-lg">
+                                <i class="fas fa-user text-white text-lg"></i>
+                            </div>
+                            
+                            <div class="flex-1">
+                                <h4 class="text-lg font-semibold text-gray-800 flex items-center">
+                                    ${usuario.nome || 'Nome não informado'}
+                                    ${isInactive ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Inativo</span>' : ''}
+                                    ${isCurrentUser ? '<span class="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Você</span>' : ''}
+                                </h4>
+                                <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
+                                
+                                <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-fingerprint mr-1"></i>
+                                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
+                                    </span>
+                                    <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
+                                        <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
+                                        ${this.getRoleText(usuario.role)}
+                                    </span>
+                                    ${usuario.deletedAt ? `
+                                        <span class="text-xs text-gray-400">
+                                            <i class="fas fa-clock mr-1"></i>
+                                            Inativado ${this.formatRelativeTime(usuario.deletedAt)}
+                                        </span>
+                                    ` : ''}
+                                </div>
                             </div>
                         </div>
                     </div>
                     
+                    <!-- Ações -->
                     <div class="flex items-center space-x-3">
-                        ${usuario.id !== auth.currentUser.uid ? `
-                            <button class="delete-user-btn bg-danger-500 hover:bg-danger-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                    data-user-id="${usuario.id}" 
-                                    data-user-name="${usuario.nome}">
-                                <i class="fas fa-trash mr-1"></i>Excluir
-                            </button>
+                        ${!isCurrentUser ? `
+                            ${isInactive ? `
+                                <button class="restore-user-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        title="Reativar usuário">
+                                    <i class="fas fa-undo mr-1"></i>Reativar
+                                </button>
+                            ` : `
+                                <button class="edit-user-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        data-user-role="${usuario.role}"
+                                        title="Editar função do usuário">
+                                    <i class="fas fa-edit mr-1"></i>Editar
+                                </button>
+                                
+                                <button class="delete-user-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        data-user-email="${usuario.email}"
+                                        title="Excluir usuário">
+                                    <i class="fas fa-trash mr-1"></i>Excluir
+                                </button>
+                            `}
                         ` : `
                             <button class="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium shadow-sm cursor-not-allowed" 
-                                    disabled title="Não é possível excluir seu próprio usuário">
-                                <i class="fas fa-trash mr-1"></i>Excluir
+                                    disabled 
+                                    title="Não é possível excluir seu próprio usuário">
+                                <i class="fas fa-shield-alt mr-1"></i>Protegido
                             </button>
                         `}
                     </div>
                 </div>
             </div>
-        `).join('');
-        
-        this.attachEventListeners();
-    }
+        `;
+    }).join('');
+    
+    // Re-anexar event listeners
+    this.attachEventListeners();
+}
+
+// Método auxiliar para formatar tempo relativo
+formatRelativeTime(timestamp) {
+    if (!timestamp) return '';
+    
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    const now = new Date();
+    const diff = now - date;
+    
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `há ${days} dia${days > 1 ? 's' : ''}`;
+    if (hours > 0) return `há ${hours} hora${hours > 1 ? 's' : ''}`;
+    if (minutes > 0) return `há ${minutes} minuto${minutes > 1 ? 's' : ''}`;
+    return 'agora mesmo';
+}
 
     getRoleBadgeClass(role) {
     return role === 'admin' ? 
@@ -1090,250 +1361,421 @@ class UserManager {
 }
 
     attachEventListeners() {
-    // Event listeners para botões de exclusão
+    // 1. EVENT LISTENERS PARA BOTÕES DE EXCLUSÃO
     document.querySelectorAll('.delete-user-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
             const userId = btn.dataset.userId;
             const userName = btn.dataset.userName;
+            const userEmail = btn.dataset.userEmail || '';
             
             // Verificação de segurança - não pode excluir a si mesmo
             if (userId === auth.currentUser.uid) {
-                notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
+                notifications.showMessage(
+                    '⚠️ Você não pode excluir seu próprio usuário', 
+                    'warning'
+                );
                 return;
             }
             
-            // Confirmação com detalhes
-            const confirmMessage = `⚠️ ATENÇÃO: Tem certeza que deseja excluir o usuário "${userName}"?\n\n` +
-                                 `Esta ação irá:\n` +
-                                 `• Remover o usuário do sistema de autenticação\n` +
-                                 `• Apagar todos os dados do usuário\n` +
-                                 `• Esta ação NÃO pode ser desfeita!\n\n` +
-                                 `Deseja continuar?`;
+            // Modal de confirmação customizado (melhor UX)
+            const confirmDelete = confirm(
+                `⚠️ ATENÇÃO: Deseja excluir o usuário?\n\n` +
+                `Nome: ${userName}\n` +
+                `Email: ${userEmail}\n` +
+                `ID: ${userId.substring(0, 8)}...\n\n` +
+                `Esta ação irá:\n` +
+                `• Desativar o acesso do usuário ao sistema\n` +
+                `• Manter os registros históricos\n` +
+                `• Esta ação pode ser revertida por um administrador\n\n` +
+                `Confirmar exclusão?`
+            );
             
-            if (!confirm(confirmMessage)) {
-                return;
-            }
-            
-            // Segunda confirmação para operações críticas
-            const secondConfirm = prompt(`Para confirmar a exclusão, digite o nome do usuário: ${userName}`);
-            if (secondConfirm !== userName) {
-                notifications.showMessage('Exclusão cancelada - nome não corresponde', 'info');
+            if (!confirmDelete) {
                 return;
             }
             
             // Salvar estado original do botão
-            const originalText = btn.innerHTML;
+            const originalHTML = btn.innerHTML;
             const originalClasses = btn.className;
+            const row = btn.closest('div[data-uid]');
             
             try {
                 // Atualizar UI para estado de carregamento
                 btn.disabled = true;
-                btn.className = 'bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed';
+                btn.className = 'bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-50';
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Excluindo...';
                 
-                // Verificar se Firebase Functions está disponível
-                if (typeof firebase.functions !== 'function') {
-                    throw new Error('Firebase Functions não está configurado. Adicione a biblioteca firebase-functions.js ao HTML.');
+                // Adicionar efeito visual na linha
+                if (row) {
+                    row.style.opacity = '0.5';
+                    row.style.pointerEvents = 'none';
                 }
                 
-                // Log para debug
                 console.log(`🗑️ Iniciando exclusão do usuário: ${userName} (${userId})`);
                 
-                // Chamar a Cloud Function para deletar o usuário
-                const functions = firebase.functions();
-                
-                // Em desenvolvimento, pode usar o emulador local
-                if (window.location.hostname === 'localhost') {
-                    // functions.useEmulator('localhost', 5001); // Descomente se estiver usando emulador
+                // Verificar se o usuário atual ainda é admin
+                const currentUserDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+                if (!currentUserDoc.exists) {
+                    throw new Error('Seus dados não foram encontrados. Faça login novamente.');
                 }
                 
-                const deleteUserAuth = functions.httpsCallable('deleteUserAuth');
+                const currentUserData = currentUserDoc.data();
+                if (currentUserData.role !== 'admin') {
+                    throw new Error('Apenas administradores podem excluir usuários');
+                }
                 
-                // Executar a função com timeout
-                const deletePromise = deleteUserAuth({ uid: userId });
-                const timeoutPromise = new Promise((_, reject) => 
-                    setTimeout(() => reject(new Error('Timeout: A operação demorou muito')), 30000)
+                // Obter dados atuais do usuário a ser excluído
+                const targetUserDoc = await db.collection('usuarios').doc(userId).get();
+                if (!targetUserDoc.exists) {
+                    throw new Error('Usuário não encontrado. Ele pode já ter sido excluído.');
+                }
+                
+                const targetUserData = targetUserDoc.data();
+                
+                // Marcar usuário como inativo/deletado (soft delete)
+                await db.collection('usuarios').doc(userId).update({
+                    status: 'inativo',
+                    active: false,
+                    deletedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    deletedBy: auth.currentUser.uid,
+                    deletedByEmail: auth.currentUser.email,
+                    deletedByName: currentUserData.nome || auth.currentUser.email,
+                    // Manter dados originais para possível recuperação
+                    _originalData: {
+                        ...targetUserData,
+                        preservedAt: new Date().toISOString()
+                    }
+                });
+                
+                console.log('✅ Usuário marcado como inativo no Firestore');
+                
+                // Criar registro de auditoria
+                try {
+                    await db.collection('audit_logs').add({
+                        action: 'user_soft_delete',
+                        targetUserId: userId,
+                        targetUserName: userName,
+                        targetUserEmail: userEmail,
+                        targetUserRole: targetUserData.role,
+                        performedBy: auth.currentUser.uid,
+                        performedByEmail: auth.currentUser.email,
+                        performedByName: currentUserData.nome || auth.currentUser.email,
+                        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                        ip: 'browser', // Em produção, capture o IP real
+                        userAgent: navigator.userAgent,
+                        details: {
+                            method: 'soft_delete',
+                            reason: 'Admin dashboard deletion',
+                            canBeRestored: true
+                        }
+                    });
+                    console.log('✅ Log de auditoria criado');
+                } catch (auditError) {
+                    console.warn('⚠️ Erro ao criar log de auditoria:', auditError);
+                    // Continua mesmo se falhar o log
+                }
+                
+                // Animação de remoção
+                if (row) {
+                    row.style.transition = 'all 0.5s ease-out';
+                    row.style.transform = 'translateX(100%)';
+                    row.style.opacity = '0';
+                }
+                
+                // Aguardar animação
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Remover da lista local
+                appState.users = appState.users.filter(u => u.id !== userId);
+                
+                // Mostrar notificação de sucesso
+                notifications.showMessage(
+                    `✅ Usuário "${userName}" foi desativado com sucesso`, 
+                    'success',
+                    5000
                 );
                 
-                const result = await Promise.race([deletePromise, timeoutPromise]);
-                
-                console.log('✅ Resposta da Cloud Function:', result);
-                
-                // Verificar se a operação foi bem-sucedida
-                if (result.data && result.data.status === 'ok') {
-                    // Remover da lista local
-                    appState.users = appState.users.filter(u => u.id !== userId);
-                    
-                    // Mostrar notificação de sucesso
-                    notifications.showMessage(
-                        `✅ Usuário "${userName}" foi excluído completamente do sistema`, 
-                        'success',
-                        5000
-                    );
-                    
-                    // Re-renderizar a lista de usuários
+                // Re-renderizar a lista
+                setTimeout(() => {
                     this.renderUsers();
-                    
-                    // Log de auditoria (opcional)
-                    console.log(`✅ Usuário ${userId} excluído com sucesso por ${auth.currentUser.email}`);
-                    
-                } else {
-                    throw new Error('A função retornou um status inesperado');
-                }
+                }, 100);
+                
+                // Log final
+                console.log(`✅ Processo de exclusão concluído para ${userId}`);
                 
             } catch (error) {
                 console.error("❌ Erro ao excluir usuário:", error);
                 
-                // Tratamento detalhado de erros
+                // Restaurar visual da linha
+                if (row) {
+                    row.style.opacity = '1';
+                    row.style.pointerEvents = 'auto';
+                    row.style.transform = 'translateX(0)';
+                }
+                
+                // Tratamento específico de erros
                 let errorMessage = 'Erro ao excluir usuário';
-                let errorDetails = '';
                 
-                // Erros específicos do Firebase Functions
-                if (error.code) {
-                    switch (error.code) {
-                        case 'functions/unauthenticated':
-                            errorMessage = 'Você não está autenticado';
-                            errorDetails = 'Faça login novamente e tente outra vez';
-                            break;
-                            
-                        case 'functions/permission-denied':
-                            errorMessage = 'Permissão negada';
-                            errorDetails = 'Apenas administradores podem excluir usuários';
-                            break;
-                            
-                        case 'functions/invalid-argument':
-                            errorMessage = 'Dados inválidos';
-                            errorDetails = error.message || 'Verifique os dados e tente novamente';
-                            break;
-                            
-                        case 'functions/not-found':
-                            errorMessage = 'Usuário não encontrado';
-                            errorDetails = 'O usuário pode já ter sido excluído';
-                            // Remover da lista local mesmo assim
-                            appState.users = appState.users.filter(u => u.id !== userId);
-                            this.renderUsers();
-                            break;
-                            
-                        case 'functions/unavailable':
-                            errorMessage = 'Serviço indisponível';
-                            errorDetails = 'O servidor está temporariamente indisponível. Tente novamente em alguns minutos';
-                            break;
-                            
-                        case 'functions/deadline-exceeded':
-                        case 'functions/timeout':
-                            errorMessage = 'Tempo esgotado';
-                            errorDetails = 'A operação demorou muito. Verifique se o usuário foi excluído';
-                            break;
-                            
-                        case 'functions/internal':
-                            errorMessage = 'Erro interno do servidor';
-                            errorDetails = 'Ocorreu um erro no servidor. Tente novamente';
-                            break;
-                            
-                        default:
-                            errorMessage = `Erro: ${error.code}`;
-                            errorDetails = error.message || '';
-                    }
+                if (error.code === 'permission-denied') {
+                    errorMessage = '🚫 Você não tem permissão para excluir usuários';
+                } else if (error.code === 'not-found') {
+                    errorMessage = '❌ Usuário não encontrado';
                 } else if (error.message) {
-                    // Outros erros
-                    if (error.message.includes('Firebase Functions não está configurado')) {
-                        errorMessage = 'Configuração incompleta';
-                        errorDetails = 'Firebase Functions não está carregado. Verifique as importações no HTML';
-                    } else if (error.message.includes('Timeout')) {
-                        errorMessage = 'Operação muito demorada';
-                        errorDetails = 'Verifique se o usuário foi excluído e tente recarregar a página';
-                    } else {
-                        errorDetails = error.message;
-                    }
+                    errorMessage = `❌ ${error.message}`;
                 }
                 
-                // Mostrar erro detalhado
-                const fullErrorMessage = errorDetails ? 
-                    `${errorMessage}: ${errorDetails}` : 
-                    errorMessage;
-                
-                notifications.showMessage(fullErrorMessage, 'error', 8000);
-                
-                // Se for erro de "não encontrado", atualizar a lista
-                if (error.code === 'functions/not-found') {
-                    setTimeout(() => {
-                        notifications.showMessage(
-                            'A lista foi atualizada para refletir o estado atual', 
-                            'info'
-                        );
-                    }, 2000);
-                }
+                notifications.showMessage(errorMessage, 'error', 6000);
                 
             } finally {
-                // Restaurar estado do botão
-                if (btn && btn.parentElement) { // Verificar se o botão ainda existe
+                // Sempre restaurar o botão
+                if (btn && btn.parentElement) {
                     btn.disabled = false;
                     btn.className = originalClasses;
-                    btn.innerHTML = originalText;
+                    btn.innerHTML = originalHTML;
                 }
             }
         });
     });
     
-    // Event listeners para botões de edição (se existirem)
+    // 2. EVENT LISTENERS PARA BOTÕES DE EDIÇÃO (se existirem)
     document.querySelectorAll('.edit-user-btn').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
             const userId = btn.dataset.userId;
             const userName = btn.dataset.userName;
             
-            // Implementar lógica de edição aqui
-            notifications.showMessage('Função de edição em desenvolvimento', 'info');
+            // Modal de edição
+            const newRole = prompt(
+                `Editar função do usuário "${userName}"\n\n` +
+                `Digite:\n` +
+                `- "admin" para Administrador\n` +
+                `- "funcionario" para Funcionário\n\n` +
+                `Função atual: ${btn.dataset.userRole || 'funcionario'}`
+            );
+            
+            if (!newRole || (newRole !== 'admin' && newRole !== 'funcionario')) {
+                if (newRole) {
+                    notifications.showMessage('Função inválida. Use "admin" ou "funcionario"', 'warning');
+                }
+                return;
+            }
+            
+            try {
+                await db.collection('usuarios').doc(userId).update({
+                    role: newRole,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    updatedBy: auth.currentUser.uid
+                });
+                
+                notifications.showMessage(`Função de "${userName}" atualizada para ${newRole}`, 'success');
+                this.load(); // Recarregar lista
+                
+            } catch (error) {
+                console.error('Erro ao editar usuário:', error);
+                notifications.showMessage('Erro ao editar usuário', 'error');
+            }
         });
     });
     
-    // Event listener para botão de refresh (se existir)
+    // 3. EVENT LISTENER PARA RESTAURAR USUÁRIOS (se existir botão)
+    document.querySelectorAll('.restore-user-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            
+            if (!confirm(`Restaurar o usuário "${userName}"?`)) {
+                return;
+            }
+            
+            try {
+                await db.collection('usuarios').doc(userId).update({
+                    status: 'ativo',
+                    active: true,
+                    restoredAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    restoredBy: auth.currentUser.uid
+                });
+                
+                notifications.showMessage(`Usuário "${userName}" restaurado com sucesso`, 'success');
+                this.load();
+                
+            } catch (error) {
+                console.error('Erro ao restaurar usuário:', error);
+                notifications.showMessage('Erro ao restaurar usuário', 'error');
+            }
+        });
+    });
+    
+    // 4. EVENT LISTENER PARA BOTÃO DE REFRESH
     const refreshBtn = document.getElementById('refreshUsers');
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', async () => {
+        refreshBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const originalHTML = refreshBtn.innerHTML;
+            
             refreshBtn.disabled = true;
             refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Atualizando...';
             
             try {
                 await this.load();
-                notifications.showMessage('Lista de usuários atualizada', 'success');
+                notifications.showMessage('✅ Lista de usuários atualizada', 'success', 3000);
             } catch (error) {
-                notifications.showMessage('Erro ao atualizar lista', 'error');
+                notifications.showMessage('❌ Erro ao atualizar lista', 'error');
             } finally {
                 refreshBtn.disabled = false;
-                refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i>Atualizar';
+                refreshBtn.innerHTML = originalHTML;
             }
         });
     }
     
-    // Event listener para filtro de usuários (se existir)
+    // 5. EVENT LISTENER PARA FILTRO/BUSCA DE USUÁRIOS
     const filterInput = document.getElementById('filterUsers');
     if (filterInput) {
+        let filterTimeout;
+        
         filterInput.addEventListener('input', (e) => {
-            const searchTerm = e.target.value.toLowerCase();
+            clearTimeout(filterTimeout);
+            const searchTerm = e.target.value.toLowerCase().trim();
             
-            document.querySelectorAll('[data-uid]').forEach(row => {
-                const userName = row.querySelector('.font-semibold').textContent.toLowerCase();
-                const userEmail = row.querySelector('.text-gray-600').textContent.toLowerCase();
+            // Debounce de 300ms
+            filterTimeout = setTimeout(() => {
+                const userCards = document.querySelectorAll('[data-uid]');
+                let visibleCount = 0;
                 
-                if (userName.includes(searchTerm) || userEmail.includes(searchTerm)) {
-                    row.classList.remove('hidden');
-                } else {
-                    row.classList.add('hidden');
+                userCards.forEach(card => {
+                    const nome = (card.querySelector('h4')?.textContent || '').toLowerCase();
+                    const email = (card.querySelector('p')?.textContent || '').toLowerCase();
+                    const uid = card.dataset.uid.toLowerCase();
+                    
+                    if (!searchTerm || nome.includes(searchTerm) || email.includes(searchTerm) || uid.includes(searchTerm)) {
+                        card.classList.remove('hidden');
+                        card.style.display = '';
+                        visibleCount++;
+                    } else {
+                        card.classList.add('hidden');
+                        card.style.display = 'none';
+                    }
+                });
+                
+                // Mostrar mensagem se nenhum resultado
+                const noResultsMsg = document.getElementById('noSearchResults');
+                if (visibleCount === 0 && searchTerm) {
+                    if (!noResultsMsg) {
+                        const msg = document.createElement('div');
+                        msg.id = 'noSearchResults';
+                        msg.className = 'text-center py-8 text-gray-500';
+                        msg.innerHTML = `
+                            <i class="fas fa-search text-4xl mb-2"></i>
+                            <p>Nenhum usuário encontrado para "${searchTerm}"</p>
+                        `;
+                        this.container.appendChild(msg);
+                    }
+                } else if (noResultsMsg) {
+                    noResultsMsg.remove();
                 }
-            });
+                
+                // Atualizar contador se existir
+                const counterElement = document.getElementById('userSearchCount');
+                if (counterElement) {
+                    counterElement.textContent = `${visibleCount} usuário(s) encontrado(s)`;
+                }
+            }, 300);
+        });
+        
+        // Limpar filtro com ESC
+        filterInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                filterInput.value = '';
+                filterInput.dispatchEvent(new Event('input'));
+            }
         });
     }
     
-    // Event listener para ordenação (se existir)
-    document.querySelectorAll('.sort-users-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const sortBy = btn.dataset.sortBy;
+    // 6. EVENT LISTENERS PARA ORDENAÇÃO
+
+    document.querySelectorAll('[data-sort]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sortBy = btn.dataset.sort;
+            const currentOrder = btn.dataset.order || 'asc';
+            const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
             
-            // Implementar lógica de ordenação
-            this.sortUsers(sortBy);
+            // Atualizar ícone
+            const icon = btn.querySelector('i');
+            if (icon) {
+                icon.className = newOrder === 'asc' ? 'fas fa-sort-up' : 'fas fa-sort-down';
+            }
+            
+            btn.dataset.order = newOrder;
+            
+            // Ordenar
+            this.sortUsers(sortBy, newOrder);
             this.renderUsers();
+            
+            // Feedback visual
+            btn.classList.add('text-primary-600');
+            setTimeout(() => btn.classList.remove('text-primary-600'), 2000);
         });
     });
+    
+    // 7. EVENT LISTENER PARA TOGGLE DE USUÁRIOS INATIVOS
+    const toggleInactive = document.getElementById('toggleInactiveUsers');
+    if (toggleInactive) {
+        toggleInactive.addEventListener('change', async (e) => {
+            this.showInactive = e.target.checked;
+            await this.load();
+            
+            notifications.showMessage(
+                this.showInactive ? 'Mostrando todos os usuários' : 'Mostrando apenas usuários ativos',
+                'info',
+                3000
+            );
+        });
+    }
+    
+    // 8. EVENT LISTENERS PARA AÇÕES EM LOTE (se existirem)
+    const selectAllCheckbox = document.getElementById('selectAllUsers');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.user-checkbox');
+            checkboxes.forEach(cb => cb.checked = e.target.checked);
+            this.updateBulkActions();
+        });
+    }
+    
+    // Checkboxes individuais
+    document.querySelectorAll('.user-checkbox').forEach(cb => {
+        cb.addEventListener('change', () => {
+            this.updateBulkActions();
+        });
+    });
+    
+    // 9. ATALHOS DE TECLADO
+    document.addEventListener('keydown', (e) => {
+        // Ctrl/Cmd + F para focar na busca
+        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+            e.preventDefault();
+            const filterInput = document.getElementById('filterUsers');
+            if (filterInput) {
+                filterInput.focus();
+                filterInput.select();
+            }
+        }
+        
+        // Ctrl/Cmd + R para atualizar
+        if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+            e.preventDefault();
+            const refreshBtn = document.getElementById('refreshUsers');
+            if (refreshBtn) {
+                refreshBtn.click();
+            }
+        }
+    });
+    
+    console.log('✅ Event listeners configurados com sucesso');
 }
 
     setupFormHandler() {

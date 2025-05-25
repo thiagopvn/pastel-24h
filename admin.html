@@ -778,7 +778,7 @@
             </div>
         </div>
 
-        <!-- Conteúdo Usuários -->
+      <!-- Substitua o conteúdo de tabContentUsuarios por este HTML melhorado -->
 <div id="tabContentUsuarios" class="tab-content hidden">
     <div class="glass-effect rounded-2xl p-6">
         <!-- Header -->
@@ -792,7 +792,75 @@
             </p>
         </div>
         
-        <!-- Formulário para adicionar usuário ATUALIZADO -->
+        <!-- Controles e Filtros -->
+        <div class="mb-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-gray-50 p-4 rounded-lg">
+            <!-- Busca -->
+            <div class="relative flex-1 max-w-md">
+                <input type="text" 
+                       id="filterUsers" 
+                       placeholder="Buscar por nome, email ou ID..." 
+                       class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                <span id="userSearchCount" class="absolute right-3 top-3 text-sm text-gray-500"></span>
+            </div>
+            
+            <!-- Ações -->
+            <div class="flex items-center gap-3">
+                <!-- Toggle inativos -->
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="toggleInactiveUsers" class="mr-2">
+                    <span class="text-sm text-gray-700">Mostrar inativos</span>
+                </label>
+                
+                <!-- Botão refresh -->
+                <button id="refreshUsers" 
+                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
+                    <i class="fas fa-sync-alt mr-2"></i>
+                    Atualizar
+                </button>
+                
+                <!-- Ordenação -->
+                <div class="relative group">
+                    <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
+                        <i class="fas fa-sort mr-2"></i>
+                        Ordenar
+                    </button>
+                    <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg hidden group-hover:block z-10">
+                        <button data-sort="name" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                            <span>Por Nome</span>
+                            <i class="fas fa-sort-up text-gray-400"></i>
+                        </button>
+                        <button data-sort="email" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                            <span>Por Email</span>
+                            <i class="fas fa-sort-up text-gray-400"></i>
+                        </button>
+                        <button data-sort="role" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                            <span>Por Função</span>
+                            <i class="fas fa-sort-up text-gray-400"></i>
+                        </button>
+                        <button data-sort="date" data-order="desc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                            <span>Por Data</span>
+                            <i class="fas fa-sort-down text-gray-400"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Ações em lote (inicialmente oculto) -->
+        <div id="bulkActions" class="hidden mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between">
+            <span class="selected-count text-blue-700 font-medium">0 selecionado(s)</span>
+            <div class="flex gap-2">
+                <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
+                    <i class="fas fa-trash mr-1"></i>Excluir Selecionados
+                </button>
+                <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
+                    <i class="fas fa-times mr-1"></i>Cancelar
+                </button>
+            </div>
+        </div>
+        
+        <!-- Formulário para adicionar usuário -->
         <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
             <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
                 <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
@@ -868,25 +936,17 @@
             </div>
         </form>
         
-                    <!-- Adicione acima da lista de usuários -->
-            <div class="flex justify-between items-center mb-4">
-                <div class="relative">
-                    <input type="text" 
-                        id="filterUsers" 
-                        placeholder="Buscar usuários..." 
-                        class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                </div>
-                <button id="refreshUsers" 
-                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all">
-                    <i class="fas fa-sync-alt mr-1"></i>Atualizar
-                </button>
-            </div>
         <!-- Lista de usuários -->
         <div>
-            <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
-                <i class="fas fa-users mr-2"></i>Usuários Existentes
+            <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center justify-between">
+                <span>
+                    <i class="fas fa-users mr-2"></i>Usuários Existentes
+                </span>
+                <span class="text-sm font-normal text-gray-500">
+                    Total: <span id="totalUsersCount">0</span> usuários
+                </span>
             </h3>
+            
             <div id="listaUsuariosContainer" class="space-y-4">
                 <!-- Usuários serão listados aqui pelo JavaScript -->
                 <div class="flex items-center justify-center p-10">
