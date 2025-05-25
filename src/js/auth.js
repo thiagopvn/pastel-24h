@@ -2,9 +2,15 @@
 // Implementa um sistema híbrido de persistência (Firebase Auth + localStorage)
 
 // Constantes para armazenamento local
-const LOCAL_USER_KEY = 'pastelaria_user_data';
-const LOCAL_AUTH_KEY = 'pastelaria_auth_state';
-const LOCAL_LAST_ROUTE = 'pastelaria_last_route';
+if (typeof window.LOCAL_USER_KEY === 'undefined') {
+    window.LOCAL_USER_KEY = 'pastelaria_user_data';
+}
+if (typeof window.LOCAL_AUTH_KEY === 'undefined') {
+    window.LOCAL_AUTH_KEY = 'pastelaria_auth_state';
+}
+if (typeof window.LOCAL_LAST_ROUTE === 'undefined') {
+    window.LOCAL_LAST_ROUTE = 'pastelaria_last_route';
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // Elementos de UI

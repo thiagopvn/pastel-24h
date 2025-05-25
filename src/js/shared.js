@@ -1,11 +1,3 @@
-/**
- * shared.js - Funções compartilhadas robustas para o sistema Pastelaria 24h
- * Implementa manipulação de localStorage, formatação, utilidades de UI e sincronização de dados
- * VERSÃO 2.1 - Atualizada com suporte a controle de chegadas de estoque
- */
-
-// ===== CONSTANTES =====
-// Chaves para armazenamento local - centralizadas para evitar inconsistências
 if (typeof window.STORAGE_KEYS === 'undefined') {
     // Chaves para armazenamento local - centralizadas para evitar inconsistências
     window.STORAGE_KEYS = {
@@ -33,50 +25,59 @@ if (typeof window.STORAGE_KEYS === 'undefined') {
     };
 }
 
-// Templates de sabores e produtos
-const listaSaboresPasteis = [
-    "Carne",
-    "Frango",
-    "Queijo",
-    "Pizza",
-    "Bauru",
-    "Calabresa",
-    "Palmito",
-    "Especial de Carne",
-    "Especial de Frango",
-    "Especial de Calabresa"
-];
+// Templates de sabores e produtos - previne redeclaração
+if (typeof window.listaSaboresPasteis === 'undefined') {
+    window.listaSaboresPasteis = [
+        "Carne",
+        "Frango",
+        "Queijo",
+        "Pizza",
+        "Bauru",
+        "Calabresa",
+        "Palmito",
+        "Especial de Carne",
+        "Especial de Frango",
+        "Especial de Calabresa"
+    ];
+}
 
-const listaCasquinhas = [
-    "Casquinha Simples",
-    "Casquinha com Cobertura",
-    "Casquinha com Granulado"
-];
+if (typeof window.listaCasquinhas === 'undefined') {
+    window.listaCasquinhas = [
+        "Casquinha Simples",
+        "Casquinha com Cobertura",
+        "Casquinha com Granulado"
+    ];
+}
 
-const listaCaldoCana = [
-    "Caldo de Cana 300ml",
-    "Caldo de Cana 500ml",
-    "Caldo de Cana 700ml",
-    "Caldo de Cana 1litro"
-];
+if (typeof window.listaCaldoCana === 'undefined') {
+    window.listaCaldoCana = [
+        "Caldo de Cana 300ml",
+        "Caldo de Cana 500ml",
+        "Caldo de Cana 700ml",
+        "Caldo de Cana 1litro"
+    ];
+}
 
-const listaRefrigerantes = [
-    "Coca-Cola 350ml",
-    "Coca-Cola 600ml",
-    "Coca-Cola 2L",
-    "Guaraná 350ml",
-    "Guaraná 600ml",
-    "Guaraná 2L",
-    "Fanta Laranja 350ml",
-    "Fanta Laranja 600ml",
-    "Fanta Laranja 2L",
-    "Fanta Uva 350ml",
-    "Sprite 350ml",
-    "Água Mineral 500ml"
-];
+if (typeof window.listaRefrigerantes === 'undefined') {
+    window.listaRefrigerantes = [
+        "Coca-Cola 350ml",
+        "Coca-Cola 600ml",
+        "Coca-Cola 2L",
+        "Guaraná 350ml",
+        "Guaraná 600ml",
+        "Guaraná 2L",
+        "Fanta Laranja 350ml",
+        "Fanta Laranja 600ml",
+        "Fanta Laranja 2L",
+        "Fanta Uva 350ml",
+        "Sprite 350ml",
+        "Água Mineral 500ml"
+    ];
+}
+
+// O resto do arquivo shared.js continua como antes...
 
 // ===== MANIPULAÇÃO DO LOCALSTORAGE =====
-
 /**
  * Salva um item no localStorage com tratamento de erro
  * @param {string} key - Chave para armazenamento
