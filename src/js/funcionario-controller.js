@@ -1737,22 +1737,35 @@ function setupPriceListener() {
     
     // NOVA LÓGICA PARA GELO: Vendas são informadas diretamente, não calculadas
     function calculateGeloTotal(rowElement) {
-        const itemKey = rowElement.dataset.itemKey; // Deve ser 'gelo_pacote'
-        if(itemKey !== 'gelo_pacote') return;
+    const itemKey = rowElement.dataset.itemKey; // Deve ser 'gelo_pacote'
+    if(itemKey !== 'gelo_pacote') return;
 
-        const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
-        const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
+    const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
+    const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
+    
+    const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
+    const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
+    const totalGeloFooter = document.getElementById('totalGeloValor');
+
+    if (precoDisplay && totalItemDisplay) {
+        const precoGeloTexto = precoDisplay.textContent;
+        const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
+        const totalGeloValor = vendasGelo * precoUnitarioGelo;
         
-        const precoDisplay = document.getElementById(`${itemKey}_preco_display`); 
-        const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
-
-        if (precoDisplay && totalItemDisplay) {
-            const precoGeloTexto = precoDisplay.textContent; 
-            const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
-            const totalGeloValor = vendasGelo * precoUnitarioGelo;
-            totalItemDisplay.textContent = formatToBRL(totalGeloValor);
+        // Atualiza o total do item
+        totalItemDisplay.textContent = formatToBRL(totalGeloValor);
+        
+        // Atualiza também o rodapé da tabela
+        if (totalGeloFooter) {
+            totalGeloFooter.textContent = formatToBRL(totalGeloValor);
         }
+        
+        // Forçar atualização do total geral
+        calculateTotals();
+        
+        console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
     }
+}
     
     function calculateTotals() {
         let totalPasteisComunsVendido = 0, totalPasteisComunsValor = 0;
