@@ -19,7 +19,7 @@ exports.deleteUserAuth = functions.https.onCall(async (data, context) => {
 
     // Busca os dados do usuário que está fazendo a requisição
     const callerDoc = await admin.firestore()
-        .collection('users')
+        .collection('usuarios')
         .doc(context.auth.uid)
         .get();
 
@@ -33,12 +33,12 @@ exports.deleteUserAuth = functions.https.onCall(async (data, context) => {
     const callerData = callerDoc.data();
 
     // Verifica se o usuário é administrador
-    if (callerData.funcao !== 'Administrador') {
+    if (callerData.role !== 'Administrador') {
         throw new functions.https.HttpsError(
-            'permission-denied',
-            'Apenas administradores podem excluir usuários.'
-        );
-    }
+        'permission-denied',
+        'Apenas administradores podem excluir usuários.'
+    );
+}
 
     // Valida o UID fornecido
     const { uid } = data;
