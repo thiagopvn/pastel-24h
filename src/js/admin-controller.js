@@ -167,23 +167,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
             }
             this.produtosPorCategoria = {
-                pasteis: [
-                    "carne", "frango", "queijo", "pizza", "bauru", "calabresa", "palmito",
-                    "especial_de_carne", "especial_de_frango", "especial_de_calabresa"
-                ],
-                casquinhas: [
-                    "casquinha_simples", "casquinha_com_cobertura", "casquinha_com_granulado"
-                ],
-                caldo_cana: [
-                    "caldo_de_cana_300ml", "caldo_de_cana_500ml", "caldo_de_cana_700ml", "caldo_de_cana_1litro"
-                ],
-                refrigerantes: [
-                    "coca_cola_350ml", "coca_cola_600ml", "coca_cola_2l", "guarana_350ml", "guarana_600ml", 
-                    "guarana_2l", "fanta_laranja_350ml", "fanta_laranja_600ml", "fanta_laranja_2l", "fanta_uva_350ml", 
-                    "sprite_350ml", "agua_mineral_500ml"
-                ],
-                gelo: ["gelo_pacote"]
-            };
+    pasteis: [
+        "carne_com_queijo", "carne", "frango_com_catupiry", "frango_com_queijo",
+        "carioca", "pizza", "palmito", "queijo", "4_queijos", "bauru",
+        "calabresa", "portuguesa", "carne_seca", "especial_carne_seca",
+        "especial_de_carne", "especial_de_calabresa"
+    ],
+    casquinhas: [
+        "casquinha_crua", "casquinha_frita"
+    ],
+    caldo_cana: [
+        "fardo_de_cana", "copo_300ml", "copo_400ml", "copo_500ml",
+        "garrafa_500ml", "garrafa_1_litro"
+    ],
+    refrigerantes: [
+        "coca_cola", "fanta_laranja", "fanta_uva", "guarana",
+        "refri_limao", "refri_zero", "itubaina", "agua",
+        "agua_c_gas", "cerveja_longneck", "cerveja_lata"
+    ],
+    gelo: ["gelo_pacote"]
+};
             this.containerToCategoryMap = {
                 precosPasteisContainer: 'pasteis',
                 precosCasquinhasContainer: 'casquinhas',

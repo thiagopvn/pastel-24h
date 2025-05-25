@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Migração de Produtos - Pastelaria 24h</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #F97316; }
+        .status { 
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .warning { background-color: #fff3cd; color: #856404; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #F97316;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background-color: #EA580C; }
+        button:disabled { 
+            background-color: #ccc; 
+            cursor: not-allowed; 
+        }
+        #log {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry { margin: 5px 0; }
+        .backup-data {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔄 Migração de Produtos - Pastelaria 24h</h1>
+        
+        <div class="status info">
+            <strong>⚠️ ATENÇÃO:</strong> Este script irá migrar a estrutura de produtos no Firebase.
+            <br>Certifique-se de ter um backup antes de continuar!
+        </div>
+
+        <div id="connectionStatus" class="status">
+            Verificando conexão...
+        </div>
+
+        <div>
+            <button id="btnBackup" onclick="backupCurrentData()">
+                📥 1. Fazer Backup dos Dados Atuais
+            </button>
+            <button id="btnAnalyze" onclick="analyzeData()" disabled>
+                🔍 2. Analisar Estrutura Atual
+            </button>
+            <button id="btnMigrate" onclick="executeMigration()" disabled>
+                🚀 3. Executar Migração
+            </button>
+            <button id="btnVerify" onclick="verifyMigration()" disabled>
+                ✅ 4. Verificar Migração
+            </button>
+        </div>
+
+        <div class="backup-data" id="backupSection">
+            <h3>📋 Backup dos Dados Atuais</h3>
+            <p>Copie e salve este backup antes de continuar:</p>
+            <textarea id="backupData" readonly></textarea>
+            <button onclick="downloadBackup()">💾 Baixar Backup</button>
+        </div>
+
+        <h3>📊 Log de Execução</h3>
+        <div id="log"></div>
+    </div>
+
+    <script>
+        // Configuração do Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyAFiDHRY_DuJ6pLzDmR-M2bNhzgxsX9doE",
+            authDomain: "projetopastel-24h.firebaseapp.com",
+            projectId: "projetopastel-24h",
+            storageBucket: "projetopastel-24h.firebasestorage.app",
+            messagingSenderId: "348495095024",
+            appId: "1:348495095024:web:b3e49b8ef1909e4e7ece35",
+            measurementId: "G-0D4BNK64Z7"
+        };
+
+        // Inicializar Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        let backupData = {};
+        let currentData = {};
+
+        // Mapeamento de migração
+        const migrationMap = {
+            pasteis: {
+                // Adições de novos produtos
+                "carne_com_queijo": { preco: 8.00, novo: true },
+                "frango_com_catupiry": { preco: 8.00, novo: true },
+                "frango_com_queijo": { preco: 8.00, novo: true },
+                "carioca": { preco: 8.00, novo: true },
+                "4_queijos": { preco: 8.00, novo: true },
+                "portuguesa": { preco: 8.00, novo: true },
+                "carne_seca": { preco: 10.00, novo: true },
+                "especial_carne_seca": { preco: 12.00, novo: true },
+                // Manter existentes
+                "carne": "manter",
+                "frango": "remover", // Será substituído por frango_com_queijo e frango_com_catupiry
+                "queijo": "manter",
+                "pizza": "manter",
+                "bauru": "manter",
+                "calabresa": "manter",
+                "palmito": "manter",
+                "especial_de_carne": "manter",
+                "especial_de_frango": "remover", // Removido da lista
+                "especial_de_calabresa": "manter"
+            },
+            casquinhas: {
+                "casquinha_crua": { mapFrom: "casquinha_simples" },
+                "casquinha_frita": { mapFrom: "casquinha_com_cobertura" },
+                // Remover
+                "casquinha_com_granulado": "remover"
+            },
+            caldo_cana: {
+                "fardo_de_cana": { preco: 20.00, novo: true },
+                "copo_300ml": { mapFrom: "caldo_de_cana_300ml" },
+                "copo_400ml": { preco: 6.00, novo: true },
+                "copo_500ml": { mapFrom: "caldo_de_cana_500ml" },
+                "garrafa_500ml": { mapFrom: "caldo_de_cana_700ml" },
+                "garrafa_1_litro": { mapFrom: "caldo_de_cana_1litro" }
+            },
+            refrigerantes: {
+                "coca_cola": { mapFrom: "coca_cola_350ml" },
+                "fanta_laranja": { mapFrom: "fanta_laranja_350ml" },
+                "fanta_uva": { mapFrom: "fanta_uva_350ml" },
+                "guarana": { mapFrom: "guarana_350ml" },
+                "refri_limao": { mapFrom: "sprite_350ml" },
+                "refri_zero": { preco: 5.00, novo: true },
+                "itubaina": { preco: 5.00, novo: true },
+                "agua": { mapFrom: "agua_mineral_500ml" },
+                "agua_c_gas": { preco: 4.00, novo: true },
+                "cerveja_longneck": { preco: 8.00, novo: true },
+                "cerveja_lata": { preco: 6.00, novo: true },
+                // Remover tamanhos extras
+                "coca_cola_600ml": "remover",
+                "coca_cola_2l": "remover",
+                "guarana_600ml": "remover",
+                "guarana_2l": "remover",
+                "fanta_laranja_600ml": "remover",
+                "fanta_laranja_2l": "remover"
+            }
+        };
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            const colors = {
+                info: '#0c5460',
+                success: '#155724',
+                error: '#721c24',
+                warning: '#856404'
+            };
+            
+            logDiv.innerHTML += `
+                <div class="log-entry" style="color: ${colors[type]}">
+                    [${timestamp}] ${message}
+                </div>
+            `;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Verificar autenticação
+        auth.onAuthStateChanged(async (user) => {
+            if (user) {
+                document.getElementById('connectionStatus').className = 'status success';
+                document.getElementById('connectionStatus').innerHTML = 
+                    `✅ Conectado como: ${user.email}`;
+                document.getElementById('btnBackup').disabled = false;
+                log('Autenticação confirmada', 'success');
+            } else {
+                document.getElementById('connectionStatus').className = 'status error';
+                document.getElementById('connectionStatus').innerHTML = 
+                    '❌ Não autenticado. Faça login primeiro!';
+                log('Erro: Usuário não autenticado', 'error');
+            }
+        });
+
+        async function backupCurrentData() {
+            try {
+                log('Iniciando backup dos dados atuais...', 'info');
+                backupData = {};
+                
+                for (const collection of ['produtos', 'turnos']) {
+                    log(`Fazendo backup da coleção: ${collection}`, 'info');
+                    const snapshot = await db.collection(collection).get();
+                    backupData[collection] = {};
+                    
+                    snapshot.forEach(doc => {
+                        backupData[collection][doc.id] = doc.data();
+                    });
+                }
+                
+                document.getElementById('backupData').value = 
+                    JSON.stringify(backupData, null, 2);
+                document.getElementById('backupSection').style.display = 'block';
+                document.getElementById('btnAnalyze').disabled = false;
+                
+                log('✅ Backup concluído com sucesso!', 'success');
+                log(`Total de documentos: produtos(${Object.keys(backupData.produtos || {}).length}), turnos(${Object.keys(backupData.turnos || {}).length})`, 'info');
+                
+            } catch (error) {
+                log(`❌ Erro ao fazer backup: ${error.message}`, 'error');
+            }
+        }
+
+        async function analyzeData() {
+            try {
+                log('🔍 Analisando estrutura atual dos dados...', 'info');
+                
+                for (const [categoria, items] of Object.entries(migrationMap)) {
+                    log(`\nAnalisando categoria: ${categoria}`, 'warning');
+                    
+                    const doc = await db.collection('produtos').doc(categoria).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        currentData[categoria] = data;
+                        
+                        log(`Produtos encontrados: ${Object.keys(data).join(', ')}`, 'info');
+                        
+                        // Verificar o que será migrado
+                        for (const [newKey, action] of Object.entries(items)) {
+                            if (typeof action === 'object') {
+                                if (action.novo) {
+                                    log(`  ➕ Novo produto: ${newKey} (R$ ${action.preco})`, 'success');
+                                } else if (action.mapFrom) {
+                                    const oldValue = data[action.mapFrom];
+                                    log(`  🔄 Renomear: ${action.mapFrom} → ${newKey} (R$ ${oldValue || '?'})`, 'warning');
+                                }
+                            } else if (action === 'remover') {
+                                log(`  ❌ Remover: ${newKey}`, 'error');
+                            } else if (action === 'manter') {
+                                log(`  ✅ Manter: ${newKey} (R$ ${data[newKey] || '?'})`, 'success');
+                            }
+                        }
+                    } else {
+                        log(`⚠️ Documento '${categoria}' não encontrado!`, 'error');
+                    }
+                }
+                
+                document.getElementById('btnMigrate').disabled = false;
+                log('\n✅ Análise concluída. Pronto para migração.', 'success');
+                
+            } catch (error) {
+                log(`❌ Erro na análise: ${error.message}`, 'error');
+            }
+        }
+
+        async function executeMigration() {
+            if (!confirm('⚠️ TEM CERTEZA que deseja executar a migração? Esta ação modificará os dados no Firebase!')) {
+                return;
+            }
+            
+            try {
+                log('\n🚀 INICIANDO MIGRAÇÃO...', 'warning');
+                
+                for (const [categoria, items] of Object.entries(migrationMap)) {
+                    log(`\nMigrando categoria: ${categoria}`, 'warning');
+                    
+                    const docRef = db.collection('produtos').doc(categoria);
+                    const doc = await docRef.get();
+                    let updateData = {};
+                    
+                    if (doc.exists) {
+                        const currentData = doc.data();
+                        
+                        // Processar cada item da migração
+                        for (const [newKey, action] of Object.entries(items)) {
+                            if (typeof action === 'object') {
+                                if (action.novo) {
+                                    // Adicionar novo produto
+                                    updateData[newKey] = action.preco;
+                                    log(`  ➕ Adicionando: ${newKey} = R$ ${action.preco}`, 'success');
+                                } else if (action.mapFrom) {
+                                    // Mapear de produto existente
+                                    if (currentData[action.mapFrom] !== undefined) {
+                                        updateData[newKey] = currentData[action.mapFrom];
+                                        log(`  🔄 Mapeando: ${action.mapFrom} → ${newKey} = R$ ${currentData[action.mapFrom]}`, 'warning');
+                                    }
+                                }
+                            } else if (action === 'manter') {
+                                // Manter produto existente
+                                if (currentData[newKey] !== undefined) {
+                                    updateData[newKey] = currentData[newKey];
+                                    log(`  ✅ Mantendo: ${newKey} = R$ ${currentData[newKey]}`, 'info');
+                                }
+                            }
+                            // Produtos marcados como 'remover' não são incluídos em updateData
+                        }
+                        
+                        // Atualizar documento com nova estrutura
+                        await docRef.set(updateData);
+                        log(`✅ Categoria ${categoria} migrada com sucesso!`, 'success');
+                        
+                    } else {
+                        log(`❌ Categoria ${categoria} não existe no Firebase!`, 'error');
+                    }
+                }
+                
+                document.getElementById('btnVerify').disabled = false;
+                log('\n🎉 MIGRAÇÃO CONCLUÍDA!', 'success');
+                
+            } catch (error) {
+                log(`❌ ERRO CRÍTICO NA MIGRAÇÃO: ${error.message}`, 'error');
+                log('⚠️ Verifique o backup e considere restaurar se necessário!', 'error');
+            }
+        }
+
+        async function verifyMigration() {
+            try {
+                log('\n✅ Verificando migração...', 'info');
+                
+                const expectedStructure = {
+                    pasteis: [
+                        "carne_com_queijo", "carne", "frango_com_catupiry", "frango_com_queijo",
+                        "carioca", "pizza", "palmito", "queijo", "4_queijos", "bauru",
+                        "calabresa", "portuguesa", "carne_seca", "especial_carne_seca",
+                        "especial_de_carne", "especial_de_calabresa"
+                    ],
+                    casquinhas: ["casquinha_crua", "casquinha_frita"],
+                    caldo_cana: [
+                        "fardo_de_cana", "copo_300ml", "copo_400ml", "copo_500ml",
+                        "garrafa_500ml", "garrafa_1_litro"
+                    ],
+                    refrigerantes: [
+                        "coca_cola", "fanta_laranja", "fanta_uva", "guarana",
+                        "refri_limao", "refri_zero", "itubaina", "agua",
+                        "agua_c_gas", "cerveja_longneck", "cerveja_lata"
+                    ]
+                };
+                
+                let allOk = true;
+                
+                for (const [categoria, expectedItems] of Object.entries(expectedStructure)) {
+                    log(`\nVerificando ${categoria}:`, 'info');
+                    
+                    const doc = await db.collection('produtos').doc(categoria).get();
+                    if (doc.exists) {
+                        const data = doc.data();
+                        const actualItems = Object.keys(data);
+                        
+                        // Verificar se todos os itens esperados existem
+                        for (const item of expectedItems) {
+                            if (data[item] !== undefined) {
+                                log(`  ✅ ${item}: R$ ${data[item]}`, 'success');
+                            } else {
+                                log(`  ❌ ${item}: NÃO ENCONTRADO!`, 'error');
+                                allOk = false;
+                            }
+                        }
+                        
+                        // Verificar se há itens extras que deveriam ter sido removidos
+                        const extras = actualItems.filter(item => !expectedItems.includes(item));
+                        if (extras.length > 0) {
+                            log(`  ⚠️ Itens extras encontrados: ${extras.join(', ')}`, 'warning');
+                        }
+                        
+                    } else {
+                        log(`❌ Categoria ${categoria} não encontrada!`, 'error');
+                        allOk = false;
+                    }
+                }
+                
+                if (allOk) {
+                    log('\n🎉 MIGRAÇÃO VERIFICADA COM SUCESSO! Todos os produtos estão corretos.', 'success');
+                } else {
+                    log('\n⚠️ PROBLEMAS ENCONTRADOS NA VERIFICAÇÃO!', 'error');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro na verificação: ${error.message}`, 'error');
+            }
+        }
+
+        function downloadBackup() {
+            const dataStr = JSON.stringify(backupData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `backup-produtos-${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            log('💾 Backup baixado com sucesso!', 'success');
+        }
+    </script>
+</body>
+</html>

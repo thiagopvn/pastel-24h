@@ -26,58 +26,64 @@ if (typeof window.STORAGE_KEYS === 'undefined') {
 }
 
 // Templates de sabores e produtos - previne redeclaração
+// PASTÉIS - Nova ordem e nomenclatura
 if (typeof window.listaSaboresPasteis === 'undefined') {
     window.listaSaboresPasteis = [
+        "Carne com Queijo",
         "Carne",
-        "Frango",
-        "Queijo",
+        "Frango com Catupiry",
+        "Frango com Queijo",
+        "Carioca",
         "Pizza",
+        "Palmito",
+        "Queijo",
+        "4 Queijos",
         "Bauru",
         "Calabresa",
-        "Palmito",
+        "Portuguesa",
+        "Carne Seca",
+        "Especial Carne Seca",
         "Especial de Carne",
-        "Especial de Frango",
         "Especial de Calabresa"
     ];
 }
 
+// CASQUINHAS - Nomenclatura atualizada
 if (typeof window.listaCasquinhas === 'undefined') {
     window.listaCasquinhas = [
-        "Casquinha Simples",
-        "Casquinha com Cobertura",
-        "Casquinha com Granulado"
+        "Casquinha Crua",
+        "Casquinha Frita"
     ];
 }
 
+// CALDO DE CANA - Adicionando Fardo de Cana
 if (typeof window.listaCaldoCana === 'undefined') {
     window.listaCaldoCana = [
-        "Caldo de Cana 300ml",
-        "Caldo de Cana 500ml",
-        "Caldo de Cana 700ml",
-        "Caldo de Cana 1litro"
+        "Fardo de Cana",
+        "Copo 300ml",
+        "Copo 400ml", 
+        "Copo 500ml",
+        "Garrafa 500ml",
+        "Garrafa 1 Litro"
     ];
 }
 
+// REFRIGERANTES - Lista completamente reformulada
 if (typeof window.listaRefrigerantes === 'undefined') {
     window.listaRefrigerantes = [
-        "Coca-Cola 350ml",
-        "Coca-Cola 600ml",
-        "Coca-Cola 2L",
-        "Guaraná 350ml",
-        "Guaraná 600ml",
-        "Guaraná 2L",
-        "Fanta Laranja 350ml",
-        "Fanta Laranja 600ml",
-        "Fanta Laranja 2L",
-        "Fanta Uva 350ml",
-        "Sprite 350ml",
-        "Água Mineral 500ml"
+        "Coca-Cola",
+        "Fanta Laranja",
+        "Fanta Uva",
+        "Guaraná",
+        "Refri Limão",
+        "Refri. Zero",
+        "Itubaina",
+        "Água",
+        "Água c/ Gás",
+        "Cerveja Longneck",
+        "Cerveja Lata"
     ];
 }
-
-// O resto do arquivo shared.js continua como antes...
-
-// ===== MANIPULAÇÃO DO LOCALSTORAGE =====
 /**
  * Salva um item no localStorage com tratamento de erro
  * @param {string} key - Chave para armazenamento
