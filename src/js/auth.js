@@ -315,30 +315,33 @@ if (userRole === 'admin') {
     }
 
     // Sincroniza dados do usuário com o Firestore
-    async function syncUserDataWithFirestore(user) {
-        if (!user) return null;
-        
-        try {
-            const userDocRef = db.collection('usuarios').doc(user.uid);
-            const userDoc = await userDocRef.get();
-
-            if (userDoc.exists) {
-                const userData = userDoc.data();
-                localStorage.setItem('userRole', userData.role);
-                localStorage.setItem('userName', userData.nome || user.displayName || user.email);
-                localStorage.setItem('userUID', user.uid);
+                async function syncUserDataWithFirestore(user) {
+                if (!user) return null;
                 
-                console.log("Dados do usuário recuperados do Firestore:", userData.role);
-                return userData;
-            } else {
-                console.error("Usuário não encontrado no Firestore:", user.uid);
-                throw new Error("Usuário não registrado no sistema");
+                try {
+                    const userDocRef = db.collection('usuarios').doc(user.uid);
+                    const userDoc = await userDocRef.get();
+
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        
+                        // Validação e correção automática de roles antigas
+                        let role = userData.role;
+                        if (role === 'Administrador') role = 'admin';
+                        if (role === 'Funcionário') role = 'funcionario';
+                        
+                        localStorage.setItem('userRole', role);
+                        localStorage.setItem('userName', userData.nome || user.displayName || user.email);
+                        localStorage.setItem('userUID', user.uid);
+                        
+                        console.log("Dados do usuário recuperados do Firestore:", role);
+                        return userData;
+                    }
+                } catch (error) {
+                    console.error("Erro ao sincronizar com Firestore:", error);
+                    throw error;
+                }
             }
-        } catch (error) {
-            console.error("Erro ao sincronizar com Firestore:", error);
-            throw error;
-        }
-    }
 
     // Atualiza interface com dados do usuário
     function updateUserInterface(user) {

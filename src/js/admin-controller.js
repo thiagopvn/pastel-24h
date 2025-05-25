@@ -1086,8 +1086,8 @@ class UserManager {
     }
 
     getRoleText(role) {
-    return role === 'admin' ? 'admin' : 'funcionario';
-    }
+    return role === 'admin' ? 'Administrador' : 'Funcionário';
+}
 
     attachEventListeners() {
         // Event listeners para botões de exclusão
@@ -1249,12 +1249,13 @@ class UserManager {
                 });
                 
                 // Cria documento na coleção 'users' com a função correta
+                // CÓDIGO CORRIGIDO:
                 await db.collection('usuarios').doc(newUser.uid).set({
                     nome: nome,
                     email: email,
-                    role: role === 'admin' ? 'Administrador' : 'Funcionário',
+                    role: role,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                }); 
                 
                 // Faz logout da instância secundária
                 await secondaryAuth.signOut();
