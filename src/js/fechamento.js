@@ -157,13 +157,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             turnosDocs.forEach(doc => {
                 if (doc.exists && doc.data().status === 'fechado') {
                     const data = doc.data();
-                    console.log('Documento turno encontrado:', doc.id);
-                    console.log('Responsável do turno:', data.fechamento?.responsavelNome);
                     
-                    // Como não há dados de funcionários na estrutura atual,
-                    // vamos criar dados baseados no responsável do turno
                     const responsavelId = data.fechamento?.responsavelId || data.abertura?.responsavelId;
-                    const responsavelNome = data.fechamento?.responsavelNome || data.abertura?.responsavelNome;
                     
                     if (responsavelId) {
                         if (!turnos[dateStr]) turnos[dateStr] = {};
@@ -178,51 +173,57 @@ document.addEventListener('DOMContentLoaded', async () => {
                         
                         // Calcular horas trabalhadas
                         if (data.abertura?.hora && data.fechamento?.hora) {
-                            const horaAbertura = data.abertura.hora.split(':');
-                            const horaFechamento = data.fechamento.hora.split(':');
+                            const [horaIni, minIni] = data.abertura.hora.split(':').map(Number);
+                            const [horaFim, minFim] = data.fechamento.hora.split(':').map(Number);
                             
-                            const abertura = parseInt(horaAbertura[0]) + parseInt(horaAbertura[1])/60;
-                            const fechamento = parseInt(horaFechamento[0]) + parseInt(horaFechamento[1])/60;
+                            let totalMinutosIni = horaIni * 60 + minIni;
+                            let totalMinutosFim = horaFim * 60 + minFim;
                             
-                            let horasTrabalhadas = fechamento - abertura;
-                            if (horasTrabalhadas < 0) horasTrabalhadas += 24;
+                            if (totalMinutosFim < totalMinutosIni) {
+                                totalMinutosFim += 24 * 60;
+                            }
                             
+                            const horasTrabalhadas = (totalMinutosFim - totalMinutosIni) / 60;
                             turnos[dateStr][responsavelId].horas += horasTrabalhadas;
                         }
                         
-                        // Calcular consumo total
+                        // Calcular consumo total do funcionário
                         let consumoTotal = 0;
                         
-                        // Consumo de pastéis
                         if (data.itens?.pasteis) {
                             Object.values(data.itens.pasteis).forEach(item => {
-                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                if (item.consumo && item.consumo > 0) {
+                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                }
                             });
                         }
                         
-                        // Consumo de outros itens
                         if (data.itens?.caldo_cana) {
                             Object.values(data.itens.caldo_cana).forEach(item => {
-                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                if (item.consumo && item.consumo > 0) {
+                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                }
                             });
                         }
                         
                         if (data.itens?.refrigerantes) {
                             Object.values(data.itens.refrigerantes).forEach(item => {
-                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                if (item.consumo && item.consumo > 0) {
+                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                }
                             });
                         }
                         
-                        if (data.gelo?.gelo_pacote?.consumoInterno) {
+                        if (data.gelo?.gelo_pacote?.consumoInterno && data.gelo.gelo_pacote.consumoInterno > 0) {
                             consumoTotal += data.gelo.gelo_pacote.consumoInterno * (data.gelo.gelo_pacote.precoUnitario || 0);
                         }
                         
                         turnos[dateStr][responsavelId].consumo += consumoTotal;
                         
                         // Valores padrão para alimentação e transporte
-                        // (pode ser ajustado conforme necessário)
-                        turnos[dateStr][responsavelId].alimentacao += 15; // valor padrão
-                        turnos[dateStr][responsavelId].transporteQtd += 2; // 2 viagens padrão
+                        // Como não há esses dados no Firebase, deixamos em 0 para o usuário preencher
+                        turnos[dateStr][responsavelId].alimentacao += 0;
+                        turnos[dateStr][responsavelId].transporteQtd += 0;
                     }
                 }
             });
@@ -230,7 +231,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log('Turnos processados:', turnos);
+        console.log('Turnos processados final:', turnos);
         return turnos;
     } catch (error) {
         console.error('Erro ao carregar turnos:', error);
