@@ -1170,7 +1170,6 @@ function setupPriceListener() {
         const user = auth.currentUser;
         if (!user) {
             console.error("Usuário não autenticado ao buscar turno anterior");
-            // Tentar renovar o token de autenticação
             try {
                 await auth.currentUser?.getIdToken(true);
                 console.log("Token de autenticação renovado com sucesso");
@@ -1180,19 +1179,20 @@ function setupPriceListener() {
             }
         }
 
-        console.log("Buscando o último turno fechado independente do período...");
-        // Busca diretamente o último turno fechado, ordenado pela data de fechamento
+        console.log("Buscando último turno fechado para transferência de estoque...");
+        
+        // Buscar diretamente o último turno fechado, sem tentar um ID específico primeiro
         const turnosRef = await db.collection('turnos')
             .where('status', '==', 'fechado')
-            .orderBy('closedAt', 'desc')  // Usa o timestamp de fechamento para ordenação
+            .orderBy('closedAt', 'desc')
             .limit(1)
             .get();
-        
+            
         if (!turnosRef.empty) {
             const turnoDoc = turnosRef.docs[0];
-            console.log(`Encontrado último turno fechado: ${turnoDoc.id}`);
-            
             const dados = turnoDoc.data();
+            
+            console.log(`✅ Turno anterior encontrado: ${turnoDoc.id} (fechado em: ${dados.fechamento?.hora || 'N/A'})`);
             
             const estoqueFinal = { 
                 itens: {}, 
@@ -1243,16 +1243,14 @@ function setupPriceListener() {
             
             return estoqueFinal;
         } else {
-            console.warn("Nenhum turno fechado encontrado. Iniciando com estoque zero.");
+            console.log("⚠️ Nenhum turno fechado encontrado no sistema. Iniciando com estoque zero.");
         }
     } catch (error) {
-        console.error("Erro ao buscar último turno fechado:", error);
+        console.error("❌ Erro ao buscar último turno fechado:", error);
         
-        // Se o erro for de permissão, continuamos mesmo sem dados anteriores
         if (error.code === 'permission-denied') {
-            console.warn("Erro de permissão ao acessar turnos. Iniciando com estoque zero.");
+            console.warn("⚠️ Erro de permissão ao acessar turnos. Iniciando com estoque zero.");
         } else {
-            // Para outros erros, propaga para o chamador tratar
             throw error;
         }
     }
