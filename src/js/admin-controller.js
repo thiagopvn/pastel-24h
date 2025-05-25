@@ -1249,7 +1249,7 @@ class UserManager {
                 });
                 
                 // Cria documento na coleção 'users' com a função correta
-                await db.collection('users').doc(newUser.uid).set({
+                await db.collection('usuarios').doc(newUser.uid).set({
                     nome: nome,
                     email: email,
                     funcao: role === 'admin' ? 'Administrador' : 'Funcionário',
