@@ -902,395 +902,404 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     // Gerenciador de Usuários
-    class UserManager {
-        constructor() {
-            this.container = document.getElementById('listaUsuariosContainer');
-            this.form = document.getElementById('formNovoUsuario');
-            
-            if (!this.container) {
-                console.warn("⚠️ Container 'listaUsuariosContainer' não encontrado");
-            }
-            
-            if (!this.form) {
-                console.warn("⚠️ Formulário 'formNovoUsuario' não encontrado");
-            }
+    // Atualizar a classe UserManager completamente
+class UserManager {
+    constructor() {
+        this.container = document.getElementById('listaUsuariosContainer');
+        this.form = document.getElementById('formNovoUsuario');
+        
+        if (!this.container) {
+            console.warn("⚠️ Container 'listaUsuariosContainer' não encontrado");
         }
+        
+        if (!this.form) {
+            console.warn("⚠️ Formulário 'formNovoUsuario' não encontrado");
+        }
+    }
 
-        async load() {
-            console.log("🔄 Iniciando carregamento de usuários...");
-            notifications.showMessage("Carregando usuários...", "info");
+    async load() {
+        console.log("🔄 Iniciando carregamento de usuários...");
+        notifications.showMessage("Carregando usuários...", "info");
+        
+        this.showLoading();
+        
+        try {
+            const users = await this.fetchUsers();
+            appState.users = users;
             
-            this.showLoading();
-            
-            try {
-                const users = await this.fetchUsers();
-                appState.users = users;
-                
-                if (users.length === 0) {
-                    console.warn("⚠️ Nenhum usuário encontrado");
-                    this.showEmpty();
-                } else {
-                    console.log("✅ Usuários carregados:", users);
-                    this.renderUsers();
-                }
-                
-                this.setupFormHandler();
-                
-                notifications.showMessage("Usuários carregados com sucesso!", "success");
-                
-            } catch (error) {
-                console.error("❌ Erro ao carregar usuários:", error);
-                notifications.showMessage(`Erro ao carregar usuários: ${error.message}`, "error");
-                this.showError(error.message);
-            }
-        }
-
-        showLoading() {
-            if (this.container) {
-                this.container.innerHTML = `
-                    <div class="flex items-center justify-center p-10">
-                        <div class="text-center">
-                            <div class="inline-block animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
-                            <p class="text-gray-600">Carregando usuários...</p>
-                        </div>
-                    </div>
-                `;
-            }
-        }
-
-        showEmpty() {
-            if (this.container) {
-                this.container.innerHTML = `
-                    <div class="text-center py-12 text-gray-500">
-                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-users text-2xl text-gray-400"></i>
-                        </div>
-                        <p class="text-lg font-medium">Nenhum usuário encontrado</p>
-                        <p class="text-sm text-gray-400 mt-1">Adicione o primeiro usuário usando o formulário acima</p>
-                    </div>
-                `;
-            }
-        }
-
-        showError(message) {
-            if (this.container) {
-                this.container.innerHTML = `
-                    <div class="text-center py-12 text-red-500">
-                        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                            <i class="fas fa-exclamation-triangle text-2xl"></i>
-                        </div>
-                        <p class="text-lg font-medium">Erro ao carregar usuários</p>
-                        <p class="text-sm text-gray-400 mt-1">${message || "Verifique sua conexão e tente novamente"}</p>
-                        <button onclick="userManager.load()" class="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
-                            Tentar novamente
-                        </button>
-                    </div>
-                `;
-            }
-        }
-
-        async fetchUsers() {
-            console.log("🔍 Buscando usuários no Firebase...");
-            
-            if (!auth.currentUser) {
-                console.error("❌ Usuário não autenticado ao buscar usuários");
-                throw new Error("Usuário não autenticado");
+            if (users.length === 0) {
+                console.warn("⚠️ Nenhum usuário encontrado");
+                this.showEmpty();
+            } else {
+                console.log("✅ Usuários carregados:", users);
+                this.renderUsers();
             }
             
-            try {
-                console.log("🔍 Buscando da coleção 'usuarios'...");
-                const snapshot = await db.collection('usuarios').get();
-                
-                console.log(`📊 Encontrados ${snapshot.size} documentos na coleção 'usuarios'`);
-                
-                const users = [];
-                
-                snapshot.forEach(doc => {
-                    const userData = doc.data();
-                    console.log(`Usuário ${doc.id}:`, userData);
-                    
-                    users.push({
-                        id: doc.id,
-                        nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
-                        email: userData.email || 'Sem email',
-                        role: userData.role || 'funcionario',
-                        createdAt: userData.createdAt || firebase.firestore.Timestamp.now()
-                    });
-                });
-                
-                if (users.length === 0) {
-                    console.log("🔨 Nenhum usuário encontrado. Criando usuário atual como admin...");
-                    
-                    const currentUser = auth.currentUser;
-                    const currentUserData = {
-                        nome: currentUser.displayName || currentUser.email || 'Administrador',
-                        email: currentUser.email,
-                        role: 'admin',
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-                    
-                    await db.collection('usuarios').doc(currentUser.uid).set(currentUserData);
-                    
-                    users.push({
-                        id: currentUser.uid,
-                        ...currentUserData,
-                        createdAt: firebase.firestore.Timestamp.now()
-                    });
-                    
-                    console.log("✅ Usuário atual salvo como admin no Firestore");
-                }
-                
-                return users;
-                
-            } catch (error) {
-                console.error("❌ Erro ao buscar usuários:", error);
-                console.error("Tipo de erro:", error.name);
-                console.error("Código do erro:", error.code);
-                console.error("Mensagem:", error.message);
-                throw error;
-            }
-        }
-
-        renderUsers() {
-            if (!this.container) return;
+            this.setupFormHandler();
+            this.setupPasswordHandlers();
             
-            this.container.innerHTML = appState.users.map(usuario => `
-                <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4">
-                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
-                        <div class="flex-1 flex items-center space-x-4">
-                            <div class="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-lg">
-                                <i class="fas fa-user text-white text-lg"></i>
-                            </div>
-                            <div class="flex-1">
-                                <h4 class="text-lg font-semibold text-gray-800">${usuario.nome || 'Nome não informado'}</h4>
-                                <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
-                                <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                                    <span class="flex items-center">
-                                        <i class="fas fa-fingerprint mr-1"></i>
-                                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
-                                    </span>
-                                    <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
-                                        <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
-                                        ${this.getRoleText(usuario.role)}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-center space-x-3">
-                            <div class="flex items-center space-x-2">
-                                <label class="text-sm font-medium text-gray-700">Função:</label>
-                                <select class="user-role-select px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all" 
-                                        data-user-id="${usuario.id}">
-                                    <option value="funcionario" ${usuario.role === 'funcionario' ? 'selected' : ''}>Funcionário</option>
-                                    <option value="admin" ${usuario.role === 'admin' ? 'selected' : ''}>Administrador</option>
-                                </select>
-                            </div>
-                            
-                            <button class="save-role-btn bg-success-500 hover:bg-success-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                    data-user-id="${usuario.id}">
-                                <i class="fas fa-save mr-1"></i>Salvar
-                            </button>
-                            
-                            ${usuario.id !== auth.currentUser.uid ? `
-                                <button class="delete-user-btn bg-danger-500 hover:bg-danger-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                        data-user-id="${usuario.id}" 
-                                        data-user-name="${usuario.nome}">
-                                    <i class="fas fa-trash mr-1"></i>Excluir
-                                </button>
-                            ` : `
-                                <button class="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium shadow-sm cursor-not-allowed" 
-                                        disabled title="Não é possível excluir seu próprio usuário">
-                                    <i class="fas fa-trash mr-1"></i>Excluir
-                                </button>
-                            `}
-                        </div>
+            notifications.showMessage("Usuários carregados com sucesso!", "success");
+            
+        } catch (error) {
+            console.error("❌ Erro ao carregar usuários:", error);
+            notifications.showMessage(`Erro ao carregar usuários: ${error.message}`, "error");
+            this.showError(error.message);
+        }
+    }
+
+    showLoading() {
+        if (this.container) {
+            this.container.innerHTML = `
+                <div class="flex items-center justify-center p-10">
+                    <div class="text-center">
+                        <div class="inline-block animate-spin h-8 w-8 border-4 border-primary-500 border-t-transparent rounded-full mb-4"></div>
+                        <p class="text-gray-600">Carregando usuários...</p>
                     </div>
                 </div>
-            `).join('');
-            
-            this.attachEventListeners();
+            `;
         }
+    }
 
-        getRoleBadgeClass(role) {
-            return role === 'admin' ? 
-                'bg-danger-100 text-danger-800' : 
-                'bg-blue-100 text-blue-800';
+    showEmpty() {
+        if (this.container) {
+            this.container.innerHTML = `
+                <div class="text-center py-12 text-gray-500">
+                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-users text-2xl text-gray-400"></i>
+                    </div>
+                    <p class="text-lg font-medium">Nenhum usuário encontrado</p>
+                    <p class="text-sm text-gray-400 mt-1">Adicione o primeiro usuário usando o formulário acima</p>
+                </div>
+            `;
         }
+    }
 
-        getRoleIcon(role) {
-            return role === 'admin' ? 'fa-user-shield' : 'fa-user';
+    showError(message) {
+        if (this.container) {
+            this.container.innerHTML = `
+                <div class="text-center py-12 text-red-500">
+                    <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i class="fas fa-exclamation-triangle text-2xl"></i>
+                    </div>
+                    <p class="text-lg font-medium">Erro ao carregar usuários</p>
+                    <p class="text-sm text-gray-400 mt-1">${message || "Verifique sua conexão e tente novamente"}</p>
+                    <button onclick="userManager.load()" class="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
+                        Tentar novamente
+                    </button>
+                </div>
+            `;
         }
+    }
 
-        getRoleText(role) {
-            return role === 'admin' ? 'Administrador' : 'Funcionário';
+    async fetchUsers() {
+        console.log("🔍 Buscando usuários no Firebase...");
+        
+        if (!auth.currentUser) {
+            console.error("❌ Usuário não autenticado ao buscar usuários");
+            throw new Error("Usuário não autenticado");
         }
-
-        attachEventListeners() {
-            document.querySelectorAll('.save-role-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const userId = btn.dataset.userId;
-                    const roleSelect = document.querySelector(`select[data-user-id="${userId}"]`);
-                    if (!roleSelect) {
-                        notifications.showMessage('Seletor de função não encontrado', 'error');
-                        return;
-                    }
-                    
-                    const newRole = roleSelect.value;
-                    
-                    const originalText = btn.innerHTML;
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Salvando...';
-                    
-                    try {
-                        await db.collection('usuarios').doc(userId).update({ role: newRole });
-                        
-                        const userIndex = appState.users.findIndex(u => u.id === userId);
-                        if (userIndex !== -1) {
-                            appState.users[userIndex].role = newRole;
-                        }
-                        
-                        notifications.showMessage('Função do usuário atualizada com sucesso', 'success');
-                        this.renderUsers();
-                        
-                    } catch (error) {
-                        console.error("❌ Erro ao atualizar função:", error);
-                        notifications.showMessage('Erro ao atualizar função: ' + error.message, 'error');
-                        
-                        const originalRole = appState.users.find(u => u.id === userId)?.role || 'funcionario';
-                        if (roleSelect) {
-                            roleSelect.value = originalRole;
-                        }
-                    } finally {
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                    }
-                });
-            });
+        
+        try {
+            console.log("🔍 Buscando da coleção 'users'...");
+            const snapshot = await db.collection('users').get();
             
-            document.querySelectorAll('.delete-user-btn').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const userId = btn.dataset.userId;
-                    const userName = btn.dataset.userName;
-                    
-                    if (userId === auth.currentUser.uid) {
-                        notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
-                        return;
-                    }
-                    
-                    if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"?\n\nEsta ação não pode ser desfeita.`)) {
-                        return;
-                    }
-                    
-                    const originalText = btn.innerHTML;
-                    btn.disabled = true;
-                    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Excluindo...';
-                    
-                    try {
-                        await db.collection('usuarios').doc(userId).delete();
-                        
-                        appState.users = appState.users.filter(u => u.id !== userId);
-                        
-                        notifications.showMessage(`Usuário "${userName}" excluído com sucesso`, 'success');
-                        this.renderUsers();
-                        
-                    } catch (error) {
-                        console.error("❌ Erro ao excluir usuário:", error);
-                        notifications.showMessage('Erro ao excluir usuário: ' + error.message, 'error');
-                    } finally {
-                        btn.disabled = false;
-                        btn.innerHTML = originalText;
-                    }
-                });
-            });
-        }
-
-        setupFormHandler() {
-            if (!this.form) return;
+            console.log(`📊 Encontrados ${snapshot.size} documentos na coleção 'users'`);
             
-            this.form.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                await this.addUser();
-            });
-        }
-
-        async addUser() {
-            const uidInput = document.getElementById('novoUsuarioUid');
-            const nomeInput = document.getElementById('novoUsuarioNome');
-            const emailInput = document.getElementById('novoUsuarioEmail');
-            const roleSelect = document.getElementById('novoUsuarioRole');
+            const users = [];
             
-            if (!uidInput || !nomeInput || !emailInput || !roleSelect) {
-                notifications.showMessage('Formulário incompleto. Recarregue a página e tente novamente.', 'error');
-                return;
-            }
-            
-            const uid = uidInput.value.trim();
-            const nome = nomeInput.value.trim();
-            const email = emailInput.value.trim();
-            const role = roleSelect.value;
-            
-            if (!uid || !nome || !email) {
-                notifications.showMessage('Todos os campos são obrigatórios', 'warning');
-                return;
-            }
-            
-            if (uid.length < 20) {
-                notifications.showMessage('UID inválido. Certifique-se de copiar o UID completo do Firebase Console', 'warning');
-                return;
-            }
-            
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) {
-                notifications.showMessage('Email inválido', 'warning');
-                return;
-            }
-            
-            const submitBtn = this.form.querySelector('button[type="submit"]');
-            if (!submitBtn) {
-                notifications.showMessage('Botão de envio não encontrado', 'error');
-                return;
-            }
-            
-            const originalText = submitBtn.innerHTML;
-            
-            try {
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Adicionando usuário...';
+            snapshot.forEach(doc => {
+                const userData = doc.data();
+                console.log(`Usuário ${doc.id}:`, userData);
                 
-                const existingUser = appState.users.find(u => u.id === uid);
-                if (existingUser) {
-                    throw new Error('Já existe um usuário com este UID');
+                users.push({
+                    id: doc.id,
+                    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                    email: userData.email || 'Sem email',
+                    funcao: userData.funcao || 'Funcionário',
+                    createdAt: userData.createdAt || firebase.firestore.Timestamp.now()
+                });
+            });
+            
+            return users;
+            
+        } catch (error) {
+            console.error("❌ Erro ao buscar usuários:", error);
+            throw error;
+        }
+    }
+
+    renderUsers() {
+        if (!this.container) return;
+        
+        this.container.innerHTML = appState.users.map(usuario => `
+            <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4">
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+                    <div class="flex-1 flex items-center space-x-4">
+                        <div class="w-14 h-14 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-lg">
+                            <i class="fas fa-user text-white text-lg"></i>
+                        </div>
+                        <div class="flex-1">
+                            <h4 class="text-lg font-semibold text-gray-800">${usuario.nome || 'Nome não informado'}</h4>
+                            <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
+                            <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                <span class="flex items-center">
+                                    <i class="fas fa-fingerprint mr-1"></i>
+                                    <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
+                                </span>
+                                <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.funcao)}">
+                                    <i class="fas ${this.getRoleIcon(usuario.funcao)} mr-1"></i>
+                                    ${usuario.funcao}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        ${usuario.id !== auth.currentUser.uid ? `
+                            <button class="delete-user-btn bg-danger-500 hover:bg-danger-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                    data-user-id="${usuario.id}" 
+                                    data-user-name="${usuario.nome}">
+                                <i class="fas fa-trash mr-1"></i>Excluir
+                            </button>
+                        ` : `
+                            <button class="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium shadow-sm cursor-not-allowed" 
+                                    disabled title="Não é possível excluir seu próprio usuário">
+                                <i class="fas fa-trash mr-1"></i>Excluir
+                            </button>
+                        `}
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        this.attachEventListeners();
+    }
+
+    getRoleBadgeClass(funcao) {
+        return funcao === 'Administrador' ? 
+            'bg-danger-100 text-danger-800' : 
+            'bg-blue-100 text-blue-800';
+    }
+
+    getRoleIcon(funcao) {
+        return funcao === 'Administrador' ? 'fa-user-shield' : 'fa-user';
+    }
+
+    attachEventListeners() {
+        // Event listeners para botões de exclusão
+        document.querySelectorAll('.delete-user-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const userId = btn.dataset.userId;
+                const userName = btn.dataset.userName;
+                
+                if (userId === auth.currentUser.uid) {
+                    notifications.showMessage('Você não pode excluir seu próprio usuário', 'warning');
+                    return;
                 }
                 
-                const userData = {
+                if (!confirm(`Tem certeza que deseja excluir o usuário "${userName}"?\n\nEsta ação não pode ser desfeita.`)) {
+                    return;
+                }
+                
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>Excluindo...';
+                
+                try {
+                    // Chama a Cloud Function para deletar o usuário
+                    const deleteFn = firebase.functions().httpsCallable('deleteUserAuth');
+                    await deleteFn({ uid: userId });
+                    
+                    // Remove da lista local
+                    appState.users = appState.users.filter(u => u.id !== userId);
+                    
+                    notifications.showMessage(`Usuário "${userName}" excluído com sucesso`, 'success');
+                    this.renderUsers();
+                    
+                } catch (error) {
+                    console.error("❌ Erro ao excluir usuário:", error);
+                    let errorMessage = 'Erro ao excluir usuário';
+                    
+                    if (error.code === 'permission-denied') {
+                        errorMessage = 'Você não tem permissão para excluir usuários';
+                    } else if (error.message) {
+                        errorMessage = error.message;
+                    }
+                    
+                    notifications.showMessage(errorMessage, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
+        });
+    }
+
+    setupFormHandler() {
+        if (!this.form) return;
+        
+        this.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.createUser();
+        });
+    }
+
+    setupPasswordHandlers() {
+        // Botão de gerar senha
+        const btnGerarSenha = document.getElementById('btnGerarSenha');
+        if (btnGerarSenha) {
+            btnGerarSenha.addEventListener('click', () => {
+                const senha = this.generatePassword();
+                document.getElementById('novoUsuarioSenha').value = senha;
+                document.getElementById('novoUsuarioConfirmarSenha').value = senha;
+                notifications.showMessage(`Senha gerada: ${senha}`, 'info', 8000);
+            });
+        }
+
+        // Validação de confirmação de senha
+        const senhaInput = document.getElementById('novoUsuarioSenha');
+        const confirmarSenhaInput = document.getElementById('novoUsuarioConfirmarSenha');
+        
+        if (confirmarSenhaInput && senhaInput) {
+            confirmarSenhaInput.addEventListener('input', () => {
+                if (confirmarSenhaInput.value !== senhaInput.value) {
+                    confirmarSenhaInput.setCustomValidity('As senhas não coincidem');
+                } else {
+                    confirmarSenhaInput.setCustomValidity('');
+                }
+            });
+        }
+    }
+
+    generatePassword() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@#$%';
+        let password = '';
+        for (let i = 0; i < 10; i++) {
+            password += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return password;
+    }
+
+    async createUser() {
+        const nomeInput = document.getElementById('novoUsuarioNome');
+        const emailInput = document.getElementById('novoUsuarioEmail');
+        const senhaInput = document.getElementById('novoUsuarioSenha');
+        const confirmarSenhaInput = document.getElementById('novoUsuarioConfirmarSenha');
+        const roleSelect = document.getElementById('novoUsuarioRole');
+        
+        if (!nomeInput || !emailInput || !senhaInput || !confirmarSenhaInput || !roleSelect) {
+            notifications.showMessage('Formulário incompleto. Recarregue a página e tente novamente.', 'error');
+            return;
+        }
+        
+        const nome = nomeInput.value.trim();
+        const email = emailInput.value.trim();
+        const senha = senhaInput.value;
+        const confirmarSenha = confirmarSenhaInput.value;
+        const role = roleSelect.value;
+        
+        // Validações
+        if (!nome || !email || !senha || !confirmarSenha) {
+            notifications.showMessage('Todos os campos são obrigatórios', 'warning');
+            return;
+        }
+        
+        if (senha !== confirmarSenha) {
+            notifications.showMessage('As senhas não coincidem', 'warning');
+            return;
+        }
+        
+        if (senha.length < 6) {
+            notifications.showMessage('A senha deve ter no mínimo 6 caracteres', 'warning');
+            return;
+        }
+        
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            notifications.showMessage('Email inválido', 'warning');
+            return;
+        }
+        
+        const submitBtn = document.getElementById('btnAdicionarUsuario');
+        const buttonText = submitBtn.querySelector('.button-text');
+        const spinner = document.getElementById('addUserSpinner');
+        
+        try {
+            // Desabilita o botão e mostra spinner
+            submitBtn.disabled = true;
+            buttonText.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            
+            // Cria instância secundária do Firebase para não fazer logout do admin
+            const secondaryApp = firebase.initializeApp(firebaseConfig, 'Secondary');
+            const secondaryAuth = secondaryApp.auth();
+            
+            try {
+                // Cria o usuário na instância secundária
+                const userCredential = await secondaryAuth.createUserWithEmailAndPassword(email, senha);
+                const newUser = userCredential.user;
+                
+                // Atualiza o nome do usuário
+                await newUser.updateProfile({
+                    displayName: nome
+                });
+                
+                // Cria documento na coleção 'users' com a função correta
+                await db.collection('users').doc(newUser.uid).set({
                     nome: nome,
                     email: email,
-                    role: role,
+                    funcao: role === 'admin' ? 'Administrador' : 'Funcionário',
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
+                });
                 
-                await db.collection('usuarios').doc(uid).set(userData);
+                // Faz logout da instância secundária
+                await secondaryAuth.signOut();
                 
+                // Adiciona à lista local
                 appState.users.push({
-                    id: uid,
-                    ...userData,
+                    id: newUser.uid,
+                    nome: nome,
+                    email: email,
+                    funcao: role === 'admin' ? 'Administrador' : 'Funcionário',
                     createdAt: { toDate: () => new Date() }
                 });
                 
-                notifications.showMessage(`Usuário "${nome}" adicionado com sucesso`, 'success');
+                notifications.showMessage(`Usuário "${nome}" criado com sucesso!`, 'success');
                 this.form.reset();
                 this.renderUsers();
                 
-            } catch (error) {
-                console.error("❌ Erro ao adicionar usuário:", error);
-                notifications.showMessage('Erro ao adicionar usuário: ' + error.message, 'error');
             } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = originalText;
+                // Sempre deleta a instância secundária
+                await secondaryApp.delete();
             }
+            
+        } catch (error) {
+            console.error("❌ Erro ao criar usuário:", error);
+            
+            let errorMessage = 'Erro ao criar usuário';
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    errorMessage = 'Este email já está em uso';
+                    break;
+                case 'auth/invalid-email':
+                    errorMessage = 'Email inválido';
+                    break;
+                case 'auth/weak-password':
+                    errorMessage = 'Senha muito fraca. Use pelo menos 6 caracteres';
+                    break;
+                default:
+                    errorMessage = error.message || errorMessage;
+            }
+            
+            notifications.showMessage(errorMessage, 'error');
+        } finally {
+            // Restaura o botão
+            submitBtn.disabled = false;
+            buttonText.classList.remove('hidden');
+            spinner.classList.add('hidden');
         }
     }
+}
 
     // Gerenciador de Abas
     class TabManager {

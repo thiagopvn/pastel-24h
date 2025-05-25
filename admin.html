@@ -777,84 +777,112 @@
         </div>
 
         <!-- Conteúdo Usuários -->
-        <div id="tabContentUsuarios" class="tab-content hidden">
-            <div class="glass-effect rounded-2xl p-6">
-                <!-- Header -->
-                <div class="text-center mb-8">
-                    <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
-                        <i class="fas fa-users text-white text-2xl"></i>
-                    </div>
-                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Usuários</h2>
-                    <p class="text-gray-600 max-w-2xl mx-auto">
-                        Adicione, edite ou remova usuários do sistema. Configure suas permissões de acesso.
-                    </p>
+<div id="tabContentUsuarios" class="tab-content hidden">
+    <div class="glass-effect rounded-2xl p-6">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
+                <i class="fas fa-users text-white text-2xl"></i>
+            </div>
+            <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Usuários</h2>
+            <p class="text-gray-600 max-w-2xl mx-auto">
+                Adicione, edite ou remova usuários do sistema. Configure suas permissões de acesso.
+            </p>
+        </div>
+        
+        <!-- Formulário para adicionar usuário ATUALIZADO -->
+        <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
+            <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
+                <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Nome Completo -->
+                <div>
+                    <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user mr-1"></i>Nome Completo
+                    </label>
+                    <input type="text" id="novoUsuarioNome" required 
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="Nome do Funcionário">
                 </div>
                 
-                <!-- Formulário para adicionar usuário -->
-                <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
-                    <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
-                        <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
-                    </h3>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label for="novoUsuarioUid" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-fingerprint mr-1"></i>UID (do Firebase Auth)
-                            </label>
-                            <input type="text" id="novoUsuarioUid" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="UID copiado do Firebase Console">
-                            <p class="text-xs text-gray-500 mt-1">Cole o UID do usuário criado no Firebase Authentication</p>
-                        </div>
-                        <div>
-                            <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-user mr-1"></i>Nome Completo
-                            </label>
-                            <input type="text" id="novoUsuarioNome" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="Nome do Funcionário">
-                        </div>
-                        <div>
-                            <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-envelope mr-1"></i>Email
-                            </label>
-                            <input type="email" id="novoUsuarioEmail" required 
-                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                                   placeholder="email@exemplo.com">
-                        </div>
-                        <div>
-                            <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-user-tag mr-1"></i>Função
-                            </label>
-                            <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
-                                <option value="funcionario">Funcionário</option>
-                                <option value="admin">Administrador</option>
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="mt-6 flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
-                        <i class="fas fa-user-plus mr-2"></i>Adicionar Usuário
-                    </button>
-                </form>
-                
-                <!-- Lista de usuários -->
+                <!-- Email -->
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
-                        <i class="fas fa-users mr-2"></i>Usuários Existentes
-                    </h3>
-                    <div id="listaUsuariosContainer" class="space-y-4">
-                        <!-- Usuários serão listados aqui pelo JavaScript -->
-                        <div class="flex items-center justify-center p-10">
-                            <div class="text-center">
-                                <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
-                                <p class="text-gray-500">Carregando usuários...</p>
-                            </div>
-                        </div>
+                    <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-envelope mr-1"></i>Email
+                    </label>
+                    <input type="email" id="novoUsuarioEmail" required 
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="email@exemplo.com">
+                </div>
+                
+                <!-- Senha -->
+                <div>
+                    <label for="novoUsuarioSenha" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-lock mr-1"></i>Senha
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="novoUsuarioSenha" required minlength="6"
+                               class="w-full p-3 pr-24 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                               placeholder="Mínimo 6 caracteres">
+                        <button type="button" id="btnGerarSenha" 
+                                class="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-all"
+                                title="Gerar senha aleatória">
+                            <i class="fas fa-sync-alt mr-1"></i>Gerar
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Confirmar Senha -->
+                <div>
+                    <label for="novoUsuarioConfirmarSenha" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-lock mr-1"></i>Confirmar Senha
+                    </label>
+                    <input type="password" id="novoUsuarioConfirmarSenha" required minlength="6"
+                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                           placeholder="Digite a senha novamente">
+                </div>
+                
+                <!-- Função -->
+                <div>
+                    <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user-tag mr-1"></i>Função
+                    </label>
+                    <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
+                        <option value="funcionario">Funcionário</option>
+                        <option value="admin">Administrador</option>
+                    </select>
+                </div>
+                
+                <!-- Botão de Adicionar -->
+                <div class="md:col-span-2">
+                    <button type="submit" id="btnAdicionarUsuario" class="w-full md:w-auto flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
+                        <i class="fas fa-user-plus mr-2"></i>
+                        <span class="button-text">Adicionar Usuário</span>
+                        <i class="fas fa-spinner fa-spin hidden" id="addUserSpinner"></i>
+                    </button>
+                </div>
+            </div>
+        </form>
+        
+        <!-- Lista de usuários -->
+        <div>
+            <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                <i class="fas fa-users mr-2"></i>Usuários Existentes
+            </h3>
+            <div id="listaUsuariosContainer" class="space-y-4">
+                <!-- Usuários serão listados aqui pelo JavaScript -->
+                <div class="flex items-center justify-center p-10">
+                    <div class="text-center">
+                        <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
+                        <p class="text-gray-500">Carregando usuários...</p>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
+</div>
     </main>
 
     <!-- Modais -->

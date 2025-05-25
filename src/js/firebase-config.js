@@ -41,7 +41,13 @@ else if (typeof firebase !== 'undefined') {
         });
         
       console.log("Firebase inicializado com sucesso");
-    } catch (error) {
+
+      // Adicione esta linha no final do arquivo, após a inicialização
+    if (typeof window.firebaseConfig !== 'undefined') {
+      window.firebaseConfig = firebaseConfig; // Exporta para uso global
+    }
+    }
+    catch (error) {
       console.error("Erro ao inicializar Firebase:", error);
     }
   })();
