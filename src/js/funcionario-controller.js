@@ -496,77 +496,266 @@ function setupPriceListener() {
     });
 }
     
-    function populateProductTables() {
-        tabelaPasteisBody.innerHTML = '';
-        tabelaCasquinhasBody.innerHTML = '';
-        tabelaCaldoCanaBody.innerHTML = '';
-        tabelaRefrigerantesBody.innerHTML = '';
-        tabelaGeloBody.innerHTML = '';
+function populateProductTables() {
+    // Limpar todas as tabelas antes de popular
+    tabelaPasteisBody.innerHTML = '';
+    tabelaCasquinhasBody.innerHTML = '';
+    tabelaCaldoCanaBody.innerHTML = '';
+    tabelaRefrigerantesBody.innerHTML = '';
+    tabelaGeloBody.innerHTML = '';
 
-        const localListaSaboresPasteis = typeof listaSaboresPasteis !== 'undefined' ? listaSaboresPasteis : [];
-        localListaSaboresPasteis.forEach(sabor => {
-            const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o').replace(/[úùûü]/g, 'u');
-            const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true); // Inicialmente readonly
-            tabelaPasteisBody.appendChild(row);
-        });
+    // ==========================
+    // PASTÉIS - Nova ordem completa
+    // ==========================
+    const localListaSaboresPasteis = [
+        // Pastéis Comuns (12 primeiros)
+        "Carne com Queijo",
+        "Carne", 
+        "Frango com Catupiry",
+        "Frango com Queijo",
+        "Carioca",
+        "Pizza",
+        "Palmito",
+        "Queijo",
+        "4 Queijos",
+        "Bauru",
+        "Calabresa",
+        "Portuguesa",
+        // Pastéis Especiais (4 últimos)
+        "Carne Seca",
+        "Especial Carne Seca",
+        "Especial de Carne",
+        "Especial de Calabresa"
+    ];
+    
+    localListaSaboresPasteis.forEach((sabor, index) => {
+        // Criar key normalizada para o banco
+        const key = sabor.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[ç]/g, 'c')
+            .replace(/[ãâáàä]/g, 'a')
+            .replace(/[éêèë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óôõòö]/g, 'o')
+            .replace(/[úùûü]/g, 'u')
+            .replace(/4_queijos/g, '4_queijos'); // Manter número no início
+        
+        const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true);
+        
+        // Adicionar separador visual antes dos pastéis especiais
+        if (index === 12) { // Antes de "Carne Seca"
+            row.classList.add('border-t-4', 'border-orange-400', 'pt-2');
+            
+            // Adicionar uma linha de título para Pastéis Especiais
+            const separatorRow = document.createElement('tr');
+            separatorRow.className = 'bg-orange-100';
+            separatorRow.innerHTML = `
+                <td colspan="9" class="text-center font-bold text-orange-700 py-1 text-sm">
+                    === PASTÉIS ESPECIAIS ===
+                </td>
+            `;
+            tabelaPasteisBody.appendChild(separatorRow);
+        }
+        
+        tabelaPasteisBody.appendChild(row);
+    });
 
-        const localListaCasquinhas = typeof listaCasquinhas !== 'undefined' ? listaCasquinhas : [];
-        localListaCasquinhas.forEach(casquinha => {
-            const key = casquinha.toLowerCase().replace(/\s+/g, '_');
-            const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
-            tabelaCasquinhasBody.appendChild(row);
-        });
+    // ==========================
+    // CASQUINHAS - Nova nomenclatura
+    // ==========================
+    const localListaCasquinhas = [
+        "Casquinha Crua",
+        "Casquinha Frita"
+    ];
+    
+    // Adicionar título para Casquinhas
+    const casquinhaTitleRow = document.createElement('tr');
+    casquinhaTitleRow.className = 'bg-blue-100';
+    casquinhaTitleRow.innerHTML = `
+        <td colspan="9" class="text-center font-bold text-blue-700 py-1 text-sm">
+            === CASQUINHAS ===
+        </td>
+    `;
+    tabelaCasquinhasBody.appendChild(casquinhaTitleRow);
+    
+    localListaCasquinhas.forEach(casquinha => {
+        const key = casquinha.toLowerCase().replace(/\s+/g, '_');
+        const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
+        tabelaCasquinhasBody.appendChild(row);
+    });
 
-        const localListaCaldoCana = typeof listaCaldoCana !== 'undefined' ? listaCaldoCana : [];
-        localListaCaldoCana.forEach(item => {
-            const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\d+ml/, d => d.toLowerCase()).replace(/\d+litro/, d => d.toLowerCase());
-            const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
-            tabelaCaldoCanaBody.appendChild(row);
-        });
+    // ==========================
+    // CALDO DE CANA - Com Fardo de Cana
+    // ==========================
+    const localListaCaldoCana = [
+        "Fardo de Cana",
+        "Copo 300ml",
+        "Copo 400ml",
+        "Copo 500ml", 
+        "Garrafa 500ml",
+        "Garrafa 1 Litro"
+    ];
+    
+    localListaCaldoCana.forEach((item, index) => {
+        // Normalizar key
+        const key = item.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[ç]/g, 'c')
+            .replace(/ml/g, 'ml')
+            .replace(/litro/g, 'litro');
+        
+        const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
+        
+        // Destacar Fardo de Cana com cor diferente
+        if (index === 0) {
+            row.classList.add('bg-green-50');
+        }
+        
+        tabelaCaldoCanaBody.appendChild(row);
+    });
 
-        const localListaRefrigerantes = typeof listaRefrigerantes !== 'undefined' ? listaRefrigerantes : [];
-        localListaRefrigerantes.forEach(item => {
-            const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\./g, '');
-            const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
-            tabelaRefrigerantesBody.appendChild(row);
-        });
+    // ==========================
+    // REFRIGERANTES E BEBIDAS - Lista nova completa
+    // ==========================
+    const localListaRefrigerantes = [
+        "Coca-Cola",
+        "Fanta Laranja",
+        "Fanta Uva",
+        "Guaraná",
+        "Refri Limão",
+        "Refri. Zero",
+        "Itubaina",
+        "Água",
+        "Água c/ Gás",
+        "Cerveja Longneck",
+        "Cerveja Lata"
+    ];
+    
+    localListaRefrigerantes.forEach((item, index) => {
+        // Normalizar key
+        const key = item.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[ç]/g, 'c')
+            .replace(/[ãâáàä]/g, 'a')
+            .replace(/[éêèë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óôõòö]/g, 'o')
+            .replace(/[úùûü]/g, 'u')
+            .replace(/\./g, '') // Remover pontos
+            .replace(/\//g, '_'); // Substituir / por _
         
-        // GELO COM NOVA ESTRUTURA (Entrada + Chegadas)
-        const geloKey = 'gelo_pacote';
-        const trGelo = document.createElement('tr');
-        trGelo.className = 'border-b item-row';
-        trGelo.dataset.itemKey = geloKey;
-        trGelo.dataset.categoryKey = 'gelo'; 
+        const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
         
-        const tdGeloName = document.createElement('td');
-        tdGeloName.className = 'px-2 py-2 font-medium';
-        tdGeloName.textContent = 'Gelo (Pacote)';
-        trGelo.appendChild(tdGeloName);
+        // Separador visual antes das cervejas
+        if (index === 9) { // Antes de "Cerveja Longneck"
+            row.classList.add('border-t-2', 'border-yellow-400', 'pt-1');
+            
+            // Adicionar linha de separação
+            const beerSeparator = document.createElement('tr');
+            beerSeparator.className = 'bg-yellow-50';
+            beerSeparator.innerHTML = `
+                <td colspan="9" class="text-center text-yellow-700 py-1 text-xs font-medium">
+                    🍺 Bebidas Alcoólicas
+                </td>
+            `;
+            tabelaRefrigerantesBody.insertBefore(beerSeparator, row);
+        }
         
-        // Gelo: entrada, chegadas, sobra, vendas, consumo_interno
-        trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm")); // entrada
-        trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas")); // chegadas
-        trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));   // sobra
-        const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm"); // vendas
-        tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true"; // Marcação para event listener
-        trGelo.appendChild(tdVendasGelo);
-        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));// consumo_interno
-        
-        const tdPrecoGelo = document.createElement('td');
-        tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600';
-        const precoGeloUnit = productPrices.gelo?.[geloKey]?.preco || 0;
-        tdPrecoGelo.textContent = formatToBRL(precoGeloUnit);
-        tdPrecoGelo.id = `${geloKey}_preco_display`;
-        trGelo.appendChild(tdPrecoGelo);
-        
-        const tdTotalGelo = document.createElement('td');
-        tdTotalGelo.className = 'px-2 py-2 text-sm text-gray-700 font-semibold';
-        tdTotalGelo.id = `${geloKey}_total_item`; 
-        tdTotalGelo.textContent = formatToBRL(0);
-        trGelo.appendChild(tdTotalGelo);
-        
-        tabelaGeloBody.appendChild(trGelo);
+        tabelaRefrigerantesBody.appendChild(row);
+    });
+    
+    // ==========================
+    // GELO - Estrutura especial
+    // ==========================
+    const geloKey = 'gelo_pacote';
+    const trGelo = document.createElement('tr');
+    trGelo.className = 'border-b item-row bg-blue-50 hover:bg-blue-100 transition-colors duration-150';
+    trGelo.dataset.itemKey = geloKey;
+    trGelo.dataset.categoryKey = 'gelo';
+    
+    const tdGeloName = document.createElement('td');
+    tdGeloName.className = 'px-2 py-2 font-medium text-blue-800';
+    tdGeloName.innerHTML = '<i class="fas fa-cube mr-1"></i>Gelo (Pacote)';
+    trGelo.appendChild(tdGeloName);
+    
+    // Campos do gelo: entrada, chegadas, sobra, vendas, consumo_interno
+    trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm"));
+    trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas"));
+    trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));
+    
+    const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm");
+    tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true";
+    trGelo.appendChild(tdVendasGelo);
+    
+    trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));
+    
+    const tdPrecoGelo = document.createElement('td');
+    tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600 text-center';
+    const precoGeloUnit = productPrices.gelo?.[geloKey]?.preco || 0;
+    tdPrecoGelo.textContent = formatToBRL(precoGeloUnit);
+    tdPrecoGelo.id = `${geloKey}_preco_display`;
+    trGelo.appendChild(tdPrecoGelo);
+    
+    const tdTotalGelo = document.createElement('td');
+    tdTotalGelo.className = 'px-2 py-2 text-sm text-gray-700 font-semibold text-right';
+    tdTotalGelo.id = `${geloKey}_total_item`;
+    tdTotalGelo.textContent = formatToBRL(0);
+    trGelo.appendChild(tdTotalGelo);
+    
+    tabelaGeloBody.appendChild(trGelo);
+    
+    // ==========================
+    // LOGS E VERIFICAÇÕES
+    // ==========================
+    console.log("✅ Tabelas populadas com sucesso!");
+    console.log("📊 Resumo:");
+    console.log(`  - Pastéis: ${localListaSaboresPasteis.length} itens (12 comuns + 4 especiais)`);
+    console.log(`  - Casquinhas: ${localListaCasquinhas.length} itens`);
+    console.log(`  - Caldo de Cana: ${localListaCaldoCana.length} itens`);
+    console.log(`  - Refrigerantes: ${localListaRefrigerantes.length} itens`);
+    console.log(`  - Gelo: 1 item especial`);
+    
+    // Verificar preços ausentes
+    const precosAusentes = [];
+    
+    // Verificar pastéis
+    localListaSaboresPasteis.forEach(sabor => {
+        const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c')
+            .replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e')
+            .replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o')
+            .replace(/[úùûü]/g, 'u');
+        if (!productPrices.pasteis?.[key]?.preco) {
+            precosAusentes.push(`pasteis/${key}`);
+        }
+    });
+    
+    // Verificar outras categorias...
+    if (precosAusentes.length > 0) {
+        console.warn("⚠️ Produtos sem preço definido:", precosAusentes);
+        showError(`Atenção: ${precosAusentes.length} produtos estão sem preço definido. Contacte o administrador.`);
     }
+}
+
+// Função auxiliar para criar linha com destaque especial (opcional)
+function createSpecialProductRow(itemName, itemKey, categoryKey, prices, highlightColor = 'yellow') {
+    const row = createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, true);
+    row.classList.add(`bg-${highlightColor}-50`, `hover:bg-${highlightColor}-100`);
+    return row;
+}
+
+// Função para adicionar totalizadores intermediários (opcional)
+function addSubtotalRow(tableBody, label, idPrefix) {
+    const subtotalRow = document.createElement('tr');
+    subtotalRow.className = 'bg-gray-100 font-semibold';
+    subtotalRow.innerHTML = `
+        <td colspan="6" class="px-3 py-2 text-right">${label}:</td>
+        <td id="${idPrefix}Vendido" class="px-2 py-2 text-center">0</td>
+        <td></td>
+        <td id="${idPrefix}Valor" class="px-2 py-2 text-right">R$ 0,00</td>
+    `;
+    tableBody.appendChild(subtotalRow);
+    return subtotalRow;
+}
 
     // NOVA FUNÇÃO: Cria linha de produto com coluna CHEGADAS
     function createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
