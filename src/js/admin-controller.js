@@ -992,41 +992,41 @@ class UserManager {
     }
 
     async fetchUsers() {
-        console.log("🔍 Buscando usuários no Firebase...");
-        
-        if (!auth.currentUser) {
-            console.error("❌ Usuário não autenticado ao buscar usuários");
-            throw new Error("Usuário não autenticado");
-        }
-        
-        try {
-            console.log("🔍 Buscando da coleção 'users'...");
-            const snapshot = await db.collection('users').get();
-            
-            console.log(`📊 Encontrados ${snapshot.size} documentos na coleção 'users'`);
-            
-            const users = [];
-            
-            snapshot.forEach(doc => {
-                const userData = doc.data();
-                console.log(`Usuário ${doc.id}:`, userData);
-                
-                users.push({
-                    id: doc.id,
-                    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
-                    email: userData.email || 'Sem email',
-                    funcao: userData.funcao || 'Funcionário',
-                    createdAt: userData.createdAt || firebase.firestore.Timestamp.now()
-                });
-            });
-            
-            return users;
-            
-        } catch (error) {
-            console.error("❌ Erro ao buscar usuários:", error);
-            throw error;
-        }
+    console.log("🔍 Buscando usuários no Firebase...");
+    
+    if (!auth.currentUser) {
+        console.error("❌ Usuário não autenticado ao buscar usuários");
+        throw new Error("Usuário não autenticado");
     }
+    
+    try {
+        console.log("🔍 Buscando da coleção 'usuarios'..."); // MUDANÇA AQUI
+        const snapshot = await db.collection('usuarios').get(); // MUDANÇA AQUI
+        
+        console.log(`📊 Encontrados ${snapshot.size} documentos na coleção 'usuarios'`);
+        
+        const users = [];
+        
+        snapshot.forEach(doc => {
+            const userData = doc.data();
+            console.log(`Usuário ${doc.id}:`, userData);
+            
+            users.push({
+                id: doc.id,
+                nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                email: userData.email || 'Sem email',
+                funcao: userData.role || 'funcionario', // MUDANÇA AQUI - compatibilidade
+                createdAt: userData.createdAt || firebase.firestore.Timestamp.now()
+            });
+        });
+        
+        return users;
+        
+    } catch (error) {
+        console.error("❌ Erro ao buscar usuários:", error);
+        throw error;
+    }
+}
 
     renderUsers() {
         if (!this.container) return;
