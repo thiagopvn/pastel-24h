@@ -1,9 +1,8 @@
-// fechamento.js - Sistema de Fechamento Semanal e Cálculo de Pagamentos
 document.addEventListener('DOMContentLoaded', async () => {
-    // Verificar autenticação e permissão de admin
     protectRoute(['admin']);
     
-    // Elementos do DOM
+    const TRANSPORTE_VALOR = 4.00;
+    
     const dataInicioInput = document.getElementById('dataInicio');
     const dataFimInput = document.getElementById('dataFim');
     const valorHoraInput = document.getElementById('valorHora');
@@ -16,58 +15,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     const emptyMessage = document.getElementById('emptyMessage');
     const table = document.getElementById('fechamentoTable');
     
-    // Estado da aplicação
     let funcionarios = [];
     let turnosData = {};
     let diasSemana = [];
     
-    // Dias da semana em português
     const DIAS_SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     
-    /**
-     * Inicialização
-     */
     async function init() {
         setSemanaAtual();
         setupEventListeners();
+        await carregarDados();
     }
     
-    /**
-     * Configura event listeners
-     */
     function setupEventListeners() {
         btnCarregar.addEventListener('click', carregarDados);
-        btnSemanaAtual.addEventListener('click', setSemanaAtual);
+        btnSemanaAtual.addEventListener('click', async () => {
+            setSemanaAtual();
+            await carregarDados();
+        });
         btnExportExcel.addEventListener('click', exportToExcel);
         btnExportPDF.addEventListener('click', exportToPDF);
         valorHoraInput.addEventListener('input', recalcTotals);
         
-        // Atualizar data fim quando data início mudar
         dataInicioInput.addEventListener('change', () => {
             const inicio = new Date(dataInicioInput.value);
             if (inicio) {
                 const fim = new Date(inicio);
-                fim.setDate(inicio.getDate() + 6); // Adiciona 6 dias
+                fim.setDate(inicio.getDate() + 6);
                 dataFimInput.value = formatDate(fim);
             }
         });
+        
+        const tbody = table.querySelector('tbody');
+        if (tbody) {
+            tbody.addEventListener('input', (e) => {
+                if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+                    recalcTotals();
+                }
+            });
+        }
     }
     
-    /**
-     * Define período como semana atual (segunda a domingo)
-     */
     function setSemanaAtual() {
         const hoje = new Date();
         const diaSemana = hoje.getDay();
         
-        // Calcular segunda-feira
         const segunda = new Date(hoje);
         segunda.setDate(hoje.getDate() - diaSemana + 1);
-        if (diaSemana === 0) { // Se for domingo
+        if (diaSemana === 0) {
             segunda.setDate(hoje.getDate() - 6);
         }
         
-        // Calcular domingo
         const domingo = new Date(segunda);
         domingo.setDate(segunda.getDate() + 6);
         
@@ -75,14 +73,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         dataFimInput.value = formatDate(domingo);
     }
     
-    /**
-     * Carrega dados dos funcionários e turnos
-     */
     async function carregarDados() {
         showStatus('Carregando funcionários...');
         
         try {
-            // Validar datas
             const dataInicio = new Date(dataInicioInput.value);
             const dataFim = new Date(dataFimInput.value);
             
@@ -90,7 +84,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error('Período inválido');
             }
             
-            // Gerar array de dias
             diasSemana = [];
             const currentDate = new Date(dataInicio);
             while (currentDate <= dataFim) {
@@ -98,7 +91,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 currentDate.setDate(currentDate.getDate() + 1);
             }
             
-            // Carregar funcionários
             showStatus('Carregando funcionários...');
             funcionarios = await loadFuncionarios();
             
@@ -106,15 +98,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw new Error('Nenhum funcionário encontrado');
             }
             
-            // Carregar turnos do período
             showStatus('Carregando turnos fechados...');
             turnosData = await loadTurnos(dataInicio, dataFim);
             
-            // Construir tabela
             buildTable();
             hideStatus();
             
-            // Recalcular totais
             recalcTotals();
             
         } catch (error) {
@@ -123,9 +112,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    /**
-     * Carrega funcionários ativos do sistema
-     */
     async function loadFuncionarios() {
         try {
             const snapshot = await db.collection('usuarios')
@@ -143,7 +129,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
             });
             
-            // Ordenar por nome
             users.sort((a, b) => a.nome.localeCompare(b.nome));
             
             return users;
@@ -153,19 +138,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    /**
-     * Carrega turnos fechados do período
-     */
     async function loadTurnos(dataInicio, dataFim) {
         try {
             const turnos = {};
             
-            // Para cada dia do período
             const currentDate = new Date(dataInicio);
             while (currentDate <= dataFim) {
                 const dateStr = formatDate(currentDate);
                 
-                // Buscar todos os turnos do dia (Manhã, Tarde, Noite)
                 const turnosPromises = ['Manhã', 'Tarde', 'Noite'].map(periodo => 
                     db.collection('turnos')
                         .doc(`${dateStr}_${periodo}`)
@@ -174,28 +154,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 const turnosDocs = await Promise.all(turnosPromises);
                 
-                // Processar turnos encontrados
                 turnosDocs.forEach(doc => {
                     if (doc.exists && doc.data().status === 'fechado') {
                         const data = doc.data();
-                        const turnoId = doc.id;
                         
-                        // Extrair dados de funcionários do fechamento
-                        if (data.fechamento && data.fechamento.funcionarios) {
-                            Object.entries(data.fechamento.funcionarios).forEach(([uid, funcData]) => {
+                        if (data.funcionarios) {
+                            Object.entries(data.funcionarios).forEach(([uid, funcData]) => {
                                 if (!turnos[dateStr]) turnos[dateStr] = {};
                                 if (!turnos[dateStr][uid]) turnos[dateStr][uid] = {
                                     horas: 0,
                                     alimentacao: 0,
-                                    transporte: 0,
+                                    transporteQtd: 0,
                                     consumo: 0
                                 };
                                 
-                                // Somar valores (pode haver múltiplos turnos no dia)
-                                turnos[dateStr][uid].horas += funcData.horas || 0;
+                                turnos[dateStr][uid].horas += funcData.horasTotais || 0;
                                 turnos[dateStr][uid].alimentacao += funcData.alimentacao || 0;
-                                turnos[dateStr][uid].transporte += funcData.transporte || 0;
-                                turnos[dateStr][uid].consumo += funcData.consumo || 0;
+                                turnos[dateStr][uid].transporteQtd += funcData.transporteQtd || 0;
+                                turnos[dateStr][uid].consumo += funcData.consumoValor || 0;
                             });
                         }
                     }
@@ -211,14 +187,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    /**
-     * Constrói a tabela HTML
-     */
     function buildTable() {
         emptyMessage.classList.add('hidden');
         table.classList.remove('hidden');
         
-        // Construir cabeçalho
         const thead = table.querySelector('thead');
         thead.innerHTML = `
             <tr class="bg-primary-50">
@@ -250,7 +222,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             </tr>
         `;
         
-        // Construir corpo
         const tbody = table.querySelector('tbody');
         tbody.innerHTML = funcionarios.map(func => {
             let rowHtml = `
@@ -260,7 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </td>
             `;
             
-            // Células para cada dia
             diasSemana.forEach((dia, diaIndex) => {
                 const dateStr = formatDate(dia);
                 const turnoData = turnosData[dateStr]?.[func.uid] || {};
@@ -271,58 +241,63 @@ document.addEventListener('DOMContentLoaded', async () => {
                                id="${func.uid}_${diaIndex}_hs"
                                value="${turnoData.horas || ''}"
                                min="0" step="0.5" 
-                               class="text-sm text-center"
-                               onchange="recalcTotals()">
+                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                               style="min-height: 36px;">
                     </td>
                     <td class="px-1 py-1 editable-cell">
                         <input type="number" 
                                id="${func.uid}_${diaIndex}_alim"
                                value="${turnoData.alimentacao || ''}"
                                min="0" step="0.01" 
-                               class="text-sm text-center"
-                               onchange="recalcTotals()">
+                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                               style="min-height: 36px;">
                     </td>
                     <td class="px-1 py-1 editable-cell border-r border-gray-200">
                         <input type="number" 
                                id="${func.uid}_${diaIndex}_transp"
-                               value="${turnoData.transporte || ''}"
-                               min="0" step="0.01" 
-                               class="text-sm text-center"
-                               onchange="recalcTotals()">
+                               value="${turnoData.transporteQtd || ''}"
+                               min="0" step="1" 
+                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                               style="min-height: 36px;">
                     </td>
                 `;
             });
             
-            // Células de totais
+            let totalConsumo = 0;
+            diasSemana.forEach(dia => {
+                const dateStr = formatDate(dia);
+                const turnoData = turnosData[dateStr]?.[func.uid] || {};
+                totalConsumo += turnoData.consumo || 0;
+            });
+            
             rowHtml += `
-                <td id="${func.uid}_total_hs" class="px-2 py-2 text-sm text-center font-medium bg-gray-50">0</td>
-                <td id="${func.uid}_total_alim" class="px-2 py-2 text-sm text-center font-medium bg-gray-50">0</td>
-                <td id="${func.uid}_total_transp" class="px-2 py-2 text-sm text-center font-medium bg-gray-50">0</td>
-                <td id="${func.uid}_consumo" class="px-2 py-2 text-sm text-center font-medium bg-gray-50 text-red-600">0</td>
+                <td id="${func.uid}_total_hs" class="px-2 py-2 text-base text-center font-medium bg-gray-50">0</td>
+                <td id="${func.uid}_total_alim" class="px-2 py-2 text-base text-center font-medium bg-gray-50">0</td>
+                <td id="${func.uid}_total_transp" class="px-2 py-2 text-base text-center font-medium bg-gray-50">0</td>
+                <td id="${func.uid}_consumo" class="px-2 py-2 text-base text-center font-medium bg-gray-50 text-red-600" data-value="${totalConsumo}">${formatCurrency(totalConsumo)}</td>
                 <td class="px-1 py-1 editable-cell bg-gray-50">
                     <input type="number" 
                            id="${func.uid}_desconto"
                            value="0"
                            min="0" step="0.01" 
-                           class="text-sm text-center text-red-600"
-                           onchange="recalcTotals()">
+                           class="w-full px-2 py-2 text-base text-center text-red-600 border border-gray-300 rounded focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                           style="min-height: 36px;">
                 </td>
                 <td class="px-1 py-1 editable-cell bg-gray-50">
                     <input type="number" 
                            id="${func.uid}_adicional"
                            value="0"
                            min="0" step="0.01" 
-                           class="text-sm text-center text-green-600"
-                           onchange="recalcTotals()">
+                           class="w-full px-2 py-2 text-base text-center text-green-600 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                           style="min-height: 36px;">
                 </td>
-                <td id="${func.uid}_total_receber" class="px-2 py-2 text-sm text-center font-bold bg-primary-50 text-primary-700">R$ 0,00</td>
+                <td id="${func.uid}_total_receber" class="px-2 py-2 text-base text-center font-bold bg-primary-50 text-primary-700">R$ 0,00</td>
             </tr>
             `;
             
             return rowHtml;
         }).join('');
         
-        // Construir rodapé com totais gerais
         const tfoot = table.querySelector('tfoot');
         tfoot.innerHTML = `
             <tr class="total-row">
@@ -343,27 +318,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <td id="total_geral_receber" class="px-2 py-3 text-sm text-center font-bold text-primary-700 text-lg">R$ 0,00</td>
             </tr>
         `;
-        
-        // Preencher consumo dos turnos
-        funcionarios.forEach(func => {
-            let totalConsumo = 0;
-            diasSemana.forEach(dia => {
-                const dateStr = formatDate(dia);
-                const turnoData = turnosData[dateStr]?.[func.uid] || {};
-                totalConsumo += turnoData.consumo || 0;
-            });
-            
-            const consumoCell = document.getElementById(`${func.uid}_consumo`);
-            if (consumoCell) {
-                consumoCell.textContent = formatCurrency(totalConsumo);
-            }
-        });
     }
     
-    /**
-     * Recalcula todos os totais
-     */
-    window.recalcTotals = function() {
+    function recalcTotals() {
         const valorHora = parseFloat(valorHoraInput.value) || 0;
         
         let totalGeralHs = 0;
@@ -374,62 +331,55 @@ document.addEventListener('DOMContentLoaded', async () => {
         let totalGeralAdicional = 0;
         let totalGeralReceber = 0;
         
-        // Totais por dia
-        const totaisPorDia = diasSemana.map(() => 0);
+        const totaisPorDia = diasSemana.map(() => ({ horas: 0, alimentacao: 0, transporte: 0 }));
         
-        // Para cada funcionário
         funcionarios.forEach(func => {
             let totalHs = 0;
             let totalAlim = 0;
-            let totalTransp = 0;
+            let totalTranspQtd = 0;
             
-            // Somar valores de cada dia
             diasSemana.forEach((dia, diaIndex) => {
                 const hs = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_hs`)?.value) || 0;
                 const alim = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_alim`)?.value) || 0;
-                const transp = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_transp`)?.value) || 0;
+                const transpQtd = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_transp`)?.value) || 0;
                 
                 totalHs += hs;
                 totalAlim += alim;
-                totalTransp += transp;
+                totalTranspQtd += transpQtd;
                 
-                // Adicionar ao total do dia
-                totaisPorDia[diaIndex] += (hs * valorHora) + alim + transp;
+                totaisPorDia[diaIndex].horas += hs * valorHora;
+                totaisPorDia[diaIndex].alimentacao += alim;
+                totaisPorDia[diaIndex].transporte += transpQtd * TRANSPORTE_VALOR;
             });
             
-            // Obter consumo (já calculado)
-            const consumoText = document.getElementById(`${func.uid}_consumo`)?.textContent || 'R$ 0,00';
-            const consumo = parseFloat(consumoText.replace('R$', '').replace(',', '.')) || 0;
+            const consumoElement = document.getElementById(`${func.uid}_consumo`);
+            const consumo = parseFloat(consumoElement?.dataset.value) || 0;
             
-            // Obter desconto e adicional
             const desconto = parseFloat(document.getElementById(`${func.uid}_desconto`)?.value) || 0;
             const adicional = parseFloat(document.getElementById(`${func.uid}_adicional`)?.value) || 0;
             
-            // Calcular total a receber
-            const totalReceber = (totalHs * valorHora) + totalAlim + totalTransp + adicional - desconto - consumo;
+            const totalTranspValor = totalTranspQtd * TRANSPORTE_VALOR;
+            const totalReceber = (totalHs * valorHora) + totalAlim + totalTranspValor + adicional - desconto - consumo;
             
-            // Atualizar células de totais do funcionário
             document.getElementById(`${func.uid}_total_hs`).textContent = totalHs.toFixed(1);
             document.getElementById(`${func.uid}_total_alim`).textContent = formatCurrency(totalAlim);
-            document.getElementById(`${func.uid}_total_transp`).textContent = formatCurrency(totalTransp);
+            document.getElementById(`${func.uid}_total_transp`).textContent = formatCurrency(totalTranspValor);
             document.getElementById(`${func.uid}_total_receber`).textContent = formatCurrency(Math.max(0, totalReceber));
             
-            // Somar aos totais gerais
             totalGeralHs += totalHs;
             totalGeralAlim += totalAlim;
-            totalGeralTransp += totalTransp;
+            totalGeralTransp += totalTranspValor;
             totalGeralConsumo += consumo;
             totalGeralDesconto += desconto;
             totalGeralAdicional += adicional;
             totalGeralReceber += Math.max(0, totalReceber);
         });
         
-        // Atualizar totais por dia
         totaisPorDia.forEach((total, index) => {
-            document.getElementById(`total_dia_${index}`).textContent = formatCurrency(total);
+            const totalDia = total.horas + total.alimentacao + total.transporte;
+            document.getElementById(`total_dia_${index}`).textContent = formatCurrency(totalDia);
         });
         
-        // Atualizar totais gerais
         document.getElementById('total_geral_hs').textContent = totalGeralHs.toFixed(1);
         document.getElementById('total_geral_alim').textContent = formatCurrency(totalGeralAlim);
         document.getElementById('total_geral_transp').textContent = formatCurrency(totalGeralTransp);
@@ -437,27 +387,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('total_geral_desconto').textContent = formatCurrency(totalGeralDesconto);
         document.getElementById('total_geral_adicional').textContent = formatCurrency(totalGeralAdicional);
         document.getElementById('total_geral_receber').textContent = formatCurrency(totalGeralReceber);
-    };
+    }
     
-    /**
-     * Exporta tabela para Excel
-     */
     function exportToExcel() {
         try {
-            // Criar workbook
             const wb = XLSX.utils.book_new();
             
-            // Preparar dados
             const data = [];
             
-            // Cabeçalho
             const header1 = ['Funcionário'];
             const header2 = [''];
             
             diasSemana.forEach(dia => {
                 const diaSemana = DIAS_SEMANA[dia.getDay()];
-                const data = `${dia.getDate()}/${dia.getMonth() + 1}`;
-                header1.push(diaSemana + ' ' + data, '', '');
+                const dataStr = `${dia.getDate()}/${dia.getMonth() + 1}`;
+                header1.push(diaSemana + ' ' + dataStr, '', '');
                 header2.push('Hs', 'Alim', 'Transp');
             });
             
@@ -467,7 +411,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             data.push(header1);
             data.push(header2);
             
-            // Dados dos funcionários
             funcionarios.forEach(func => {
                 const row = [func.nome];
                 
@@ -478,7 +421,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     row.push(hs, alim, transp);
                 });
                 
-                // Totais
                 row.push(
                     document.getElementById(`${func.uid}_total_hs`).textContent,
                     document.getElementById(`${func.uid}_total_alim`).textContent,
@@ -492,7 +434,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 data.push(row);
             });
             
-            // Totais gerais
             const totalRow = ['TOTAIS GERAIS'];
             diasSemana.forEach((_, index) => {
                 const total = document.getElementById(`total_dia_${index}`).textContent;
@@ -511,13 +452,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             data.push(totalRow);
             
-            // Criar worksheet
             const ws = XLSX.utils.aoa_to_sheet(data);
             
-            // Adicionar worksheet ao workbook
             XLSX.utils.book_append_sheet(wb, ws, 'Fechamento');
             
-            // Salvar arquivo
             const fileName = `Fechamento_${formatDate(new Date())}.xlsx`;
             XLSX.writeFile(wb, fileName);
             
@@ -530,9 +468,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    /**
-     * Exporta tabela para PDF
-     */
     function exportToPDF() {
         try {
             const element = document.getElementById('fechamentoTable');
@@ -556,14 +491,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
     
-    /**
-     * Funções auxiliares
-     */
     function formatDate(date) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+    
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        }).format(value || 0);
     }
     
     function showStatus(message, type = 'info') {
@@ -592,6 +531,5 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(hideStatus, 5000);
     }
     
-    // Inicializar
     init();
 });

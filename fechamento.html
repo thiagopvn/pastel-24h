@@ -51,6 +51,17 @@
     </script>
     
     <style>
+
+        .editable-cell input[type="number"] {
+        min-height: 36px !important;
+        font-size: 1rem !important;
+        padding: 0.5rem !important;
+    }
+    
+    .table-container input:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    }
         .table-container {
             max-height: calc(100vh - 300px);
             overflow: auto;
