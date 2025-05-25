@@ -648,20 +648,23 @@ function populateProductTables() {
         
         // Separador visual antes das cervejas
         if (index === 9) { // Antes de "Cerveja Longneck"
-            row.classList.add('border-t-2', 'border-yellow-400', 'pt-1');
-            
-            // Adicionar linha de separação
-            const beerSeparator = document.createElement('tr');
-            beerSeparator.className = 'bg-yellow-50';
-            beerSeparator.innerHTML = `
-                <td colspan="9" class="text-center text-yellow-700 py-1 text-xs font-medium">
-                    🍺 Bebidas Alcoólicas
-                </td>
-            `;
-            tabelaRefrigerantesBody.insertBefore(beerSeparator, row);
-        }
-        
-        tabelaRefrigerantesBody.appendChild(row);
+    row.classList.add('border-t-2', 'border-yellow-400', 'pt-1');
+    
+    // Adicionar linha de separação
+    const beerSeparator = document.createElement('tr');
+    beerSeparator.className = 'bg-yellow-50';
+    beerSeparator.innerHTML = `
+        <td colspan="9" class="text-center text-yellow-700 py-1 text-xs font-medium">
+            🍺 Bebidas Alcoólicas
+        </td>
+    `;
+    
+    // Adicionar primeiro o separador
+    tabelaRefrigerantesBody.appendChild(beerSeparator);
+}
+
+// Adicionar a linha depois do separador
+tabelaRefrigerantesBody.appendChild(row);
     });
     
     // ==========================
