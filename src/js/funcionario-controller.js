@@ -35,50 +35,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     let unsubscribeTurnoListener = null;
     let turnoAnteriorData = null;
     let camposTransferidosAnterior = {};
-
-    // === FUNÇÕES DE FORMATAÇÃO DE MOEDA ===
-    
-    /**
-     * Aplica máscara de moeda brasileira ao input
-     * Corrige o problema de conversão incorreta (378 -> 37800)
-     */
     function applyCurrencyMask(input) {
-        // Remove tudo que não é número
         let value = input.value.replace(/[^\d]/g, '');
-        
-        // Se estiver vazio, define como 0
         if (value === '') {
             input.value = formatToBRL(0);
             return 0;
         }
-        
-        // Converte para centavos (divide por 100)
         let numericValue = parseFloat(value) / 100;
-        
-        // Formata para moeda brasileira
         input.value = formatToBRL(numericValue);
-        
         return numericValue;
     }
-
-    /**
-     * Converte valor formatado em moeda para número
-     */
     function parseCurrencyToNumber(formattedValue) {
         if (!formattedValue) return 0;
-        
-        // Remove símbolos de moeda e converte vírgula para ponto
         const cleaned = formattedValue
             .replace(/[R$\s]/g, '')
             .replace(/\./g, '')
             .replace(',', '.');
-        
         return parseFloat(cleaned) || 0;
     }
-
-    /**
-     * Formata número para moeda brasileira
-     */
     function formatToBRL(value) {
         const numValue = parseFloat(value) || 0;
         return numValue.toLocaleString('pt-BR', {
@@ -86,10 +60,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             currency: 'BRL'
         });
     }
-
-    /**
-     * Configura máscara de moeda para um campo
-     */
     function setupCurrencyMask(inputElement) {
         if (!inputElement) return;
         
@@ -154,8 +124,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             await loadProductPrices();
             populateProductTables();
-            
-            // NOVO: Configura máscaras de moeda
+            setupPriceListener();
             setupAllCurrencyMasks();
             
             // Verificar e armazenar dados do último turno fechado para transferência
@@ -403,23 +372,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function loadProductPrices() {
-        try {
-            const snapshot = await db.collection('produtos').get();
-            productPrices = {}; // Limpa antes de preencher
-            snapshot.forEach(doc => {
-                productPrices[doc.id] = doc.data();
+    try {
+        const snapshot = await db.collection('produtos').get();
+        productPrices = {}; // Limpa antes de preencher
+        
+        snapshot.forEach(doc => {
+            const categoria = doc.id;
+            productPrices[categoria] = {};
+            
+            // Converter estrutura de dados para o formato esperado
+            const data = doc.data();
+            Object.entries(data).forEach(([key, value]) => {
+                if (typeof value === 'number') {
+                    // Converte valor direto para objeto com propriedade 'preco'
+                    productPrices[categoria][key] = { preco: value };
+                } else if (typeof value === 'object' && value !== null) {
+                    // Mantém formato existente para compatibilidade
+                    productPrices[categoria][key] = value;
+                }
             });
-            if (Object.keys(productPrices).length === 0) {
-                showError("Preços dos produtos não foram encontrados. Funcionalidades limitadas. Contate o administrador.");
-                return false;
-            }
-            return true;
-        } catch (error) {
-            console.error("Erro ao carregar preços: ", error);
-            showError("Erro ao carregar preços dos produtos. Tente recarregar a página.");
+        });
+        
+        console.log("✅ Preços carregados com sucesso:", productPrices);
+        
+        if (Object.keys(productPrices).length === 0) {
+            showError("Preços dos produtos não foram encontrados. Funcionalidades limitadas. Contate o administrador.");
             return false;
         }
+        return true;
+    } catch (error) {
+        console.error("Erro ao carregar preços: ", error);
+        showError("Erro ao carregar preços dos produtos. Tente recarregar a página.");
+        return false;
     }
+}
+function setupPriceListener() {
+    console.log("🔄 Configurando listener para atualizações de preços...");
+    db.collection('produtos').onSnapshot(snapshot => {
+        snapshot.docChanges().forEach(change => {
+            if (change.type === 'modified') {
+                // Atualiza preços quando modificados
+                const categoria = change.doc.id;
+                const data = change.doc.data();
+                
+                console.log(`✅ Atualizando preços da categoria: ${categoria}`);
+                
+                // Atualiza a estrutura de dados local
+                if (!productPrices[categoria]) productPrices[categoria] = {};
+                
+                Object.entries(data).forEach(([key, value]) => {
+                    if (typeof value === 'number') {
+                        productPrices[categoria][key] = { preco: value };
+                    } else if (typeof value === 'object' && value !== null) {
+                        productPrices[categoria][key] = value;
+                    }
+                    
+                    // Atualiza o preço na interface
+                    const precoDisplay = document.getElementById(`${key}_preco_display`);
+                    if (precoDisplay) {
+                        const precoUnit = typeof value === 'number' ? value : (value?.preco || 0);
+                        precoDisplay.textContent = formatToBRL(precoUnit);
+                        
+                        // Atualizar também o dataset.price no input de vendido
+                        const vendidoInput = document.getElementById(`${key}_vendido`);
+                        if (vendidoInput) {
+                            vendidoInput.dataset.price = precoUnit;
+                        }
+                        
+                        console.log(`  - ${key}: atualizado para ${formatToBRL(precoUnit)}`);
+                    }
+                });
+                
+                // Recalcula totais após atualizar preços
+                calculateAll();
+                
+                // Notificar o usuário sobre a atualização
+                turnoStatusP.textContent = "Preços atualizados pelo administrador. Totais recalculados.";
+                turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
+                setTimeout(() => {
+                    if (currentTurnoId) {
+                        turnoStatusP.textContent = `Turno ${currentTurnoId.split('_')[1]} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                        turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+                    } else {
+                        turnoStatusP.textContent = "Nenhum turno aberto.";
+                        turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
+                    }
+                }, 5000);
+            }
+        });
+    }, error => {
+        console.error("Erro no listener de preços:", error);
+    });
+}
     
     function populateProductTables() {
         tabelaPasteisBody.innerHTML = '';
