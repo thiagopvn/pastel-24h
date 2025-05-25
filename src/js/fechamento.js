@@ -145,19 +145,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentDate = new Date(dataInicio);
         while (currentDate <= dataFim) {
             const dateStr = formatDate(currentDate);
+            console.log(`\nBuscando turnos do dia: ${dateStr}`);
             
-            const turnosPromises = ['Manhã', 'Tarde', 'Noite'].map(periodo => 
-                db.collection('turnos')
-                    .doc(`${dateStr}_${periodo}`)
-                    .get()
-            );
+            // Buscar TODOS os turnos que começam com a data
+            const turnosSnapshot = await db.collection('turnos')
+                .where(firebase.firestore.FieldPath.documentId(), '>=', dateStr)
+                .where(firebase.firestore.FieldPath.documentId(), '<', dateStr + 'z')
+                .get();
             
-            const turnosDocs = await Promise.all(turnosPromises);
+            console.log(`Encontrados ${turnosSnapshot.size} turnos para ${dateStr}`);
             
-            turnosDocs.forEach(doc => {
-                if (doc.exists && doc.data().status === 'fechado') {
+            turnosSnapshot.forEach(doc => {
+                if (doc.data().status === 'fechado') {
                     const data = doc.data();
                     console.log(`\n=== Processando turno: ${doc.id} ===`);
+                    console.log('Status:', data.status);
                     
                     const responsavelId = data.fechamento?.responsavelId || data.abertura?.responsavelId;
                     const responsavelNome = data.fechamento?.responsavelNome || data.abertura?.responsavelNome;
@@ -185,7 +187,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             let minutosInicio = horaIni * 60 + minIni;
                             let minutosFim = horaFim * 60 + minFim;
                             
-                            // Se fechamento for antes da abertura, assumir que passou da meia-noite
                             if (minutosFim < minutosInicio) {
                                 minutosFim += 24 * 60;
                             }
@@ -200,7 +201,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         // Calcular consumo total
                         let consumoTotal = 0;
                         
-                        // Consumo de pastéis
                         if (data.itens?.pasteis) {
                             Object.entries(data.itens.pasteis).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
@@ -213,7 +213,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             });
                         }
                         
-                        // Consumo de caldo de cana
                         if (data.itens?.caldo_cana) {
                             Object.entries(data.itens.caldo_cana).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
@@ -226,7 +225,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             });
                         }
                         
-                        // Consumo de refrigerantes
                         if (data.itens?.refrigerantes) {
                             Object.entries(data.itens.refrigerantes).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
@@ -239,7 +237,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             });
                         }
                         
-                        // Consumo de gelo
                         if (data.gelo?.gelo_pacote?.consumoInterno && data.gelo.gelo_pacote.consumoInterno > 0) {
                             const valorConsumo = data.gelo.gelo_pacote.consumoInterno * (data.gelo.gelo_pacote.precoUnitario || 0);
                             if (valorConsumo > 0) {
@@ -251,8 +248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.log(`Consumo total do turno: R$ ${consumoTotal}`);
                         turnos[dateStr][responsavelId].consumo += consumoTotal;
                         
-                        // Valores padrão zerados para alimentação e transporte
-                        // (devem ser preenchidos manualmente)
                         turnos[dateStr][responsavelId].alimentacao += 0;
                         turnos[dateStr][responsavelId].transporteQtd += 0;
                     }
