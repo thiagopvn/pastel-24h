@@ -6,29 +6,32 @@
 
 // ===== CONSTANTES =====
 // Chaves para armazenamento local - centralizadas para evitar inconsistências
-const STORAGE_KEYS = {
-    // Dados de usuário
-    USER: 'pastelaria_user_data',
-    AUTH_STATE: 'pastelaria_auth_state',
-    USER_ROLE: 'userRole',
-    USER_NAME: 'userName',
-    USER_UID: 'userUID',
-    
-    // Dados de turno
-    CURRENT_TURNO_ID: 'currentTurnoId',
-    TURNO_DATA: 'turnoData',
-    TURNO_STATUS: 'turnoStatus',
-    LAST_CLOSED_TURNO: 'lastClosedTurno',
-    PREVIOUS_TURNO_ID: 'previousTurnoId',
-    TRANSFERRED_DATA: 'transferredData',
-    
-    // Configuração e estado do sistema
-    APP_CONFIG: 'pastelaria_config',
-    LAST_ROUTE: 'pastelaria_last_route',
-    LAST_SYNC: 'pastelaria_last_sync',
-    OFFLINE_DATA: 'pastelaria_offline_data',
-    PERSISTED_TIMESTAMPS: 'pastelaria_persisted_timestamps'
-};
+if (typeof window.STORAGE_KEYS === 'undefined') {
+    // Chaves para armazenamento local - centralizadas para evitar inconsistências
+    window.STORAGE_KEYS = {
+        // Dados de usuário
+        USER: 'pastelaria_user_data',
+        AUTH_STATE: 'pastelaria_auth_state',
+        USER_ROLE: 'userRole',
+        USER_NAME: 'userName',
+        USER_UID: 'userUID',
+        
+        // Dados de turno
+        CURRENT_TURNO_ID: 'currentTurnoId',
+        TURNO_DATA: 'turnoData',
+        TURNO_STATUS: 'turnoStatus',
+        LAST_CLOSED_TURNO: 'lastClosedTurno',
+        PREVIOUS_TURNO_ID: 'previousTurnoId',
+        TRANSFERRED_DATA: 'transferredData',
+        
+        // Configuração e estado do sistema
+        APP_CONFIG: 'pastelaria_config',
+        LAST_ROUTE: 'pastelaria_last_route',
+        LAST_SYNC: 'pastelaria_last_sync',
+        OFFLINE_DATA: 'pastelaria_offline_data',
+        PERSISTED_TIMESTAMPS: 'pastelaria_persisted_timestamps'
+    };
+}
 
 // Templates de sabores e produtos
 const listaSaboresPasteis = [

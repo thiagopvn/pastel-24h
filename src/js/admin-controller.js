@@ -1,5 +1,19 @@
 // admin-controller.js - VERSÃO COM DEBUG APRIMORADO
 document.addEventListener('DOMContentLoaded', async () => {
+
+    if (typeof window.formatCurrency !== 'function') {
+    window.formatCurrency = function(value, decimals = 2) {
+        try {
+            const valueNumber = parseFloat(value);
+            if (isNaN(valueNumber)) return 'R$ 0,00';
+            
+            return `R$ ${valueNumber.toFixed(decimals).replace('.', ',')}`;
+        } catch (error) {
+            console.error("Erro ao formatar moeda:", error);
+            return 'R$ 0,00';
+        }
+    };
+}
     console.log("🚀 Iniciando admin-controller.js");
     
     // Verifica se os módulos Firebase estão disponíveis
@@ -214,6 +228,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 precosRefrigerantesContainer: 'refrigerantes',
                 precosGeloContainer: 'gelo'
             };
+        }
+
+        formatCurrency(value) {
+        const valueNumber = parseFloat(value);
+        if (isNaN(valueNumber)) return 'R$ 0,00';
+        
+        return `R$ ${valueNumber.toFixed(2).replace('.', ',')}`;
         }
 
         async load() {
