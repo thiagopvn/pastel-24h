@@ -288,30 +288,47 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const turnoData = turnosData[dateStr]?.[func.uid] || {};
                 
                 rowHtml += `
+    <td class="px-1 py-1 editable-cell">
+        <input type="number" 
+               id="${func.uid}_${diaIndex}_hs"
+               value="${turnoData.horas || ''}"
+               min="0" step="0.5" 
+               class="w-full text-center border-2 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+               placeholder="0">
+    </td>
                     <td class="px-1 py-1 editable-cell">
-                        <input type="number" 
-                               id="${func.uid}_${diaIndex}_hs"
-                               value="${turnoData.horas || ''}"
-                               min="0" step="0.5" 
-                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                               style="min-height: 36px;">
-                    </td>
-                    <td class="px-1 py-1 editable-cell">
-                        <input type="number" 
-                               id="${func.uid}_${diaIndex}_alim"
-                               value="${turnoData.alimentacao || ''}"
-                               min="0" step="0.01" 
-                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                               style="min-height: 36px;">
-                    </td>
+        <input type="number" 
+               id="${func.uid}_${diaIndex}_alim"
+               value="${turnoData.alimentacao || ''}"
+               min="0" step="0.01" 
+               class="w-full text-center border-2 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+               placeholder="0">
+    </td>
                     <td class="px-1 py-1 editable-cell border-r border-gray-200">
-                        <input type="number" 
-                               id="${func.uid}_${diaIndex}_transp"
-                               value="${turnoData.transporteQtd || ''}"
-                               min="0" step="1" 
-                               class="w-full px-2 py-2 text-base text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                               style="min-height: 36px;">
-                    </td>
+        <input type="number" 
+               id="${func.uid}_${diaIndex}_transp"
+               value="${turnoData.transporteQtd || ''}"
+               min="0" step="1" 
+               class="w-full text-center border-2 rounded-md focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+               placeholder="0">
+    </td>
+
+    <td class="px-1 py-1 editable-cell bg-gray-50">
+    <input type="number" 
+           id="${func.uid}_desconto"
+           value="0"
+           min="0" step="0.01" 
+           class="w-full text-center text-red-600 font-semibold border-2 rounded-md focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all"
+           placeholder="0">
+</td>
+<td class="px-1 py-1 editable-cell bg-gray-50">
+    <input type="number" 
+           id="${func.uid}_adicional"
+           value="0"
+           min="0" step="0.01" 
+           class="w-full text-center text-green-600 font-semibold border-2 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+           placeholder="0">
+</td>
                 `;
             });
             
