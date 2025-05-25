@@ -139,53 +139,54 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     async function loadTurnos(dataInicio, dataFim) {
-        try {
-            const turnos = {};
+    try {
+        const turnos = {};
+        
+        const currentDate = new Date(dataInicio);
+        while (currentDate <= dataFim) {
+            const dateStr = formatDate(currentDate);
             
-            const currentDate = new Date(dataInicio);
-            while (currentDate <= dataFim) {
-                const dateStr = formatDate(currentDate);
-                
-                const turnosPromises = ['Manhã', 'Tarde', 'Noite'].map(periodo => 
-                    db.collection('turnos')
-                        .doc(`${dateStr}_${periodo}`)
-                        .get()
-                );
-                
-                const turnosDocs = await Promise.all(turnosPromises);
-                
-                turnosDocs.forEach(doc => {
-                    if (doc.exists && doc.data().status === 'fechado') {
-                        const data = doc.data();
-                        
-                        if (data.funcionarios) {
-                            Object.entries(data.funcionarios).forEach(([uid, funcData]) => {
-                                if (!turnos[dateStr]) turnos[dateStr] = {};
-                                if (!turnos[dateStr][uid]) turnos[dateStr][uid] = {
-                                    horas: 0,
-                                    alimentacao: 0,
-                                    transporteQtd: 0,
-                                    consumo: 0
-                                };
-                                
-                                turnos[dateStr][uid].horas += funcData.horasTotais || 0;
-                                turnos[dateStr][uid].alimentacao += funcData.alimentacao || 0;
-                                turnos[dateStr][uid].transporteQtd += funcData.transporteQtd || 0;
-                                turnos[dateStr][uid].consumo += funcData.consumoValor || 0;
-                            });
-                        }
+            const turnosPromises = ['Manhã', 'Tarde', 'Noite'].map(periodo => 
+                db.collection('turnos')
+                    .doc(`${dateStr}_${periodo}`)
+                    .get()
+            );
+            
+            const turnosDocs = await Promise.all(turnosPromises);
+            
+            turnosDocs.forEach(doc => {
+                if (doc.exists && doc.data().status === 'fechado') {
+                    const data = doc.data();
+                    
+                    if (data.fechamento && data.fechamento.funcionarios) {
+                        Object.entries(data.fechamento.funcionarios).forEach(([uid, funcData]) => {
+                            if (!turnos[dateStr]) turnos[dateStr] = {};
+                            if (!turnos[dateStr][uid]) turnos[dateStr][uid] = {
+                                horas: 0,
+                                alimentacao: 0,
+                                transporteQtd: 0,
+                                consumo: 0
+                            };
+                            
+                            turnos[dateStr][uid].horas += funcData.horas || 0;
+                            turnos[dateStr][uid].alimentacao += funcData.alimentacao || 0;
+                            turnos[dateStr][uid].transporteQtd += funcData.transporte || 0;
+                            turnos[dateStr][uid].consumo += funcData.consumo || 0;
+                        });
                     }
-                });
-                
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
+                }
+            });
             
-            return turnos;
-        } catch (error) {
-            console.error('Erro ao carregar turnos:', error);
-            return {};
+            currentDate.setDate(currentDate.getDate() + 1);
         }
+        
+        console.log('Turnos carregados:', turnos);
+        return turnos;
+    } catch (error) {
+        console.error('Erro ao carregar turnos:', error);
+        return {};
     }
+}
     
     function buildTable() {
         emptyMessage.classList.add('hidden');
