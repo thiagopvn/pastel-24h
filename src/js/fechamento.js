@@ -157,9 +157,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             turnosDocs.forEach(doc => {
                 if (doc.exists && doc.data().status === 'fechado') {
                     const data = doc.data();
+                    console.log('Documento turno encontrado:', doc.id);
+                    console.log('Estrutura completa do documento:', data);
                     
+                    // Verificar diferentes possíveis estruturas
+                    let funcionariosData = null;
+                    
+                    // Opção 1: fechamento.funcionarios
                     if (data.fechamento && data.fechamento.funcionarios) {
-                        Object.entries(data.fechamento.funcionarios).forEach(([uid, funcData]) => {
+                        funcionariosData = data.fechamento.funcionarios;
+                        console.log('Funcionários encontrados em fechamento.funcionarios:', funcionariosData);
+                    }
+                    // Opção 2: funcionarios direto
+                    else if (data.funcionarios) {
+                        funcionariosData = data.funcionarios;
+                        console.log('Funcionários encontrados em funcionarios:', funcionariosData);
+                    }
+                    
+                    if (funcionariosData) {
+                        Object.entries(funcionariosData).forEach(([uid, funcData]) => {
+                            console.log(`Processando funcionário ${uid}:`, funcData);
+                            
                             if (!turnos[dateStr]) turnos[dateStr] = {};
                             if (!turnos[dateStr][uid]) turnos[dateStr][uid] = {
                                 horas: 0,
@@ -168,11 +186,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 consumo: 0
                             };
                             
-                            turnos[dateStr][uid].horas += funcData.horas || 0;
+                            // Verificar diferentes nomes de campos possíveis
+                            turnos[dateStr][uid].horas += funcData.horasTotais || funcData.horas || 0;
                             turnos[dateStr][uid].alimentacao += funcData.alimentacao || 0;
-                            turnos[dateStr][uid].transporteQtd += funcData.transporte || 0;
-                            turnos[dateStr][uid].consumo += funcData.consumo || 0;
+                            turnos[dateStr][uid].transporteQtd += funcData.transporteQtd || funcData.transporte || 0;
+                            turnos[dateStr][uid].consumo += funcData.consumoValor || funcData.consumo || 0;
                         });
+                    } else {
+                        console.warn('Nenhum dado de funcionários encontrado no documento:', doc.id);
                     }
                 }
             });
@@ -180,7 +201,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log('Turnos carregados:', turnos);
+        console.log('Turnos processados final:', turnos);
         return turnos;
     } catch (error) {
         console.error('Erro ao carregar turnos:', error);
