@@ -1401,24 +1401,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             // Inicializar na aba dashboard por padrão
             tabManager.switchTab('dashboard');
-            
-            // Adicionar eventos para os botões de aba
             document.querySelectorAll('.tab-button').forEach(button => {
                 button.addEventListener('click', () => {
                     const tabName = button.id.replace('btnTab', '').toLowerCase();
                     tabManager.switchTab(tabName);
                 });
             });
-            
-            // Verificar URL para possível aba inicial
             const urlParams = new URLSearchParams(window.location.search);
             const tabParam = urlParams.get('tab');
             if (tabParam && ['dashboard', 'precos', 'usuarios'].includes(tabParam)) {
                 tabManager.switchTab(tabParam);
             }
-            
             notifications.showMessage("Sistema administrativo inicializado com sucesso!", "success");
-            
         } catch (error) {
             console.error("❌ Erro na inicialização:", error);
             notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
@@ -1430,6 +1424,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
         document.addEventListener('DOMContentLoaded', initialize);
     }
-    
     initialize();
 });
