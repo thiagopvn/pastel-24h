@@ -1165,23 +1165,6 @@ function setupPriceListener() {
     }
     
     async function getEstoqueInicial(dataTurnoAtual, periodoTurnoAtual) {
-    let dataAnterior = dataTurnoAtual;
-    let periodoAnterior;
-
-    const diaAtualDate = new Date(dataTurnoAtual.replace(/-/g, '/')); // Safari friendly date
-
-    if (periodoTurnoAtual === "Manhã") {
-        periodoAnterior = "Noite";
-        const ontem = new Date(diaAtualDate);
-        ontem.setDate(ontem.getDate() - 1); 
-        dataAnterior = getFormattedDate(ontem); 
-    } else if (periodoTurnoAtual === "Tarde") {
-        periodoAnterior = "Manhã";
-    } else { // Noite
-        periodoAnterior = "Tarde";
-    }
-    const idTurnoAnterior = `${dataAnterior}_${periodoAnterior}`;
-
     try {
         // Verificar se o usuário está autenticado
         const user = auth.currentUser;
@@ -1197,147 +1180,77 @@ function setupPriceListener() {
             }
         }
 
-        // Primeiro tenta acessar o documento específico do turno anterior
-        try {
-            const turnoAnteriorDoc = await db.collection('turnos').doc(idTurnoAnterior).get();
-            
-            if (turnoAnteriorDoc.exists && turnoAnteriorDoc.data().status === 'fechado') {
-                const dados = turnoAnteriorDoc.data();
-                
-                const estoqueFinal = { 
-                    itens: {}, 
-                    gelo: {}, 
-                    turnoId: idTurnoAnterior,
-                    caixaFinal: null,
-                    formasPagamento: dados.formasPagamento || {},
-                    trocaGas: dados.trocaGas || 'nao',
-                    totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
-                    totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
-                    diferencaCaixa: dados.diferencaCaixaFinal,
-                    fechamentoData: dados.fechamento || {},
-                    fechamentoTimestamp: dados.closedAt || null
-                };
-                
-                // Transfere itens do inventário (apenas SOBRA vai para próxima ENTRADA)
-                if (dados.itens) {
-                    Object.keys(dados.itens).forEach(cat => {
-                        estoqueFinal.itens[cat] = {};
-                        Object.keys(dados.itens[cat]).forEach(item => {
-                            estoqueFinal.itens[cat][item] = { 
-                              sobra: dados.itens[cat][item].sobra || 0,
-                              precoUnitario: dados.itens[cat][item].precoUnitario,
-                              vendido: dados.itens[cat][item].vendido,
-                              totalItemValor: dados.itens[cat][item].totalItemValor,
-                              chegadas: dados.itens[cat][item].chegadas || 0
-                            };
-                        });
-                    });
-                }
-                
-                // Transfere gelo (apenas SOBRA vai para próxima ENTRADA)
-                if (dados.gelo && dados.gelo.gelo_pacote) { 
-                    estoqueFinal.gelo.gelo_pacote = { 
-                        sobra: dados.gelo.gelo_pacote.sobra || 0,
-                        precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
-                        vendas: dados.gelo.gelo_pacote.vendas,
-                        totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
-                        chegadas: dados.gelo.gelo_pacote.chegadas || 0
-                    };
-                }
-                
-                // NOVO: TRANSFERÊNCIA DE CAIXA - Pegar o caixa final do turno anterior
-                if (dados.caixaFinalContado !== undefined) {
-                    estoqueFinal.caixaFinal = dados.caixaFinalContado;
-                    console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${idTurnoAnterior}`);
-                }
-                
-                return estoqueFinal;
-            }
-        } catch (docError) {
-            console.error(`Erro ao acessar documento do turno ${idTurnoAnterior}:`, docError);
-            
-            // Se for um erro de permissão, tente uma abordagem alternativa
-            if (docError.code === 'permission-denied') {
-                console.warn("Permissão negada para acesso direto ao documento. Tentando consulta alternativa...");
-                
-                try {
-                    console.log("Tentando abordagem alternativa para buscar último turno fechado...");
-                    // Tenta buscar através de uma consulta - pode ter permissões diferentes
-                    const turnosRef = await db.collection('turnos')
-                        .where('status', '==', 'fechado')
-                        .orderBy('closedAt', 'desc')
-                        .limit(1)
-                        .get();
-                    
-                    if (!turnosRef.empty) {
-                        const turnoDoc = turnosRef.docs[0];
-                        console.log(`Encontrado turno alternativo: ${turnoDoc.id}`);
-                        
-                        // Processar o turno encontrado
-                        const dados = turnoDoc.data();
-                        // Estrutura igual à anterior
-                        const estoqueFinal = { 
-                            itens: {}, 
-                            gelo: {}, 
-                            turnoId: turnoDoc.id,
-                            caixaFinal: null,
-                            formasPagamento: dados.formasPagamento || {},
-                            trocaGas: dados.trocaGas || 'nao',
-                            totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
-                            totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
-                            diferencaCaixa: dados.diferencaCaixaFinal,
-                            fechamentoData: dados.fechamento || {},
-                            fechamentoTimestamp: dados.closedAt || null
-                        };
-                        
-                        // Mesmo processamento de dados
-                        if (dados.itens) {
-                            Object.keys(dados.itens).forEach(cat => {
-                                estoqueFinal.itens[cat] = {};
-                                Object.keys(dados.itens[cat]).forEach(item => {
-                                    estoqueFinal.itens[cat][item] = { 
-                                      sobra: dados.itens[cat][item].sobra || 0,
-                                      precoUnitario: dados.itens[cat][item].precoUnitario,
-                                      vendido: dados.itens[cat][item].vendido,
-                                      totalItemValor: dados.itens[cat][item].totalItemValor,
-                                      chegadas: dados.itens[cat][item].chegadas || 0
-                                    };
-                                });
-                            });
-                        }
-                        
-                        if (dados.gelo && dados.gelo.gelo_pacote) { 
-                            estoqueFinal.gelo.gelo_pacote = { 
-                                sobra: dados.gelo.gelo_pacote.sobra || 0,
-                                precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
-                                vendas: dados.gelo.gelo_pacote.vendas,
-                                totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
-                                chegadas: dados.gelo.gelo_pacote.chegadas || 0
-                            };
-                        }
-                        
-                        if (dados.caixaFinalContado !== undefined) {
-                            estoqueFinal.caixaFinal = dados.caixaFinalContado;
-                            console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${turnoDoc.id}`);
-                        }
-                        
-                        return estoqueFinal;
-                    }
-                } catch (altError) {
-                    console.error("Erro na abordagem alternativa:", altError);
-                    // Segue para o fallback abaixo
-                }
-            }
-        }
+        console.log("Buscando o último turno fechado independente do período...");
+        // Busca diretamente o último turno fechado, ordenado pela data de fechamento
+        const turnosRef = await db.collection('turnos')
+            .where('status', '==', 'fechado')
+            .orderBy('closedAt', 'desc')  // Usa o timestamp de fechamento para ordenação
+            .limit(1)
+            .get();
         
-        console.warn(`Estoque do turno anterior (${idTurnoAnterior}) não encontrado ou não acessível. Iniciando com estoque zero.`);
+        if (!turnosRef.empty) {
+            const turnoDoc = turnosRef.docs[0];
+            console.log(`Encontrado último turno fechado: ${turnoDoc.id}`);
+            
+            const dados = turnoDoc.data();
+            
+            const estoqueFinal = { 
+                itens: {}, 
+                gelo: {}, 
+                turnoId: turnoDoc.id,
+                caixaFinal: null,
+                formasPagamento: dados.formasPagamento || {},
+                trocaGas: dados.trocaGas || 'nao',
+                totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
+                totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
+                diferencaCaixa: dados.diferencaCaixaFinal,
+                fechamentoData: dados.fechamento || {},
+                fechamentoTimestamp: dados.closedAt || null
+            };
+            
+            // Transfere itens do inventário (apenas SOBRA vai para próxima ENTRADA)
+            if (dados.itens) {
+                Object.keys(dados.itens).forEach(cat => {
+                    estoqueFinal.itens[cat] = {};
+                    Object.keys(dados.itens[cat]).forEach(item => {
+                        estoqueFinal.itens[cat][item] = { 
+                          sobra: dados.itens[cat][item].sobra || 0,
+                          precoUnitario: dados.itens[cat][item].precoUnitario,
+                          vendido: dados.itens[cat][item].vendido,
+                          totalItemValor: dados.itens[cat][item].totalItemValor,
+                          chegadas: dados.itens[cat][item].chegadas || 0
+                        };
+                    });
+                });
+            }
+            
+            // Transfere gelo (apenas SOBRA vai para próxima ENTRADA)
+            if (dados.gelo && dados.gelo.gelo_pacote) { 
+                estoqueFinal.gelo.gelo_pacote = { 
+                    sobra: dados.gelo.gelo_pacote.sobra || 0,
+                    precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
+                    vendas: dados.gelo.gelo_pacote.vendas,
+                    totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
+                    chegadas: dados.gelo.gelo_pacote.chegadas || 0
+                };
+            }
+            
+            // Transferência de caixa - Pegar o caixa final do turno anterior
+            if (dados.caixaFinalContado !== undefined) {
+                estoqueFinal.caixaFinal = dados.caixaFinalContado;
+                console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${turnoDoc.id}`);
+            }
+            
+            return estoqueFinal;
+        } else {
+            console.warn("Nenhum turno fechado encontrado. Iniciando com estoque zero.");
+        }
     } catch (error) {
-        console.error("Erro ao buscar estoque do turno anterior:", error);
+        console.error("Erro ao buscar último turno fechado:", error);
         
         // Se o erro for de permissão, continuamos mesmo sem dados anteriores
         if (error.code === 'permission-denied') {
             console.warn("Erro de permissão ao acessar turnos. Iniciando com estoque zero.");
-            // Continua com o fallback abaixo
         } else {
             // Para outros erros, propaga para o chamador tratar
             throw error;
