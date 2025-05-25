@@ -1012,12 +1012,12 @@ class UserManager {
             console.log(`Usuário ${doc.id}:`, userData);
             
             users.push({
-                id: doc.id,
-                nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
-                email: userData.email || 'Sem email',
-                funcao: userData.role || 'funcionario', // MUDANÇA AQUI - compatibilidade
-                createdAt: userData.createdAt || firebase.firestore.Timestamp.now()
-            });
+    id: doc.id,
+    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+    email: userData.email || 'Sem email',
+    funcao: userData.role || 'funcionario', // Mantém 'funcao' mas lê de 'role'
+    createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp()
+});
         });
         
         return users;
@@ -1048,7 +1048,7 @@ class UserManager {
                                 </span>
                                 <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.funcao)}">
                                     <i class="fas ${this.getRoleIcon(usuario.funcao)} mr-1"></i>
-                                    ${usuario.funcao}
+                                    ${this.getRoleText(usuario.funcao)}
                                 </span>
                             </div>
                         </div>
@@ -1076,13 +1076,17 @@ class UserManager {
     }
 
     getRoleBadgeClass(funcao) {
-        return funcao === 'Administrador' ? 
-            'bg-danger-100 text-danger-800' : 
-            'bg-blue-100 text-blue-800';
+    return funcao === 'admin' ? 
+        'bg-danger-100 text-danger-800' : 
+        'bg-blue-100 text-blue-800';
     }
 
     getRoleIcon(funcao) {
-        return funcao === 'Administrador' ? 'fa-user-shield' : 'fa-user';
+    return funcao === 'admin' ? 'fa-user-shield' : 'fa-user';
+    }
+
+    getRoleText(funcao) {
+    return funcao === 'admin' ? 'Administrador' : 'Funcionário';
     }
 
     attachEventListeners() {

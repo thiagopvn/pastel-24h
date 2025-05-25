@@ -33,8 +33,8 @@ exports.deleteUserAuth = functions.https.onCall(async (data, context) => {
     const callerData = callerDoc.data();
 
     // Verifica se o usuário é administrador
-    if (callerData.role !== 'Administrador') {
-        throw new functions.https.HttpsError(
+    if (callerData.role !== 'admin') {
+    throw new functions.https.HttpsError(
         'permission-denied',
         'Apenas administradores podem excluir usuários.'
     );
