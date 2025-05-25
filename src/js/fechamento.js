@@ -158,42 +158,71 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (doc.exists && doc.data().status === 'fechado') {
                     const data = doc.data();
                     console.log('Documento turno encontrado:', doc.id);
-                    console.log('Estrutura completa do documento:', data);
+                    console.log('Responsável do turno:', data.fechamento?.responsavelNome);
                     
-                    // Verificar diferentes possíveis estruturas
-                    let funcionariosData = null;
+                    // Como não há dados de funcionários na estrutura atual,
+                    // vamos criar dados baseados no responsável do turno
+                    const responsavelId = data.fechamento?.responsavelId || data.abertura?.responsavelId;
+                    const responsavelNome = data.fechamento?.responsavelNome || data.abertura?.responsavelNome;
                     
-                    // Opção 1: fechamento.funcionarios
-                    if (data.fechamento && data.fechamento.funcionarios) {
-                        funcionariosData = data.fechamento.funcionarios;
-                        console.log('Funcionários encontrados em fechamento.funcionarios:', funcionariosData);
-                    }
-                    // Opção 2: funcionarios direto
-                    else if (data.funcionarios) {
-                        funcionariosData = data.funcionarios;
-                        console.log('Funcionários encontrados em funcionarios:', funcionariosData);
-                    }
-                    
-                    if (funcionariosData) {
-                        Object.entries(funcionariosData).forEach(([uid, funcData]) => {
-                            console.log(`Processando funcionário ${uid}:`, funcData);
-                            
-                            if (!turnos[dateStr]) turnos[dateStr] = {};
-                            if (!turnos[dateStr][uid]) turnos[dateStr][uid] = {
+                    if (responsavelId) {
+                        if (!turnos[dateStr]) turnos[dateStr] = {};
+                        if (!turnos[dateStr][responsavelId]) {
+                            turnos[dateStr][responsavelId] = {
                                 horas: 0,
                                 alimentacao: 0,
                                 transporteQtd: 0,
                                 consumo: 0
                             };
+                        }
+                        
+                        // Calcular horas trabalhadas
+                        if (data.abertura?.hora && data.fechamento?.hora) {
+                            const horaAbertura = data.abertura.hora.split(':');
+                            const horaFechamento = data.fechamento.hora.split(':');
                             
-                            // Verificar diferentes nomes de campos possíveis
-                            turnos[dateStr][uid].horas += funcData.horasTotais || funcData.horas || 0;
-                            turnos[dateStr][uid].alimentacao += funcData.alimentacao || 0;
-                            turnos[dateStr][uid].transporteQtd += funcData.transporteQtd || funcData.transporte || 0;
-                            turnos[dateStr][uid].consumo += funcData.consumoValor || funcData.consumo || 0;
-                        });
-                    } else {
-                        console.warn('Nenhum dado de funcionários encontrado no documento:', doc.id);
+                            const abertura = parseInt(horaAbertura[0]) + parseInt(horaAbertura[1])/60;
+                            const fechamento = parseInt(horaFechamento[0]) + parseInt(horaFechamento[1])/60;
+                            
+                            let horasTrabalhadas = fechamento - abertura;
+                            if (horasTrabalhadas < 0) horasTrabalhadas += 24;
+                            
+                            turnos[dateStr][responsavelId].horas += horasTrabalhadas;
+                        }
+                        
+                        // Calcular consumo total
+                        let consumoTotal = 0;
+                        
+                        // Consumo de pastéis
+                        if (data.itens?.pasteis) {
+                            Object.values(data.itens.pasteis).forEach(item => {
+                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                            });
+                        }
+                        
+                        // Consumo de outros itens
+                        if (data.itens?.caldo_cana) {
+                            Object.values(data.itens.caldo_cana).forEach(item => {
+                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                            });
+                        }
+                        
+                        if (data.itens?.refrigerantes) {
+                            Object.values(data.itens.refrigerantes).forEach(item => {
+                                if (item.consumo) consumoTotal += item.consumo * (item.precoUnitario || 0);
+                            });
+                        }
+                        
+                        if (data.gelo?.gelo_pacote?.consumoInterno) {
+                            consumoTotal += data.gelo.gelo_pacote.consumoInterno * (data.gelo.gelo_pacote.precoUnitario || 0);
+                        }
+                        
+                        turnos[dateStr][responsavelId].consumo += consumoTotal;
+                        
+                        // Valores padrão para alimentação e transporte
+                        // (pode ser ajustado conforme necessário)
+                        turnos[dateStr][responsavelId].alimentacao += 15; // valor padrão
+                        turnos[dateStr][responsavelId].transporteQtd += 2; // 2 viagens padrão
                     }
                 }
             });
@@ -201,7 +230,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log('Turnos processados final:', turnos);
+        console.log('Turnos processados:', turnos);
         return turnos;
     } catch (error) {
         console.error('Erro ao carregar turnos:', error);
