@@ -1,4 +1,3 @@
-// admin-controller.js - VERSÃO COM DEBUG APRIMORADO
 document.addEventListener('DOMContentLoaded', async () => {
 
     if (typeof window.formatCurrency !== 'function') {
@@ -15,9 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 }
     console.log("🚀 Iniciando admin-controller.js");
-    
-    // Verifica se os módulos Firebase estão disponíveis
-    if (typeof firebase === 'undefined') {
+      if (typeof firebase === 'undefined') {
         console.error("❌ Firebase não está definido. Verifique se os scripts Firebase foram carregados.");
         alert("Erro crítico: Firebase não está carregado. Verifique sua conexão com a internet ou contate o suporte.");
         return;
@@ -28,8 +25,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("Erro crítico: Configuração do Firebase incompleta. Contate o suporte.");
         return;
     }
-
-    // Teste de conexão com Firestore
     console.log("🔍 Testando conexão com Firestore...");
     try {
         // Tenta fazer uma leitura simples para verificar conectividade
@@ -39,11 +34,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error("❌ Erro ao conectar com Firestore:", error);
         alert("Erro ao conectar com o banco de dados. Verifique sua conexão.");
     }
-
-    // Estado de autenticação
     console.log("🔍 Verificando autenticação...");
-    
-    // Espera a autenticação ser verificada
     const waitForAuth = new Promise((resolve) => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
             unsubscribe();
@@ -62,8 +53,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         
         console.log("✅ Usuário autenticado:", currentUser.email, "UID:", currentUser.uid);
-        
-        // Verifica role antes de prosseguir
         try {
             const userDoc = await db.collection('usuarios').doc(currentUser.uid).get();
             if (userDoc.exists) {
@@ -87,16 +76,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert("Erro ao verificar autenticação. Tente recarregar a página.");
         return;
     }
-
-    // Formatadores
     const formatCurrency = (value) => {
         return new Intl.NumberFormat('pt-BR', {
             style: 'currency',
             currency: 'BRL'
         }).format(value || 0);
     };
-
-    // Sistema de notificações
     class NotificationManager {
         constructor() {
             this.container = document.getElementById('toast-container');
@@ -113,16 +98,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             
             const toast = document.createElement('div');
             toast.className = `toast bg-white border-l-4 rounded-lg shadow-lg p-4 mb-2 transform transition-all duration-300`;
-            
-            // Cores por tipo
             const colors = {
                 success: 'border-green-500 text-green-800',
                 error: 'border-red-500 text-red-800',
                 warning: 'border-yellow-500 text-yellow-800',
                 info: 'border-blue-500 text-blue-800'
             };
-            
-            // Ícones por tipo
             const icons = {
                 success: 'fa-check-circle',
                 error: 'fa-exclamation-circle',
@@ -141,24 +122,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </button>
                 </div>
             `;
-            
-            // Adicionar ao container
             this.container.appendChild(toast);
-            
-            // Botão de fechar
             toast.querySelector('button').addEventListener('click', () => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateX(100%)';
                 setTimeout(() => toast.remove(), 300);
             });
-            
-            // Animar entrada
             setTimeout(() => {
                 toast.style.opacity = '1';
                 toast.style.transform = 'translateX(0)';
             }, 10);
-            
-            // Auto-remover após duração
             if (duration > 0) {
                 setTimeout(() => {
                     toast.style.opacity = '0';
@@ -172,15 +145,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     const notifications = new NotificationManager();
-    window.notifications = notifications; // Disponibiliza globalmente
-
-    // Estado da aplicação
+    window.notifications = notifications; 
     const appState = {
         currentPrices: {},
         users: []
     };
-
-    // Gerenciador de Preços CORRIGIDO
     class PriceManager {
         constructor() {
             this.containers = {
@@ -190,8 +159,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 precosRefrigerantesContainer: document.getElementById('precosRefrigerantesContainer'),
                 precosGeloContainer: document.getElementById('precosGeloContainer')
             };
-            
-            // Verificar se todos os containers existem
             const missingContainers = Object.entries(this.containers)
                 .filter(([key, element]) => !element)
                 .map(([key]) => key);
@@ -199,8 +166,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (missingContainers.length > 0) {
                 console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
             }
-            
-            // Lista de produtos por categoria
             this.produtosPorCategoria = {
                 pasteis: [
                     "carne", "frango", "queijo", "pizza", "bauru", "calabresa", "palmito",
@@ -219,8 +184,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 ],
                 gelo: ["gelo_pacote"]
             };
-            
-            // Mapeamento de container para categoria
             this.containerToCategoryMap = {
                 precosPasteisContainer: 'pasteis',
                 precosCasquinhasContainer: 'casquinhas',
@@ -229,97 +192,65 @@ document.addEventListener('DOMContentLoaded', async () => {
                 precosGeloContainer: 'gelo'
             };
         }
-
         formatCurrency(value) {
         const valueNumber = parseFloat(value);
         if (isNaN(valueNumber)) return 'R$ 0,00';
-        
         return `R$ ${valueNumber.toFixed(2).replace('.', ',')}`;
         }
-
         async load() {
             console.log("🔄 Iniciando carregamento de preços...");
             notifications.showMessage("Carregando preços...", "info");
-            
-            // Limpar containers
             this.clearContainers();
-            
             try {
-                // Carregar preços com a estrutura correta
                 const precos = await this.fetchPrices();
                 appState.currentPrices = precos;
-                
-                // Verificar se os preços foram carregados corretamente
                 if (Object.keys(precos).length === 0) {
                     console.warn("⚠️ Nenhum preço encontrado, usando valores padrão");
                     this.populateWithDefaults();
                     return;
                 }
-                
                 console.log("✅ Preços carregados:", precos);
-                
-                // Preencher formulários
                 this.populateForms();
                 this.setupFormHandler();
                 this.updateCounters();
-                
                 notifications.showMessage("Preços carregados com sucesso!", "success");
-                
             } catch (error) {
                 console.error("❌ Erro ao carregar preços:", error);
                 notifications.showMessage(`Erro ao carregar preços: ${error.message}`, "error");
-                
-                // Fallback para preços padrão
                 this.populateWithDefaults();
             }
         }
-
-        clearContainers() {
+       clearContainers() {
             Object.values(this.containers).forEach(container => {
                 if (container) {
                     container.innerHTML = '<div class="text-center p-4 text-gray-500"><i class="fas fa-spinner fa-spin mr-2"></i>Carregando preços...</div>';
                 }
             });
         }
-
-        // MÉTODO CORRIGIDO PARA A ESTRUTURA REAL DO FIREBASE
         async fetchPrices() {
             console.log("🔍 Buscando preços no Firebase...");
-            
             const precos = {};
-            
             try {
-                // Primeiro, vamos listar todos os documentos na coleção produtos para debug
                 console.log("📂 Listando todos os documentos na coleção 'produtos':");
                 const produtosSnapshot = await db.collection('produtos').get();
                 produtosSnapshot.forEach(doc => {
                     console.log(`  - Documento: ${doc.id}`);
                 });
-
-                // Agora buscar cada categoria
                 const categorias = Object.keys(this.produtosPorCategoria);
-                
                 for (const categoria of categorias) {
                     console.log(`\n📂 Buscando categoria: ${categoria}`);
                     precos[categoria] = {};
-                    
                     try {
                         const categoriaDoc = await db.collection('produtos').doc(categoria).get();
-                        
                         if (categoriaDoc.exists) {
                             const data = categoriaDoc.data();
                             console.log(`✅ Documento '${categoria}' encontrado. Campos:`, Object.keys(data));
-                            
-                            // Para cada campo esperado nesta categoria
                             const produtosEsperados = this.produtosPorCategoria[categoria];
                             console.log(`📋 Produtos esperados em ${categoria}:`, produtosEsperados);
-                            
                             produtosEsperados.forEach(produtoKey => {
                                 if (data.hasOwnProperty(produtoKey)) {
                                     const valor = data[produtoKey];
                                     console.log(`  ✓ ${produtoKey}: ${valor} (tipo: ${typeof valor})`);
-                                    
-                                    // Aceita tanto número direto quanto objeto com propriedade preco
                                     if (typeof valor === 'number') {
                                         precos[categoria][produtoKey] = { preco: valor };
                                     } else if (typeof valor === 'object' && valor !== null && valor.preco !== undefined) {
@@ -336,8 +267,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                             
                         } else {
                             console.error(`❌ Documento '${categoria}' não encontrado na coleção 'produtos'`);
-                            
-                            // Inicializar com zeros
                             this.produtosPorCategoria[categoria].forEach(produto => {
                                 precos[categoria][produto] = { preco: 0 };
                             });
@@ -345,15 +274,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     } catch (error) {
                         console.error(`❌ Erro ao buscar categoria ${categoria}:`, error);
                         console.error("Detalhes do erro:", error.code, error.message);
-                        
-                        // Inicializar com zeros em caso de erro
                         this.produtosPorCategoria[categoria].forEach(produto => {
                             precos[categoria][produto] = { preco: 0 };
                         });
                     }
                 }
-                
-                // Verificar se encontramos preços
                 let totalProdutos = 0;
                 let produtosComPreco = 0;
                 Object.values(precos).forEach(categoria => {
@@ -362,11 +287,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (item.preco > 0) produtosComPreco++;
                     });
                 });
-                
                 console.log(`\n📊 Resumo: ${produtosComPreco}/${totalProdutos} produtos com preço definido`);
-                
                 return precos;
-                
             } catch (error) {
                 console.error("❌ Erro geral ao buscar preços:", error);
                 console.error("Tipo de erro:", error.name);
@@ -375,50 +297,35 @@ document.addEventListener('DOMContentLoaded', async () => {
                 throw error;
             }
         }
-
         populateForms() {
             console.log("🎨 Populando formulários com os preços...");
-            
             Object.entries(this.containers).forEach(([containerId, container]) => {
                 if (!container) {
                     console.warn(`⚠️ Container ${containerId} não encontrado`);
                     return;
                 }
-                
                 const categoryKey = this.containerToCategoryMap[containerId];
                 if (!categoryKey) {
                     console.warn(`⚠️ Categoria não mapeada para ${containerId}`);
                     return;
                 }
-                
                 const products = this.produtosPorCategoria[categoryKey] || [];
-                
                 container.innerHTML = '';
-                
                 if (products.length === 0) {
                     container.innerHTML = '<div class="text-center p-4 text-gray-500">Nenhum produto nesta categoria</div>';
                     return;
                 }
-                
                 console.log(`📋 Populando ${products.length} produtos na categoria ${categoryKey}`);
-                
                 products.forEach(product => {
-                    const itemKey = product; // Já está no formato correto
-                    
-                    // Buscar preço no estado da aplicação
+                    const itemKey = product;
                     let currentPrice = 0;
-                    
                     if (appState.currentPrices[categoryKey] && 
                         appState.currentPrices[categoryKey][itemKey] && 
                         appState.currentPrices[categoryKey][itemKey].preco !== undefined) {
                         currentPrice = appState.currentPrices[categoryKey][itemKey].preco;
                     }
-                    
                     console.log(`  - ${product}: R$ ${currentPrice}`);
-                    
-                    // Formatar nome para exibição
                     const displayName = this.formatProductName(product);
-                    
                     const priceCard = this.createPriceCard(displayName, categoryKey, itemKey, currentPrice);
                     container.appendChild(priceCard);
                 });
@@ -1422,23 +1329,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabParam && ['dashboard', 'precos', 'usuarios'].includes(tabParam)) {
                 tabManager.switchTab(tabParam);
             }
-            
-            // Mensagem de inicialização concluída
             notifications.showMessage("Sistema inicializado com sucesso!", "success");
-            
         } catch (error) {
             console.error("❌ Erro na inicialização:", error);
             notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
         }
     }
-
-    // Verificar se a página foi carregada corretamente antes de inicializar
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(initialize, 0);
     } else {
         document.addEventListener('DOMContentLoaded', initialize);
     }
-
-    // Iniciar o sistema
     initialize();
 });
