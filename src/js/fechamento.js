@@ -157,10 +157,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             turnosDocs.forEach(doc => {
                 if (doc.exists && doc.data().status === 'fechado') {
                     const data = doc.data();
+                    console.log(`\n=== Processando turno: ${doc.id} ===`);
                     
                     const responsavelId = data.fechamento?.responsavelId || data.abertura?.responsavelId;
+                    const responsavelNome = data.fechamento?.responsavelNome || data.abertura?.responsavelNome;
                     
                     if (responsavelId) {
+                        console.log(`Responsável: ${responsavelNome} (${responsavelId})`);
+                        
                         if (!turnos[dateStr]) turnos[dateStr] = {};
                         if (!turnos[dateStr][responsavelId]) {
                             turnos[dateStr][responsavelId] = {
@@ -173,55 +177,82 @@ document.addEventListener('DOMContentLoaded', async () => {
                         
                         // Calcular horas trabalhadas
                         if (data.abertura?.hora && data.fechamento?.hora) {
+                            console.log(`Abertura: ${data.abertura.hora}, Fechamento: ${data.fechamento.hora}`);
+                            
                             const [horaIni, minIni] = data.abertura.hora.split(':').map(Number);
                             const [horaFim, minFim] = data.fechamento.hora.split(':').map(Number);
                             
-                            let totalMinutosIni = horaIni * 60 + minIni;
-                            let totalMinutosFim = horaFim * 60 + minFim;
+                            let minutosInicio = horaIni * 60 + minIni;
+                            let minutosFim = horaFim * 60 + minFim;
                             
-                            if (totalMinutosFim < totalMinutosIni) {
-                                totalMinutosFim += 24 * 60;
+                            // Se fechamento for antes da abertura, assumir que passou da meia-noite
+                            if (minutosFim < minutosInicio) {
+                                minutosFim += 24 * 60;
                             }
                             
-                            const horasTrabalhadas = (totalMinutosFim - totalMinutosIni) / 60;
+                            const minutosTrabalhadosTotal = minutosFim - minutosInicio;
+                            const horasTrabalhadas = minutosTrabalhadosTotal / 60;
+                            
+                            console.log(`Minutos trabalhados: ${minutosTrabalhadosTotal}, Horas: ${horasTrabalhadas.toFixed(2)}`);
                             turnos[dateStr][responsavelId].horas += horasTrabalhadas;
                         }
                         
-                        // Calcular consumo total do funcionário
+                        // Calcular consumo total
                         let consumoTotal = 0;
                         
+                        // Consumo de pastéis
                         if (data.itens?.pasteis) {
-                            Object.values(data.itens.pasteis).forEach(item => {
+                            Object.entries(data.itens.pasteis).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
-                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                    const valorConsumo = item.consumo * (item.precoUnitario || 0);
+                                    if (valorConsumo > 0) {
+                                        console.log(`  Pastel ${key}: ${item.consumo} x R$ ${item.precoUnitario} = R$ ${valorConsumo}`);
+                                        consumoTotal += valorConsumo;
+                                    }
                                 }
                             });
                         }
                         
+                        // Consumo de caldo de cana
                         if (data.itens?.caldo_cana) {
-                            Object.values(data.itens.caldo_cana).forEach(item => {
+                            Object.entries(data.itens.caldo_cana).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
-                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                    const valorConsumo = item.consumo * (item.precoUnitario || 0);
+                                    if (valorConsumo > 0) {
+                                        console.log(`  Caldo ${key}: ${item.consumo} x R$ ${item.precoUnitario} = R$ ${valorConsumo}`);
+                                        consumoTotal += valorConsumo;
+                                    }
                                 }
                             });
                         }
                         
+                        // Consumo de refrigerantes
                         if (data.itens?.refrigerantes) {
-                            Object.values(data.itens.refrigerantes).forEach(item => {
+                            Object.entries(data.itens.refrigerantes).forEach(([key, item]) => {
                                 if (item.consumo && item.consumo > 0) {
-                                    consumoTotal += item.consumo * (item.precoUnitario || 0);
+                                    const valorConsumo = item.consumo * (item.precoUnitario || 0);
+                                    if (valorConsumo > 0) {
+                                        console.log(`  Refrigerante ${key}: ${item.consumo} x R$ ${item.precoUnitario} = R$ ${valorConsumo}`);
+                                        consumoTotal += valorConsumo;
+                                    }
                                 }
                             });
                         }
                         
+                        // Consumo de gelo
                         if (data.gelo?.gelo_pacote?.consumoInterno && data.gelo.gelo_pacote.consumoInterno > 0) {
-                            consumoTotal += data.gelo.gelo_pacote.consumoInterno * (data.gelo.gelo_pacote.precoUnitario || 0);
+                            const valorConsumo = data.gelo.gelo_pacote.consumoInterno * (data.gelo.gelo_pacote.precoUnitario || 0);
+                            if (valorConsumo > 0) {
+                                console.log(`  Gelo consumo interno: ${data.gelo.gelo_pacote.consumoInterno} x R$ ${data.gelo.gelo_pacote.precoUnitario} = R$ ${valorConsumo}`);
+                                consumoTotal += valorConsumo;
+                            }
                         }
                         
+                        console.log(`Consumo total do turno: R$ ${consumoTotal}`);
                         turnos[dateStr][responsavelId].consumo += consumoTotal;
                         
-                        // Valores padrão para alimentação e transporte
-                        // Como não há esses dados no Firebase, deixamos em 0 para o usuário preencher
+                        // Valores padrão zerados para alimentação e transporte
+                        // (devem ser preenchidos manualmente)
                         turnos[dateStr][responsavelId].alimentacao += 0;
                         turnos[dateStr][responsavelId].transporteQtd += 0;
                     }
@@ -231,7 +262,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentDate.setDate(currentDate.getDate() + 1);
         }
         
-        console.log('Turnos processados final:', turnos);
+        console.log('\n=== RESUMO FINAL DOS TURNOS ===');
+        console.log(JSON.stringify(turnos, null, 2));
+        
         return turnos;
     } catch (error) {
         console.error('Erro ao carregar turnos:', error);
