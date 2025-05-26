@@ -51,103 +51,70 @@
     </script>
     
     <style>
-        /* Cards de resumo com gradiente */
-        .summary-card {
+        /* Estilos customizados para o fechamento */
+        .day-card {
             background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
             border: 1px solid rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
         }
         
-        .summary-card:hover {
+        .day-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
         
-        /* Estilo para valores grandes */
-        .big-value {
-            font-size: 2rem;
-            font-weight: 700;
-            line-height: 1.2;
-        }
-        
-        .medium-value {
-            font-size: 1.5rem;
-            font-weight: 600;
-        }
-        
-        /* Tabela compacta */
-        .compact-table {
-            font-size: 0.875rem;
-        }
-        
-        .compact-table td, .compact-table th {
-            padding: 0.5rem;
-        }
-        
-        .compact-input {
-            padding: 0.25rem 0.5rem;
-            font-size: 0.875rem;
-            height: 2rem;
-        }
-        
-        /* Highlight especial */
-        .highlight-positive {
-            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-            color: #065f46;
-        }
-        
-        .highlight-negative {
-            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-            color: #7f1d1d;
-        }
-        
-        .highlight-warning {
-            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-            color: #78350f;
-        }
-        
-        /* Seção colapsável */
-        .collapsible {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
-        
-        .collapsible.open {
-            max-height: 2000px;
-            transition: max-height 0.5s ease-in;
-        }
-        
-        /* Cards de funcionários */
-        .employee-card {
+        .employee-summary-card {
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .employee-summary-card:hover {
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+            border-color: #F97316;
+        }
+        
+        .value-positive {
+            color: #16A34A;
+        }
+        
+        .value-negative {
+            color: #DC2626;
+        }
+        
+        .value-neutral {
+            color: #6B7280;
+        }
+        
+        /* Tabs customizadas */
+        .tab-button {
+            position: relative;
             transition: all 0.3s ease;
         }
         
-        .employee-card:hover {
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-            transform: translateY(-2px);
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #F97316;
+            border-radius: 3px 3px 0 0;
         }
         
-        /* Status badges */
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 500;
+        /* Grid responsivo melhorado */
+        .days-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
         }
         
-        /* Print styles */
-        @media print {
-            .no-print {
-                display: none !important;
-            }
-            
-            .page-break {
-                page-break-after: always;
+        @media (min-width: 1536px) {
+            .days-grid {
+                grid-template-columns: repeat(7, 1fr);
             }
         }
         
@@ -166,6 +133,13 @@
         .animate-slide-in {
             animation: slideIn 0.5s ease-out;
         }
+        
+        /* Print styles */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
@@ -179,7 +153,7 @@
                     </div>
                     <div>
                         <h1 class="text-xl font-bold">Fechamento Semanal</h1>
-                        <p class="text-primary-100 text-sm">Cálculo de Pagamentos</p>
+                        <p class="text-primary-100 text-sm">Cálculo de Pagamentos e Benefícios</p>
                     </div>
                 </div>
                 
@@ -199,21 +173,26 @@
     </header>
 
     <main class="container mx-auto px-4 py-6 max-w-7xl">
-        <!-- Controles -->
+        <!-- Controles e Filtros -->
         <div class="bg-white rounded-xl shadow-sm p-6 mb-6 no-print">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-cog mr-2 text-primary-500"></i>
+                Configurações do Fechamento
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <!-- Seletor de Período -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-calendar-alt mr-1 text-primary-500"></i>
-                        Semana (Seg-Dom)
+                        Semana (Segunda-Domingo)
                     </label>
                     <div class="flex space-x-2">
                         <input type="date" id="dataInicio" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                         <input type="date" id="dataFim" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" readonly>
                     </div>
                     <button id="btnSemanaAtual" class="mt-2 text-xs text-primary-600 hover:text-primary-700">
-                        <i class="fas fa-redo mr-1"></i>Semana Atual
+                        <i class="fas fa-redo mr-1"></i>Usar Semana Atual
                     </button>
                 </div>
                 
@@ -221,10 +200,11 @@
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-money-bill-wave mr-1 text-primary-500"></i>
-                        Valor Hora (R$)
+                        Valor da Hora (R$)
                     </label>
                     <input type="number" id="valorHora" value="10.00" step="0.01" min="0" 
                            class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                    <p class="mt-1 text-xs text-gray-500">Base para cálculo das horas</p>
                 </div>
 
                 <!-- Configurações de Transporte -->
@@ -234,24 +214,30 @@
                         Valores de Transporte
                     </label>
                     <button id="btnConfigTransporte" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 px-3 rounded-lg transition-all">
-                        <i class="fas fa-cog mr-1"></i>Configurar
+                        <i class="fas fa-cog mr-1"></i>Configurar Valores
                     </button>
+                    <p class="mt-1 text-xs text-gray-500">Configure os valores por tipo</p>
                 </div>
                 
                 <!-- Botões de Ação -->
-                <div class="flex items-end space-x-2">
-                    <button id="btnCarregar" class="flex-1 bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                        <i class="fas fa-sync-alt mr-1"></i>Carregar
-                    </button>
-                    <button id="btnSalvar" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                        <i class="fas fa-save"></i>
-                    </button>
-                    <button id="btnExportExcel" class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                        <i class="fas fa-file-excel"></i>
-                    </button>
-                    <button id="btnExportPDF" class="bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                        <i class="fas fa-file-pdf"></i>
-                    </button>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2 opacity-0">Ações</label>
+                    <div class="flex flex-col space-y-2">
+                        <button id="btnCarregar" class="bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                            <i class="fas fa-sync-alt mr-1"></i>Carregar Dados
+                        </button>
+                        <div class="flex space-x-2">
+                            <button id="btnSalvar" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button id="btnExportExcel" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
+                            <button id="btnExportPDF" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                                <i class="fas fa-file-pdf"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -262,102 +248,88 @@
             <span id="statusMessage">Carregando dados...</span>
         </div>
 
-        <!-- BLOCO 1: Resumo Total da Semana -->
-        <div id="resumoTotalSection" class="mb-8 animate-slide-in">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                <i class="fas fa-chart-pie mr-3 text-primary-500"></i>
-                Resumo Total da Semana
-            </h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <!-- Card Total a Pagar -->
-                <div class="summary-card p-6 rounded-xl">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
-                        </div>
-                        <span class="status-badge bg-green-100 text-green-800">
-                            <i class="fas fa-arrow-up mr-1"></i>Total
-                        </span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">Total a Pagar</p>
-                    <p id="totalGeralPagar" class="big-value text-green-600">R$ 0,00</p>
-                </div>
-                
-                <!-- Card Total Horas -->
-                <div class="summary-card p-6 rounded-xl">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-clock text-blue-600 text-xl"></i>
-                        </div>
-                        <span id="totalHorasLabel" class="text-sm text-gray-500">0h</span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">Horas Trabalhadas</p>
-                    <p id="totalGeralHoras" class="medium-value text-gray-800">R$ 0,00</p>
-                </div>
-                
-                <!-- Card Total Benefícios -->
-                <div class="summary-card p-6 rounded-xl">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-gift text-purple-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs text-gray-500">Alim + Transp</span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">Total Benefícios</p>
-                    <p id="totalGeralBeneficios" class="medium-value text-gray-800">R$ 0,00</p>
-                </div>
-                
-                <!-- Card Total Descontos -->
-                <div class="summary-card p-6 rounded-xl">
-                    <div class="flex items-center justify-between mb-4">
-                        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                            <i class="fas fa-minus-circle text-red-600 text-xl"></i>
-                        </div>
-                        <span class="text-xs text-gray-500">Consumo + Desc</span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-2">Total Descontos</p>
-                    <p id="totalGeralDescontos" class="medium-value text-red-600">R$ 0,00</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- BLOCO 2: Resumo por Funcionário -->
-        <div id="resumoFuncionariosSection" class="mb-8 animate-slide-in">
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-users mr-3 text-primary-500"></i>
-                    Resumo por Funcionário
-                </h2>
-                <button id="toggleDetalhes" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
-                    <i class="fas fa-eye mr-1"></i>
-                    Mostrar Detalhes Diários
+        <!-- Tabs de Visualização -->
+        <div class="bg-white rounded-xl shadow-sm p-2 mb-6">
+            <div class="flex space-x-1">
+                <button id="tabResumo" class="tab-button active flex-1 px-4 py-3 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-lg transition-all">
+                    <i class="fas fa-chart-pie mr-2"></i>Resumo Semanal
+                </button>
+                <button id="tabDiario" class="tab-button flex-1 px-4 py-3 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-lg transition-all">
+                    <i class="fas fa-calendar-day mr-2"></i>Visualização Diária
+                </button>
+                <button id="tabFuncionarios" class="tab-button flex-1 px-4 py-3 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-lg transition-all">
+                    <i class="fas fa-users mr-2"></i>Por Funcionário
                 </button>
             </div>
-            
-            <div id="funcionariosCards" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Cards de funcionários serão inseridos aqui dinamicamente -->
+        </div>
+
+        <!-- CONTEÚDO TAB RESUMO -->
+        <div id="contentResumo" class="tab-content">
+            <!-- Cards de Resumo Total -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+                <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fas fa-money-bill-wave text-green-600 text-2xl"></i>
+                        <span class="text-xs text-green-600 font-medium">Total Geral</span>
+                    </div>
+                    <p class="text-2xl font-bold text-green-700" id="totalGeralPagar">R$ 0,00</p>
+                    <p class="text-xs text-green-600 mt-1">A pagar aos funcionários</p>
+                </div>
+                
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-xl border border-blue-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fas fa-clock text-blue-600 text-2xl"></i>
+                        <span class="text-xs text-blue-600 font-medium" id="totalHorasLabel">0h</span>
+                    </div>
+                    <p class="text-2xl font-bold text-blue-700" id="totalGeralHoras">R$ 0,00</p>
+                    <p class="text-xs text-blue-600 mt-1">Valor das horas</p>
+                </div>
+                
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-xl border border-purple-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fas fa-bus text-purple-600 text-2xl"></i>
+                        <span class="text-xs text-purple-600 font-medium">Transporte</span>
+                    </div>
+                    <p class="text-2xl font-bold text-purple-700" id="totalGeralTransporte">R$ 0,00</p>
+                    <p class="text-xs text-purple-600 mt-1">Total em transporte</p>
+                </div>
+                
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-xl border border-orange-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fas fa-utensils text-orange-600 text-2xl"></i>
+                        <span class="text-xs text-orange-600 font-medium">Alimentação</span>
+                    </div>
+                    <p class="text-2xl font-bold text-orange-700" id="totalGeralAlimentacao">R$ 0,00</p>
+                    <p class="text-xs text-orange-600 mt-1">Benefício alimentação</p>
+                </div>
+                
+                <div class="bg-gradient-to-br from-red-50 to-red-100 p-6 rounded-xl border border-red-200">
+                    <div class="flex items-center justify-between mb-2">
+                        <i class="fas fa-shopping-cart text-red-600 text-2xl"></i>
+                        <span class="text-xs text-red-600 font-medium">Descontos</span>
+                    </div>
+                    <p class="text-2xl font-bold text-red-700" id="totalGeralDescontos">R$ 0,00</p>
+                    <p class="text-xs text-red-600 mt-1">Consumo + outros</p>
+                </div>
+            </div>
+
+            <!-- Lista de Funcionários Resumida -->
+            <div id="funcionariosSummaryCards" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Cards serão inseridos dinamicamente aqui -->
             </div>
         </div>
 
-        <!-- BLOCO 3: Detalhes Diários (Inicialmente oculto) -->
-        <div id="detalhesSection" class="collapsible">
-            <div class="bg-white rounded-xl shadow-sm p-6 animate-slide-in">
-                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
-                    <i class="fas fa-calendar-day mr-3 text-primary-500"></i>
-                    Detalhes Diários
-                </h2>
-                
-                <div class="overflow-x-auto">
-                    <table id="tabelaDetalhes" class="compact-table w-full">
-                        <thead class="bg-gray-50">
-                            <!-- Cabeçalho será preenchido dinamicamente -->
-                        </thead>
-                        <tbody>
-                            <!-- Corpo será preenchido dinamicamente -->
-                        </tbody>
-                    </table>
-                </div>
+        <!-- CONTEÚDO TAB DIÁRIA -->
+        <div id="contentDiario" class="tab-content hidden">
+            <div id="diasSemanaCards" class="days-grid">
+                <!-- Cards dos dias serão inseridos dinamicamente aqui -->
+            </div>
+        </div>
+
+        <!-- CONTEÚDO TAB FUNCIONÁRIOS -->
+        <div id="contentFuncionarios" class="tab-content hidden">
+            <div id="funcionariosDetailCards" class="space-y-4">
+                <!-- Cards detalhados dos funcionários serão inseridos aqui -->
             </div>
         </div>
 
@@ -380,30 +352,61 @@
                     Configurar Valores de Transporte
                 </h3>
                 
-                <div class="space-y-3">
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-700">Ônibus (ida/volta)</label>
-                        <input type="number" id="valorOnibus" value="9.60" step="0.01" 
-                               class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
+                <div class="space-y-4">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="text-sm font-medium text-gray-700 mb-3">Valores por Modalidade</h4>
+                        
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center text-sm font-medium text-gray-700">
+                                    <span class="text-xl mr-2">🚌</span> Ônibus (ida/volta)
+                                </label>
+                                <div class="flex items-center">
+                                    <span class="text-gray-500 mr-1">R$</span>
+                                    <input type="number" id="valorOnibus" value="9.60" step="0.01" 
+                                           class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center text-sm font-medium text-gray-700">
+                                    <span class="text-xl mr-2">🏍️</span> Moto/Uber
+                                </label>
+                                <div class="flex items-center">
+                                    <span class="text-gray-500 mr-1">R$</span>
+                                    <input type="number" id="valorMoto" value="15.00" step="0.01" 
+                                           class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center text-sm font-medium text-gray-700">
+                                    <span class="text-xl mr-2">🚗</span> Carro
+                                </label>
+                                <div class="flex items-center">
+                                    <span class="text-gray-500 mr-1">R$</span>
+                                    <input type="number" id="valorCarro" value="20.00" step="0.01" 
+                                           class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <label class="flex items-center text-sm font-medium text-gray-700">
+                                    <span class="text-xl mr-2">📍</span> Outros
+                                </label>
+                                <div class="flex items-center">
+                                    <span class="text-gray-500 mr-1">R$</span>
+                                    <input type="number" id="valorOutros" value="10.00" step="0.01" 
+                                           class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-700">Moto/Uber</label>
-                        <input type="number" id="valorMoto" value="15.00" step="0.01" 
-                               class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-700">Carro</label>
-                        <input type="number" id="valorCarro" value="20.00" step="0.01" 
-                               class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    
-                    <div class="flex items-center justify-between">
-                        <label class="text-sm font-medium text-gray-700">Outros</label>
-                        <input type="number" id="valorOutros" value="10.00" step="0.01" 
-                               class="w-24 px-2 py-1 text-sm border rounded focus:ring-2 focus:ring-primary-500">
-                    </div>
+                    <p class="text-xs text-gray-500">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        Estes valores serão aplicados quando o funcionário selecionar o tipo de transporte
+                    </p>
                 </div>
                 
                 <div class="flex justify-end space-x-2 mt-6">
@@ -411,7 +414,7 @@
                         Cancelar
                     </button>
                     <button id="btnSalvarTransporte" class="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg text-sm">
-                        Salvar
+                        <i class="fas fa-save mr-1"></i>Salvar Configuração
                     </button>
                 </div>
             </div>
