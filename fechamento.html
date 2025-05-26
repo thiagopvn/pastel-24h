@@ -51,115 +51,120 @@
     </script>
     
     <style>
-        /* Layout otimizado para reduzir scroll */
-        .table-wrapper {
-            width: 100%;
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            max-width: 100vw;
+        /* Cards de resumo com gradiente */
+        .summary-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+            border: 1px solid rgba(0,0,0,0.05);
         }
-
-        .fechamento-table {
-            min-width: 100%;
-            table-layout: fixed;
+        
+        .summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
-
-        /* Colunas com larguras otimizadas */
-        .col-funcionario { width: 200px; min-width: 200px; }
-        .col-dia { width: 220px; min-width: 220px; }
-        .col-total { width: 120px; min-width: 120px; }
-        .col-final { width: 140px; min-width: 140px; }
-
-        /* Células compactas */
-        .compact-cell {
-            padding: 4px !important;
+        
+        /* Estilo para valores grandes */
+        .big-value {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1.2;
         }
-
-        .compact-input {
-            padding: 2px 4px !important;
-            font-size: 14px !important;
-            height: 32px !important;
-        }
-
-        /* Header fixo */
-        thead th {
-            position: sticky;
-            top: 0;
-            z-index: 20;
-            background: white;
-        }
-
-        /* Primeira coluna fixa */
-        .fixed-col {
-            position: sticky;
-            left: 0;
-            z-index: 10;
-            background: white;
-            box-shadow: 2px 0 4px rgba(0,0,0,0.1);
-        }
-
-        thead .fixed-col {
-            z-index: 30;
-        }
-
-        /* Inputs de transporte customizados */
-        .transport-select {
-            width: 100%;
-            padding: 2px 4px;
-            font-size: 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 4px;
-        }
-
-        /* Responsividade aprimorada */
-        @media (max-width: 768px) {
-            .col-funcionario { width: 150px; min-width: 150px; }
-            .col-dia { width: 180px; min-width: 180px; }
-            .col-total { width: 100px; min-width: 100px; }
-            
-            .compact-input {
-                font-size: 12px !important;
-                height: 28px !important;
-            }
-        }
-
-        /* Highlight de totais */
-        .total-highlight {
-            background-color: #fef3c7 !important;
+        
+        .medium-value {
+            font-size: 1.5rem;
             font-weight: 600;
         }
-
-        /* Transporte styling */
-        .transport-tipo {
-            background-color: #f3f4f6;
+        
+        /* Tabela compacta */
+        .compact-table {
+            font-size: 0.875rem;
         }
-
-        .transport-valor {
-            color: #059669;
+        
+        .compact-table td, .compact-table th {
+            padding: 0.5rem;
+        }
+        
+        .compact-input {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            height: 2rem;
+        }
+        
+        /* Highlight especial */
+        .highlight-positive {
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+        
+        .highlight-negative {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            color: #7f1d1d;
+        }
+        
+        .highlight-warning {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            color: #78350f;
+        }
+        
+        /* Seção colapsável */
+        .collapsible {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .collapsible.open {
+            max-height: 2000px;
+            transition: max-height 0.5s ease-in;
+        }
+        
+        /* Cards de funcionários */
+        .employee-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            transition: all 0.3s ease;
+        }
+        
+        .employee-card:hover {
+            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        /* Status badges */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
             font-weight: 500;
         }
-
-        /* Consumo styling */
-        .consumo-cell {
-            background-color: #fee2e2;
-            color: #dc2626;
-            font-weight: 500;
-        }
-
+        
         /* Print styles */
         @media print {
             .no-print {
                 display: none !important;
             }
             
-            .table-wrapper {
-                overflow: visible !important;
+            .page-break {
+                page-break-after: always;
             }
-            
-            .fechamento-table {
-                font-size: 10px;
+        }
+        
+        /* Animações */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
             }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-slide-in {
+            animation: slideIn 0.5s ease-out;
         }
     </style>
 </head>
@@ -193,42 +198,42 @@
         </div>
     </header>
 
-    <main class="container-fluid px-4 py-4">
+    <main class="container mx-auto px-4 py-6 max-w-7xl">
         <!-- Controles -->
-        <div class="bg-white rounded-xl shadow-sm p-4 mb-4 no-print">
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-6 no-print">
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Seletor de Período -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-calendar-alt mr-1 text-primary-500"></i>
                         Semana (Seg-Dom)
                     </label>
                     <div class="flex space-x-2">
-                        <input type="date" id="dataInicio" class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                        <input type="date" id="dataFim" class="flex-1 px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" readonly>
+                        <input type="date" id="dataInicio" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <input type="date" id="dataFim" class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" readonly>
                     </div>
-                    <button id="btnSemanaAtual" class="mt-1 text-xs text-primary-600 hover:text-primary-700">
+                    <button id="btnSemanaAtual" class="mt-2 text-xs text-primary-600 hover:text-primary-700">
                         <i class="fas fa-redo mr-1"></i>Semana Atual
                     </button>
                 </div>
                 
                 <!-- Valor Hora -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-money-bill-wave mr-1 text-primary-500"></i>
                         Valor Hora (R$)
                     </label>
                     <input type="number" id="valorHora" value="10.00" step="0.01" min="0" 
-                           class="w-full px-2 py-1 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                           class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
                 </div>
 
                 <!-- Configurações de Transporte -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
                         <i class="fas fa-bus mr-1 text-primary-500"></i>
                         Valores de Transporte
                     </label>
-                    <button id="btnConfigTransporte" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-1 px-3 rounded-lg transition-all">
+                    <button id="btnConfigTransporte" class="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm py-2 px-3 rounded-lg transition-all">
                         <i class="fas fa-cog mr-1"></i>Configurar
                     </button>
                 </div>
@@ -252,32 +257,117 @@
         </div>
 
         <!-- Status/Loading -->
-        <div id="statusContainer" class="hidden bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-lg mb-4 text-sm">
+        <div id="statusContainer" class="hidden bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-lg mb-6 text-sm">
             <i class="fas fa-spinner fa-spin mr-2"></i>
             <span id="statusMessage">Carregando dados...</span>
         </div>
 
-        <!-- Tabela -->
-        <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div class="table-wrapper">
-                <table id="fechamentoTable" class="fechamento-table">
-                    <thead class="bg-primary-50">
-                        <!-- Cabeçalho será preenchido dinamicamente -->
-                    </thead>
-                    <tbody>
-                        <!-- Corpo será preenchido dinamicamente -->
-                    </tbody>
-                    <tfoot class="bg-primary-100">
-                        <!-- Rodapé com totais será preenchido dinamicamente -->
-                    </tfoot>
-                </table>
+        <!-- BLOCO 1: Resumo Total da Semana -->
+        <div id="resumoTotalSection" class="mb-8 animate-slide-in">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                <i class="fas fa-chart-pie mr-3 text-primary-500"></i>
+                Resumo Total da Semana
+            </h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Card Total a Pagar -->
+                <div class="summary-card p-6 rounded-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-money-bill-wave text-green-600 text-xl"></i>
+                        </div>
+                        <span class="status-badge bg-green-100 text-green-800">
+                            <i class="fas fa-arrow-up mr-1"></i>Total
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Total a Pagar</p>
+                    <p id="totalGeralPagar" class="big-value text-green-600">R$ 0,00</p>
+                </div>
+                
+                <!-- Card Total Horas -->
+                <div class="summary-card p-6 rounded-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-clock text-blue-600 text-xl"></i>
+                        </div>
+                        <span id="totalHorasLabel" class="text-sm text-gray-500">0h</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Horas Trabalhadas</p>
+                    <p id="totalGeralHoras" class="medium-value text-gray-800">R$ 0,00</p>
+                </div>
+                
+                <!-- Card Total Benefícios -->
+                <div class="summary-card p-6 rounded-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-gift text-purple-600 text-xl"></i>
+                        </div>
+                        <span class="text-xs text-gray-500">Alim + Transp</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Total Benefícios</p>
+                    <p id="totalGeralBeneficios" class="medium-value text-gray-800">R$ 0,00</p>
+                </div>
+                
+                <!-- Card Total Descontos -->
+                <div class="summary-card p-6 rounded-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                            <i class="fas fa-minus-circle text-red-600 text-xl"></i>
+                        </div>
+                        <span class="text-xs text-gray-500">Consumo + Desc</span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-2">Total Descontos</p>
+                    <p id="totalGeralDescontos" class="medium-value text-red-600">R$ 0,00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- BLOCO 2: Resumo por Funcionário -->
+        <div id="resumoFuncionariosSection" class="mb-8 animate-slide-in">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-users mr-3 text-primary-500"></i>
+                    Resumo por Funcionário
+                </h2>
+                <button id="toggleDetalhes" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+                    <i class="fas fa-eye mr-1"></i>
+                    Mostrar Detalhes Diários
+                </button>
             </div>
             
-            <!-- Mensagem quando não há dados -->
-            <div id="emptyMessage" class="p-8 text-center text-gray-500">
-                <i class="fas fa-inbox text-4xl mb-4"></i>
-                <p>Selecione um período e clique em "Carregar Dados"</p>
+            <div id="funcionariosCards" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Cards de funcionários serão inseridos aqui dinamicamente -->
             </div>
+        </div>
+
+        <!-- BLOCO 3: Detalhes Diários (Inicialmente oculto) -->
+        <div id="detalhesSection" class="collapsible">
+            <div class="bg-white rounded-xl shadow-sm p-6 animate-slide-in">
+                <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                    <i class="fas fa-calendar-day mr-3 text-primary-500"></i>
+                    Detalhes Diários
+                </h2>
+                
+                <div class="overflow-x-auto">
+                    <table id="tabelaDetalhes" class="compact-table w-full">
+                        <thead class="bg-gray-50">
+                            <!-- Cabeçalho será preenchido dinamicamente -->
+                        </thead>
+                        <tbody>
+                            <!-- Corpo será preenchido dinamicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mensagem quando não há dados -->
+        <div id="emptyMessage" class="text-center py-16">
+            <div class="inline-flex items-center justify-center w-24 h-24 bg-gray-100 rounded-full mb-6">
+                <i class="fas fa-inbox text-4xl text-gray-400"></i>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-700 mb-2">Nenhum dado carregado</h3>
+            <p class="text-gray-500">Selecione um período e clique em "Carregar Dados"</p>
         </div>
     </main>
 

@@ -20,7 +20,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         turnosData: {},
         diasSemana: [],
         valoresTransporte: { ...CONFIG.transportePadrao },
-        dadosAlterados: false
+        dadosAlterados: false,
+        detalhesVisiveis: false
     };
     
     // Elementos DOM
@@ -37,13 +38,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusContainer: document.getElementById('statusContainer'),
         statusMessage: document.getElementById('statusMessage'),
         emptyMessage: document.getElementById('emptyMessage'),
-        table: document.getElementById('fechamentoTable'),
-        modalTransporte: document.getElementById('modalTransporte')
+        modalTransporte: document.getElementById('modalTransporte'),
+        toggleDetalhes: document.getElementById('toggleDetalhes'),
+        detalhesSection: document.getElementById('detalhesSection'),
+        funcionariosCards: document.getElementById('funcionariosCards'),
+        resumoTotalSection: document.getElementById('resumoTotalSection'),
+        resumoFuncionariosSection: document.getElementById('resumoFuncionariosSection')
     };
     
     // Inicialização
     async function init() {
-        console.log('🚀 Iniciando sistema de fechamento semanal...');
+        console.log('🚀 Iniciando sistema de fechamento semanal v3...');
+        
+        // Ocultar seções inicialmente
+        elements.resumoTotalSection.style.display = 'none';
+        elements.resumoFuncionariosSection.style.display = 'none';
         
         // Configurar semana atual (segunda a domingo)
         setSemanaAtual();
@@ -75,6 +84,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             recalcularTotais();
         });
         
+        // Toggle detalhes
+        elements.toggleDetalhes.addEventListener('click', () => {
+            state.detalhesVisiveis = !state.detalhesVisiveis;
+            
+            if (state.detalhesVisiveis) {
+                elements.detalhesSection.classList.add('open');
+                elements.toggleDetalhes.innerHTML = '<i class="fas fa-eye-slash mr-1"></i>Ocultar Detalhes Diários';
+            } else {
+                elements.detalhesSection.classList.remove('open');
+                elements.toggleDetalhes.innerHTML = '<i class="fas fa-eye mr-1"></i>Mostrar Detalhes Diários';
+            }
+        });
+        
         // Quando mudar data inicial, ajustar data final automaticamente
         elements.dataInicio.addEventListener('change', () => {
             const inicio = new Date(elements.dataInicio.value);
@@ -98,9 +120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('btnCancelarTransporte').addEventListener('click', fecharModalTransporte);
         document.getElementById('btnSalvarTransporte').addEventListener('click', salvarConfigTransporte);
         
-        // Detectar mudanças nos inputs da tabela
-        elements.table.addEventListener('input', (e) => {
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+        // Detectar mudanças nos inputs
+        document.addEventListener('input', (e) => {
+            if (e.target.matches('input[type="number"], select')) {
                 state.dadosAlterados = true;
                 recalcularTotais();
             }
@@ -181,9 +203,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             showStatus('Carregando turnos fechados...');
             state.turnosData = await loadTurnos(dataInicio, dataFim);
             
-            // Construir tabela
-            buildTable();
-            hideStatus();
+            // Mostrar seções
+            elements.emptyMessage.style.display = 'none';
+            elements.resumoTotalSection.style.display = 'block';
+            elements.resumoFuncionariosSection.style.display = 'block';
+            
+            // Construir interface
+            buildFuncionariosCards();
+            buildDetalhesTable();
             
             // Calcular totais
             recalcularTotais();
@@ -404,175 +431,209 @@ document.addEventListener('DOMContentLoaded', async () => {
         return consumoTotal;
     }
     
-    function buildTable() {
-        elements.emptyMessage.classList.add('hidden');
-        elements.table.classList.remove('hidden');
+    function buildFuncionariosCards() {
+        elements.funcionariosCards.innerHTML = '';
+        
+        state.funcionarios.forEach(func => {
+            const card = document.createElement('div');
+            card.className = 'employee-card p-6';
+            card.dataset.uid = func.uid;
+            
+            // Calcular totais do funcionário
+            let totalHoras = 0;
+            let totalAlimentacao = 0;
+            let totalTransporte = 0;
+            let totalConsumo = 0;
+            let diasTrabalhados = 0;
+            
+            state.diasSemana.forEach(dia => {
+                const dateStr = formatDate(dia);
+                const turnoData = state.turnosData[dateStr]?.[func.uid];
+                if (turnoData) {
+                    totalHoras += turnoData.horas || 0;
+                    totalAlimentacao += turnoData.alimentacao || 0;
+                    totalTransporte += turnoData.transporteValor || 0;
+                    totalConsumo += turnoData.consumo || 0;
+                    if (turnoData.horas > 0) diasTrabalhados++;
+                }
+            });
+            
+            const valorHora = parseFloat(elements.valorHora.value) || 0;
+            const totalHorasValor = totalHoras * valorHora;
+            
+            card.innerHTML = `
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">${func.nome}</h3>
+                        <p class="text-sm text-gray-500">
+                            ${func.role === 'admin' ? '👑 Administrador' : '👤 Funcionário'}
+                            <span class="ml-2">${diasTrabalhados} dias trabalhados</span>
+                        </p>
+                    </div>
+                    <button class="text-primary-600 hover:text-primary-700" onclick="toggleFuncionarioDetalhes('${func.uid}')">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
+                
+                <div class="space-y-3">
+                    <!-- Horas -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">
+                            <i class="fas fa-clock mr-2 text-blue-500"></i>
+                            Horas (${totalHoras.toFixed(1)}h)
+                        </span>
+                        <span class="font-semibold text-gray-800">${formatCurrency(totalHorasValor)}</span>
+                    </div>
+                    
+                    <!-- Alimentação -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">
+                            <i class="fas fa-utensils mr-2 text-green-500"></i>
+                            Alimentação
+                        </span>
+                        <span class="font-semibold text-gray-800">${formatCurrency(totalAlimentacao)}</span>
+                    </div>
+                    
+                    <!-- Transporte -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">
+                            <i class="fas fa-bus mr-2 text-purple-500"></i>
+                            Transporte
+                        </span>
+                        <span class="font-semibold text-gray-800">${formatCurrency(totalTransporte)}</span>
+                    </div>
+                    
+                    <!-- Consumo -->
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">
+                            <i class="fas fa-shopping-cart mr-2 text-red-500"></i>
+                            Consumo
+                        </span>
+                        <span class="font-semibold text-red-600">-${formatCurrency(totalConsumo)}</span>
+                    </div>
+                    
+                    <!-- Adicional/Desconto -->
+                    <div class="flex space-x-4">
+                        <div class="flex-1">
+                            <label class="text-xs text-gray-500">Adicional</label>
+                            <input type="number" 
+                                   id="${func.uid}_adicional"
+                                   value="0"
+                                   min="0" step="0.01" 
+                                   class="w-full mt-1 px-2 py-1 text-sm text-green-600 font-semibold border rounded focus:ring-1 focus:ring-green-500"
+                                   placeholder="0">
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs text-gray-500">Desconto</label>
+                            <input type="number" 
+                                   id="${func.uid}_desconto"
+                                   value="0"
+                                   min="0" step="0.01" 
+                                   class="w-full mt-1 px-2 py-1 text-sm text-red-600 font-semibold border rounded focus:ring-1 focus:ring-red-500"
+                                   placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <!-- Total -->
+                    <div class="pt-3 mt-3 border-t border-gray-200">
+                        <div class="flex justify-between items-center">
+                            <span class="text-base font-semibold text-gray-700">Total a Receber</span>
+                            <span id="${func.uid}_total_receber" class="text-xl font-bold text-green-600">R$ 0,00</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Detalhes expandidos (oculto por padrão) -->
+                <div id="detalhes_${func.uid}" class="hidden mt-4 pt-4 border-t border-gray-200">
+                    <!-- Detalhes diários serão inseridos aqui se necessário -->
+                </div>
+            `;
+            
+            elements.funcionariosCards.appendChild(card);
+        });
+    }
+    
+    function buildDetalhesTable() {
+        const table = document.getElementById('tabelaDetalhes');
+        const thead = table.querySelector('thead');
+        const tbody = table.querySelector('tbody');
         
         // Construir cabeçalho
-        const thead = elements.table.querySelector('thead');
         thead.innerHTML = `
             <tr>
-                <th rowspan="2" class="fixed-col col-funcionario px-4 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
-                    Funcionário
-                </th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-700 uppercase">Funcionário</th>
                 ${state.diasSemana.map((dia, index) => `
-                    <th colspan="5" class="col-dia px-2 py-2 text-center text-xs font-medium text-primary-700 uppercase tracking-wider border-l border-primary-200">
+                    <th colspan="4" class="px-2 py-2 text-center text-xs font-medium text-gray-700 uppercase border-l">
                         ${CONFIG.diasSemana[index]} ${dia.getDate()}/${dia.getMonth() + 1}
                     </th>
                 `).join('')}
-                <th colspan="8" class="px-2 py-2 text-center text-xs font-medium text-primary-700 uppercase tracking-wider bg-primary-100 border-l-2 border-primary-300">
-                    TOTAIS DA SEMANA
-                </th>
             </tr>
             <tr>
+                <th></th>
                 ${state.diasSemana.map(() => `
-                    <th class="compact-cell text-center text-xs font-medium text-gray-600">Hs</th>
-                    <th class="compact-cell text-center text-xs font-medium text-gray-600">Alim</th>
-                    <th class="compact-cell text-center text-xs font-medium text-gray-600">Transp</th>
-                    <th class="compact-cell text-center text-xs font-medium text-gray-600">Tipo</th>
-                    <th class="compact-cell text-center text-xs font-medium text-gray-600 border-r border-primary-200">Cons</th>
+                    <th class="px-1 py-1 text-center text-xs text-gray-600">Hs</th>
+                    <th class="px-1 py-1 text-center text-xs text-gray-600">Alim</th>
+                    <th class="px-1 py-1 text-center text-xs text-gray-600">Transp</th>
+                    <th class="px-1 py-1 text-center text-xs text-gray-600 border-r">Cons</th>
                 `).join('')}
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Total Hs</th>
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Total Alim</th>
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Total Transp</th>
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50 consumo-cell">Consumo</th>
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Desc.</th>
-                <th class="col-total compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Adic.</th>
-                <th class="col-final compact-cell text-center text-xs font-medium text-gray-700 bg-yellow-100 font-bold">A Receber</th>
-                <th class="compact-cell text-center text-xs font-medium text-gray-700 bg-primary-50">Ações</th>
             </tr>
         `;
         
-        // Construir corpo da tabela
-        const tbody = elements.table.querySelector('tbody');
+        // Construir corpo
         tbody.innerHTML = state.funcionarios.map(func => {
             let rowHtml = `
-                <tr class="border-b hover:bg-gray-50" data-uid="${func.uid}">
-                    <td class="fixed-col col-funcionario px-4 py-2 text-sm font-medium text-gray-900 bg-white">
-                        ${func.nome}
-                        <span class="text-xs text-gray-500 block">${func.role === 'admin' ? '👑 Admin' : '👤 Func'}</span>
-                    </td>
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="px-4 py-2 text-sm font-medium text-gray-900">${func.nome}</td>
             `;
             
-            // Células para cada dia da semana
             state.diasSemana.forEach((dia, diaIndex) => {
                 const dateStr = formatDate(dia);
                 const turnoData = state.turnosData[dateStr]?.[func.uid] || {};
                 
                 rowHtml += `
-                    <td class="compact-cell">
+                    <td class="px-1 py-1">
                         <input type="number" 
                                id="${func.uid}_${diaIndex}_hs"
                                value="${turnoData.horas ? turnoData.horas.toFixed(1) : ''}"
                                min="0" max="24" step="0.5" 
-                               class="compact-input w-full text-center border rounded focus:ring-1 focus:ring-primary-500"
+                               class="compact-input w-full text-center border rounded"
                                placeholder="0">
                     </td>
-                    <td class="compact-cell">
+                    <td class="px-1 py-1">
                         <input type="number" 
                                id="${func.uid}_${diaIndex}_alim"
                                value="${turnoData.alimentacao || ''}"
                                min="0" step="0.01" 
-                               class="compact-input w-full text-center border rounded focus:ring-1 focus:ring-primary-500"
+                               class="compact-input w-full text-center border rounded"
                                placeholder="0">
                     </td>
-                    <td class="compact-cell transport-valor">
-                        <span id="${func.uid}_${diaIndex}_transp_valor" class="text-sm font-medium">
-                            ${turnoData.transporteValor ? formatCurrency(turnoData.transporteValor) : 'R$ 0'}
-                        </span>
-                    </td>
-                    <td class="compact-cell">
+                    <td class="px-1 py-1">
                         <select id="${func.uid}_${diaIndex}_transp_tipo"
-                                class="transport-select w-full"
+                                class="compact-input w-full text-center border rounded"
                                 data-uid="${func.uid}"
                                 data-dia="${diaIndex}">
                             <option value="nenhum" ${turnoData.transporteTipo === 'nenhum' ? 'selected' : ''}>-</option>
-                            <option value="onibus" ${turnoData.transporteTipo === 'onibus' ? 'selected' : ''}>🚌 Ônibus</option>
-                            <option value="moto" ${turnoData.transporteTipo === 'moto' ? 'selected' : ''}>🏍️ Moto</option>
-                            <option value="carro" ${turnoData.transporteTipo === 'carro' ? 'selected' : ''}>🚗 Carro</option>
-                            <option value="outros" ${turnoData.transporteTipo === 'outros' ? 'selected' : ''}>📍 Outros</option>
+                            <option value="onibus" ${turnoData.transporteTipo === 'onibus' ? 'selected' : ''}>🚌</option>
+                            <option value="moto" ${turnoData.transporteTipo === 'moto' ? 'selected' : ''}>🏍️</option>
+                            <option value="carro" ${turnoData.transporteTipo === 'carro' ? 'selected' : ''}>🚗</option>
+                            <option value="outros" ${turnoData.transporteTipo === 'outros' ? 'selected' : ''}>📍</option>
                         </select>
                     </td>
-                    <td class="compact-cell consumo-cell border-r border-primary-200">
-                        <span id="${func.uid}_${diaIndex}_consumo" class="text-sm font-medium">
+                    <td class="px-1 py-1 border-r text-center">
+                        <span class="text-xs font-medium text-red-600">
                             ${turnoData.consumo ? formatCurrency(turnoData.consumo) : '-'}
                         </span>
                     </td>
                 `;
             });
             
-            // Células de totais
-            rowHtml += `
-                <td id="${func.uid}_total_hs" class="col-total compact-cell text-center font-medium bg-gray-50">0</td>
-                <td id="${func.uid}_total_alim" class="col-total compact-cell text-center font-medium bg-gray-50">0</td>
-                <td id="${func.uid}_total_transp" class="col-total compact-cell text-center font-medium bg-gray-50 transport-valor">0</td>
-                <td id="${func.uid}_consumo" class="col-total compact-cell text-center font-medium consumo-cell">0</td>
-                <td class="col-total compact-cell">
-                    <input type="number" 
-                           id="${func.uid}_desconto"
-                           value="0"
-                           min="0" step="0.01" 
-                           class="compact-input w-full text-center text-red-600 font-semibold border rounded"
-                           placeholder="0">
-                </td>
-                <td class="col-total compact-cell">
-                    <input type="number" 
-                           id="${func.uid}_adicional"
-                           value="0"
-                           min="0" step="0.01" 
-                           class="compact-input w-full text-center text-green-600 font-semibold border rounded"
-                           placeholder="0">
-                </td>
-                <td id="${func.uid}_total_receber" class="col-final compact-cell text-center font-bold total-highlight text-lg">R$ 0,00</td>
-                <td class="compact-cell text-center">
-                    <button class="text-primary-600 hover:text-primary-800" title="Ver detalhes">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                </td>
-            </tr>
-            `;
-            
+            rowHtml += '</tr>';
             return rowHtml;
         }).join('');
         
-        // Rodapé com totais gerais
-        const tfoot = elements.table.querySelector('tfoot');
-        tfoot.innerHTML = `
-            <tr class="font-bold">
-                <td class="fixed-col col-funcionario px-4 py-3 text-sm text-primary-700">
-                    TOTAIS GERAIS
-                </td>
-                ${state.diasSemana.map((_, index) => `
-                    <td colspan="5" id="total_dia_${index}" class="col-dia px-2 py-3 text-sm text-center text-primary-700 border-l border-primary-200">
-                        R$ 0,00
-                    </td>
-                `).join('')}
-                <td id="total_geral_hs" class="col-total px-2 py-3 text-sm text-center">0</td>
-                <td id="total_geral_alim" class="col-total px-2 py-3 text-sm text-center">R$ 0,00</td>
-                <td id="total_geral_transp" class="col-total px-2 py-3 text-sm text-center transport-valor">R$ 0,00</td>
-                <td id="total_geral_consumo" class="col-total px-2 py-3 text-sm text-center consumo-cell">R$ 0,00</td>
-                <td id="total_geral_desconto" class="col-total px-2 py-3 text-sm text-center text-red-600">R$ 0,00</td>
-                <td id="total_geral_adicional" class="col-total px-2 py-3 text-sm text-center text-green-600">R$ 0,00</td>
-                <td id="total_geral_receber" class="col-final px-2 py-3 text-center text-lg bg-yellow-200">R$ 0,00</td>
-                <td class="px-2 py-3"></td>
-            </tr>
-        `;
-        
-        // Adicionar listeners para mudanças de tipo de transporte
-        document.querySelectorAll('.transport-select').forEach(select => {
+        // Adicionar listeners para mudanças de transporte
+        document.querySelectorAll('select[id*="_transp_tipo"]').forEach(select => {
             select.addEventListener('change', (e) => {
-                const uid = e.target.dataset.uid;
-                const dia = e.target.dataset.dia;
-                const tipo = e.target.value;
-                const valor = state.valoresTransporte[tipo] || 0;
-                
-                // Atualizar valor mostrado
-                const valorSpan = document.getElementById(`${uid}_${dia}_transp_valor`);
-                if (valorSpan) {
-                    valorSpan.textContent = formatCurrency(valor);
-                }
-                
-                // Recalcular totais
                 recalcularTotais();
             });
         });
@@ -581,91 +642,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     function recalcularTotais() {
         const valorHora = parseFloat(elements.valorHora.value) || 0;
         
-        let totalGeralHs = 0;
-        let totalGeralAlim = 0;
-        let totalGeralTransp = 0;
+        let totalGeralHoras = 0;
+        let totalGeralHorasValor = 0;
+        let totalGeralAlimentacao = 0;
+        let totalGeralTransporte = 0;
         let totalGeralConsumo = 0;
-        let totalGeralDesconto = 0;
-        let totalGeralAdicional = 0;
+        let totalGeralDescontos = 0;
+        let totalGeralAdicionais = 0;
         let totalGeralReceber = 0;
-        
-        const totaisPorDia = state.diasSemana.map(() => ({
-            horas: 0,
-            alimentacao: 0,
-            transporte: 0,
-            consumo: 0
-        }));
         
         // Calcular para cada funcionário
         state.funcionarios.forEach(func => {
-            let totalHs = 0;
+            let totalHoras = 0;
             let totalAlim = 0;
             let totalTransp = 0;
             let totalConsumo = 0;
             
             // Somar valores de cada dia
             state.diasSemana.forEach((dia, diaIndex) => {
-                const hs = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_hs`)?.value) || 0;
-                const alim = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_alim`)?.value) || 0;
+                // Horas
+                const hsInput = document.getElementById(`${func.uid}_${diaIndex}_hs`);
+                const hs = hsInput ? parseFloat(hsInput.value) || 0 : 0;
                 
-                // Transporte baseado no tipo selecionado
-                const tipoTransp = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`)?.value || 'nenhum';
+                // Alimentação
+                const alimInput = document.getElementById(`${func.uid}_${diaIndex}_alim`);
+                const alim = alimInput ? parseFloat(alimInput.value) || 0 : 0;
+                
+                // Transporte
+                const tipoTranspSelect = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`);
+                const tipoTransp = tipoTranspSelect ? tipoTranspSelect.value : 'nenhum';
                 const valorTransp = state.valoresTransporte[tipoTransp] || 0;
                 
                 // Consumo do dia
                 const dateStr = formatDate(dia);
                 const consumoDia = state.turnosData[dateStr]?.[func.uid]?.consumo || 0;
                 
-                totalHs += hs;
+                totalHoras += hs;
                 totalAlim += alim;
                 totalTransp += valorTransp;
                 totalConsumo += consumoDia;
-                
-                // Somar aos totais do dia
-                totaisPorDia[diaIndex].horas += hs * valorHora;
-                totaisPorDia[diaIndex].alimentacao += alim;
-                totaisPorDia[diaIndex].transporte += valorTransp;
-                totaisPorDia[diaIndex].consumo += consumoDia;
             });
             
             // Descontos e adicionais
-            const desconto = parseFloat(document.getElementById(`${func.uid}_desconto`)?.value) || 0;
-            const adicional = parseFloat(document.getElementById(`${func.uid}_adicional`)?.value) || 0;
+            const descontoInput = document.getElementById(`${func.uid}_desconto`);
+            const adicionalInput = document.getElementById(`${func.uid}_adicional`);
+            
+            const desconto = descontoInput ? parseFloat(descontoInput.value) || 0 : 0;
+            const adicional = adicionalInput ? parseFloat(adicionalInput.value) || 0 : 0;
             
             // Cálculo final a receber
-            const totalReceber = (totalHs * valorHora) + totalAlim + totalTransp + adicional - desconto - totalConsumo;
+            const totalHorasValor = totalHoras * valorHora;
+            const totalReceber = totalHorasValor + totalAlim + totalTransp + adicional - desconto - totalConsumo;
             
-            // Atualizar células de total
-            document.getElementById(`${func.uid}_total_hs`).textContent = totalHs.toFixed(1);
-            document.getElementById(`${func.uid}_total_alim`).textContent = formatCurrency(totalAlim);
-            document.getElementById(`${func.uid}_total_transp`).textContent = formatCurrency(totalTransp);
-            document.getElementById(`${func.uid}_consumo`).textContent = formatCurrency(totalConsumo);
-            document.getElementById(`${func.uid}_total_receber`).textContent = formatCurrency(Math.max(0, totalReceber));
+            // Atualizar card do funcionário
+            const totalReceberElement = document.getElementById(`${func.uid}_total_receber`);
+            if (totalReceberElement) {
+                totalReceberElement.textContent = formatCurrency(Math.max(0, totalReceber));
+            }
             
             // Somar aos totais gerais
-            totalGeralHs += totalHs;
-            totalGeralAlim += totalAlim;
-            totalGeralTransp += totalTransp;
+            totalGeralHoras += totalHoras;
+            totalGeralHorasValor += totalHorasValor;
+            totalGeralAlimentacao += totalAlim;
+            totalGeralTransporte += totalTransp;
             totalGeralConsumo += totalConsumo;
-            totalGeralDesconto += desconto;
-            totalGeralAdicional += adicional;
+            totalGeralDescontos += desconto;
+            totalGeralAdicionais += adicional;
             totalGeralReceber += Math.max(0, totalReceber);
         });
         
-        // Atualizar totais por dia
-        totaisPorDia.forEach((total, index) => {
-            const totalDia = total.horas + total.alimentacao + total.transporte - total.consumo;
-            document.getElementById(`total_dia_${index}`).textContent = formatCurrency(totalDia);
-        });
-        
-        // Atualizar totais gerais
-        document.getElementById('total_geral_hs').textContent = totalGeralHs.toFixed(1);
-        document.getElementById('total_geral_alim').textContent = formatCurrency(totalGeralAlim);
-        document.getElementById('total_geral_transp').textContent = formatCurrency(totalGeralTransp);
-        document.getElementById('total_geral_consumo').textContent = formatCurrency(totalGeralConsumo);
-        document.getElementById('total_geral_desconto').textContent = formatCurrency(totalGeralDesconto);
-        document.getElementById('total_geral_adicional').textContent = formatCurrency(totalGeralAdicional);
-        document.getElementById('total_geral_receber').textContent = formatCurrency(totalGeralReceber);
+        // Atualizar resumo total
+        document.getElementById('totalGeralPagar').textContent = formatCurrency(totalGeralReceber);
+        document.getElementById('totalGeralHoras').textContent = formatCurrency(totalGeralHorasValor);
+        document.getElementById('totalHorasLabel').textContent = `${totalGeralHoras.toFixed(1)}h`;
+        document.getElementById('totalGeralBeneficios').textContent = formatCurrency(totalGeralAlimentacao + totalGeralTransporte);
+        document.getElementById('totalGeralDescontos').textContent = formatCurrency(totalGeralConsumo + totalGeralDescontos);
     }
     
     async function salvarDados() {
@@ -694,9 +745,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const turnoData = state.turnosData[dateStr]?.[func.uid];
                     if (turnoData?.turnoId) {
                         // Coletar dados atuais
-                        const horas = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_hs`)?.value) || 0;
-                        const alimentacao = parseFloat(document.getElementById(`${func.uid}_${diaIndex}_alim`)?.value) || 0;
-                        const transporteTipo = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`)?.value || 'nenhum';
+                        const hsInput = document.getElementById(`${func.uid}_${diaIndex}_hs`);
+                        const alimInput = document.getElementById(`${func.uid}_${diaIndex}_alim`);
+                        const transpSelect = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`);
+                        
+                        const horas = hsInput ? parseFloat(hsInput.value) || 0 : 0;
+                        const alimentacao = alimInput ? parseFloat(alimInput.value) || 0 : 0;
+                        const transporteTipo = transpSelect ? transpSelect.value : 'nenhum';
                         const transporteValor = state.valoresTransporte[transporteTipo] || 0;
                         
                         // Atualizar documento do turno
@@ -766,7 +821,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         localStorage.setItem('valoresTransporte', JSON.stringify(state.valoresTransporte));
         
-        // Recalcular valores de transporte na tabela
+        // Recalcular valores de transporte
         recalcularTotais();
         
         fecharModalTransporte();
@@ -778,79 +833,71 @@ document.addEventListener('DOMContentLoaded', async () => {
     function exportToExcel() {
         try {
             const wb = XLSX.utils.book_new();
-            const data = [];
             
-            // Cabeçalho principal
-            const header1 = ['Funcionário'];
-            const header2 = [''];
+            // Planilha 1: Resumo
+            const resumoData = [
+                ['FECHAMENTO SEMANAL - RESUMO'],
+                ['Período:', `${formatDate(state.diasSemana[0])} a ${formatDate(state.diasSemana[6])}`],
+                ['Valor Hora:', `R$ ${elements.valorHora.value}`],
+                [''],
+                ['RESUMO GERAL'],
+                ['Total a Pagar:', document.getElementById('totalGeralPagar').textContent],
+                ['Total Horas:', document.getElementById('totalHorasLabel').textContent],
+                ['Total Benefícios:', document.getElementById('totalGeralBeneficios').textContent],
+                ['Total Descontos:', document.getElementById('totalGeralDescontos').textContent],
+                [''],
+                ['DETALHAMENTO POR FUNCIONÁRIO']
+            ];
             
-            state.diasSemana.forEach((dia, index) => {
-                const diaSemana = CONFIG.diasSemana[index];
-                const dataStr = `${dia.getDate()}/${dia.getMonth() + 1}`;
-                header1.push(diaSemana + ' ' + dataStr, '', '', '', '');
-                header2.push('Horas', 'Alim', 'Transp', 'Tipo', 'Consumo');
+            state.funcionarios.forEach(func => {
+                const totalElement = document.getElementById(`${func.uid}_total_receber`);
+                resumoData.push([func.nome, totalElement ? totalElement.textContent : 'R$ 0,00']);
             });
             
-            header1.push('Total Horas', 'Total Alim', 'Total Transp', 'Consumo', 'Desconto', 'Adicional', 'Total a Receber');
-            header2.push('', '', '', '', '', '', '');
+            const wsResumo = XLSX.utils.aoa_to_sheet(resumoData);
+            XLSX.utils.book_append_sheet(wb, wsResumo, 'Resumo');
             
-            data.push(header1);
-            data.push(header2);
-            
-            // Dados dos funcionários
-            state.funcionarios.forEach(func => {
-                const row = [func.nome];
+            // Planilha 2: Detalhes (se visível)
+            if (state.detalhesVisiveis) {
+                const detalhesData = [];
                 
-                state.diasSemana.forEach((_, diaIndex) => {
-                    const hs = document.getElementById(`${func.uid}_${diaIndex}_hs`)?.value || '';
-                    const alim = document.getElementById(`${func.uid}_${diaIndex}_alim`)?.value || '';
-                    const tipoTransp = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`)?.value || '';
-                    const valorTransp = state.valoresTransporte[tipoTransp] || 0;
-                    const consumo = document.getElementById(`${func.uid}_${diaIndex}_consumo`)?.textContent || '';
-                    
-                    row.push(hs, alim, valorTransp, tipoTransp, consumo);
+                // Cabeçalho
+                const header1 = ['Funcionário'];
+                const header2 = [''];
+                
+                state.diasSemana.forEach((dia, index) => {
+                    const diaSemana = CONFIG.diasSemana[index];
+                    const dataStr = `${dia.getDate()}/${dia.getMonth() + 1}`;
+                    header1.push(diaSemana + ' ' + dataStr, '', '', '');
+                    header2.push('Horas', 'Alim', 'Transp', 'Consumo');
                 });
                 
-                row.push(
-                    document.getElementById(`${func.uid}_total_hs`).textContent,
-                    document.getElementById(`${func.uid}_total_alim`).textContent,
-                    document.getElementById(`${func.uid}_total_transp`).textContent,
-                    document.getElementById(`${func.uid}_consumo`).textContent,
-                    document.getElementById(`${func.uid}_desconto`).value,
-                    document.getElementById(`${func.uid}_adicional`).value,
-                    document.getElementById(`${func.uid}_total_receber`).textContent
-                );
+                detalhesData.push(header1);
+                detalhesData.push(header2);
                 
-                data.push(row);
-            });
-            
-            // Linha de totais
-            const totalRow = ['TOTAIS GERAIS'];
-            state.diasSemana.forEach((_, index) => {
-                const total = document.getElementById(`total_dia_${index}`).textContent;
-                totalRow.push(total, '', '', '', '');
-            });
-            
-            totalRow.push(
-                document.getElementById('total_geral_hs').textContent,
-                document.getElementById('total_geral_alim').textContent,
-                document.getElementById('total_geral_transp').textContent,
-                document.getElementById('total_geral_consumo').textContent,
-                document.getElementById('total_geral_desconto').textContent,
-                document.getElementById('total_geral_adicional').textContent,
-                document.getElementById('total_geral_receber').textContent
-            );
-            
-            data.push(totalRow);
-            
-            // Adicionar informações extras
-            data.push([]);
-            data.push(['Período:', `${formatDate(state.diasSemana[0])} a ${formatDate(state.diasSemana[6])}`]);
-            data.push(['Valor Hora:', `R$ ${elements.valorHora.value}`]);
-            data.push(['Exportado em:', new Date().toLocaleString('pt-BR')]);
-            
-            const ws = XLSX.utils.aoa_to_sheet(data);
-            XLSX.utils.book_append_sheet(wb, ws, 'Fechamento Semanal');
+                // Dados
+                state.funcionarios.forEach(func => {
+                    const row = [func.nome];
+                    
+                    state.diasSemana.forEach((_, diaIndex) => {
+                        const hsInput = document.getElementById(`${func.uid}_${diaIndex}_hs`);
+                        const alimInput = document.getElementById(`${func.uid}_${diaIndex}_alim`);
+                        const transpSelect = document.getElementById(`${func.uid}_${diaIndex}_transp_tipo`);
+                        
+                        const hs = hsInput ? hsInput.value : '';
+                        const alim = alimInput ? alimInput.value : '';
+                        const tipoTransp = transpSelect ? transpSelect.value : '';
+                        const valorTransp = state.valoresTransporte[tipoTransp] || 0;
+                        
+                        row.push(hs, alim, valorTransp, '');
+                    });
+                    
+                    detalhesData.push(row);
+                });
+                
+                const wsDetalhes = XLSX.utils.aoa_to_sheet(detalhesData);
+                XLSX.utils.book_append_sheet(wb, wsDetalhes, 'Detalhes');
+            }
             
             const fileName = `Fechamento_Semanal_${formatDate(state.diasSemana[0])}_${formatDate(state.diasSemana[6])}.xlsx`;
             XLSX.writeFile(wb, fileName);
@@ -866,20 +913,81 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     function exportToPDF() {
         try {
-            const element = elements.table.cloneNode(true);
+            // Criar elemento temporário com o conteúdo a exportar
+            const tempDiv = document.createElement('div');
+            tempDiv.style.padding = '20px';
             
-            // Remover coluna de ações
-            element.querySelectorAll('th:last-child, td:last-child').forEach(el => el.remove());
+            tempDiv.innerHTML = `
+                <h1 style="text-align: center; margin-bottom: 20px;">Fechamento Semanal</h1>
+                <p style="text-align: center; margin-bottom: 30px;">
+                    Período: ${formatDate(state.diasSemana[0])} a ${formatDate(state.diasSemana[6])}
+                </p>
+                
+                <div style="margin-bottom: 30px;">
+                    <h2>Resumo Geral</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Total a Pagar:</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">
+                                ${document.getElementById('totalGeralPagar').textContent}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Total Horas:</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">
+                                ${document.getElementById('totalHorasLabel').textContent}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Total Benefícios:</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">
+                                ${document.getElementById('totalGeralBeneficios').textContent}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px; border: 1px solid #ddd;">Total Descontos:</td>
+                            <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">
+                                ${document.getElementById('totalGeralDescontos').textContent}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <div>
+                    <h2>Detalhamento por Funcionário</h2>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Funcionário</th>
+                                <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Total a Receber</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${state.funcionarios.map(func => {
+                                const totalElement = document.getElementById(`${func.uid}_total_receber`);
+                                return `
+                                    <tr>
+                                        <td style="padding: 8px; border: 1px solid #ddd;">${func.nome}</td>
+                                        <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">
+                                            ${totalElement ? totalElement.textContent : 'R$ 0,00'}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
             
             const opt = {
                 margin: 10,
                 filename: `Fechamento_Semanal_${formatDate(state.diasSemana[0])}_${formatDate(state.diasSemana[6])}.pdf`,
                 image: { type: 'jpeg', quality: 0.98 },
                 html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
             
-            html2pdf().set(opt).from(element).save();
+            html2pdf().set(opt).from(tempDiv).save();
             
             showStatus('PDF exportado com sucesso!', 'success');
             setTimeout(hideStatus, 3000);
@@ -931,6 +1039,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         showStatus(message, 'error');
         setTimeout(hideStatus, 5000);
     }
+    
+    // Função global para toggle de detalhes do funcionário
+    window.toggleFuncionarioDetalhes = function(uid) {
+        const detalhesDiv = document.getElementById(`detalhes_${uid}`);
+        const chevron = document.querySelector(`[data-uid="${uid}"] .fa-chevron-down`);
+        
+        if (detalhesDiv.classList.contains('hidden')) {
+            detalhesDiv.classList.remove('hidden');
+            chevron.classList.add('rotate-180');
+        } else {
+            detalhesDiv.classList.add('hidden');
+            chevron.classList.remove('rotate-180');
+        }
+    };
     
     // Iniciar aplicação
     init();
