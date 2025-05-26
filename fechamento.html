@@ -51,6 +51,22 @@
     </script>
     
     <style>
+        /* Garantir que ocupe toda a tela */
+        html, body {
+            height: 100%;
+            overflow-x: hidden;
+        }
+        
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        main {
+            flex: 1;
+            overflow-y: auto;
+        }
+        
         /* Estilos customizados para o fechamento */
         .day-card {
             background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
@@ -105,16 +121,29 @@
             border-radius: 3px 3px 0 0;
         }
         
-        /* Grid responsivo melhorado */
+        /* Grid responsivo melhorado para tela cheia */
         .days-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
             gap: 1.5rem;
         }
         
-        @media (min-width: 1536px) {
+        @media (min-width: 1920px) {
             .days-grid {
                 grid-template-columns: repeat(7, 1fr);
+            }
+        }
+        
+        /* Grid para funcionários em tela cheia */
+        .employees-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        @media (min-width: 1920px) {
+            .employees-grid {
+                grid-template-columns: repeat(3, 1fr);
             }
         }
         
@@ -134,6 +163,25 @@
             animation: slideIn 0.5s ease-out;
         }
         
+        /* Scrollbar customizada */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #F97316;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #EA580C;
+        }
+        
         /* Print styles */
         @media print {
             .no-print {
@@ -144,8 +192,8 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
-    <header class="bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-lg sticky top-0 z-50 no-print">
-        <div class="container mx-auto px-4 py-3">
+    <header class="bg-gradient-to-r from-primary-600 to-primary-700 text-white shadow-lg no-print">
+        <div class="px-6 py-3">
             <div class="flex justify-between items-center">
                 <div class="flex items-center space-x-3">
                     <div class="w-10 h-10 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
@@ -160,7 +208,7 @@
                 <div class="flex items-center space-x-4">
                     <button onclick="window.location.href='admin.html'" class="flex items-center bg-white bg-opacity-20 hover:bg-opacity-30 text-white font-medium py-2 px-4 rounded-lg transition-all">
                         <i class="fas fa-arrow-left mr-2"></i>
-                        Voltar
+                        Voltar ao Dashboard
                     </button>
                     
                     <button id="logoutButton" class="flex items-center bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-all">
@@ -172,15 +220,15 @@
         </div>
     </header>
 
-    <main class="container mx-auto px-4 py-6 max-w-7xl">
+    <main class="px-6 py-4">
         <!-- Controles e Filtros -->
-        <div class="bg-white rounded-xl shadow-sm p-6 mb-6 no-print">
+        <div class="bg-white rounded-xl shadow-sm p-6 mb-4 no-print">
             <h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
                 <i class="fas fa-cog mr-2 text-primary-500"></i>
                 Configurações do Fechamento
             </h2>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <!-- Seletor de Período -->
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">
@@ -219,37 +267,42 @@
                     <p class="mt-1 text-xs text-gray-500">Configure os valores por tipo</p>
                 </div>
                 
+                <!-- Botão Carregar -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2 opacity-0">Carregar</label>
+                    <button id="btnCarregar" class="w-full bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
+                        <i class="fas fa-sync-alt mr-1"></i>Carregar Dados
+                    </button>
+                    <p class="mt-1 text-xs text-gray-500">Atualiza os dados da semana</p>
+                </div>
+                
                 <!-- Botões de Ação -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2 opacity-0">Ações</label>
-                    <div class="flex flex-col space-y-2">
-                        <button id="btnCarregar" class="bg-primary-500 hover:bg-primary-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                            <i class="fas fa-sync-alt mr-1"></i>Carregar Dados
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Ações</label>
+                    <div class="flex space-x-2">
+                        <button id="btnSalvar" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-2 rounded-lg transition-all text-sm" title="Salvar">
+                            <i class="fas fa-save"></i>
                         </button>
-                        <div class="flex space-x-2">
-                            <button id="btnSalvar" class="flex-1 bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                                <i class="fas fa-save"></i>
-                            </button>
-                            <button id="btnExportExcel" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                                <i class="fas fa-file-excel"></i>
-                            </button>
-                            <button id="btnExportPDF" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-3 rounded-lg transition-all text-sm">
-                                <i class="fas fa-file-pdf"></i>
-                            </button>
-                        </div>
+                        <button id="btnExportExcel" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-2 rounded-lg transition-all text-sm" title="Excel">
+                            <i class="fas fa-file-excel"></i>
+                        </button>
+                        <button id="btnExportPDF" class="flex-1 bg-red-500 hover:bg-red-600 text-white font-medium py-2 px-2 rounded-lg transition-all text-sm" title="PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </button>
                     </div>
+                    <p class="mt-1 text-xs text-gray-500">Salvar e exportar</p>
                 </div>
             </div>
         </div>
 
         <!-- Status/Loading -->
-        <div id="statusContainer" class="hidden bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-lg mb-6 text-sm">
+        <div id="statusContainer" class="hidden bg-blue-50 border border-blue-200 text-blue-700 p-4 rounded-lg mb-4 text-sm">
             <i class="fas fa-spinner fa-spin mr-2"></i>
             <span id="statusMessage">Carregando dados...</span>
         </div>
 
         <!-- Tabs de Visualização -->
-        <div class="bg-white rounded-xl shadow-sm p-2 mb-6">
+        <div class="bg-white rounded-xl shadow-sm p-2 mb-4">
             <div class="flex space-x-1">
                 <button id="tabResumo" class="tab-button active flex-1 px-4 py-3 text-sm font-medium text-gray-700 hover:text-primary-600 rounded-lg transition-all">
                     <i class="fas fa-chart-pie mr-2"></i>Resumo Semanal
@@ -266,7 +319,7 @@
         <!-- CONTEÚDO TAB RESUMO -->
         <div id="contentResumo" class="tab-content">
             <!-- Cards de Resumo Total -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
                 <div class="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-xl border border-green-200">
                     <div class="flex items-center justify-between mb-2">
                         <i class="fas fa-money-bill-wave text-green-600 text-2xl"></i>
@@ -314,7 +367,7 @@
             </div>
 
             <!-- Lista de Funcionários Resumida -->
-            <div id="funcionariosSummaryCards" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div id="funcionariosSummaryCards" class="employees-grid">
                 <!-- Cards serão inseridos dinamicamente aqui -->
             </div>
         </div>
