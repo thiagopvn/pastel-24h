@@ -375,24 +375,30 @@ class FechamentoSemanal {
     }
 
     async loadFechamentoData(dataInicio, dataFim) {
-        try {
-            // Buscar documento de fechamento da semana se existir
-            const semanaId = `${this.formatDate(dataInicio)}_${this.formatDate(dataFim)}`;
-            const fechamentoDoc = await db.collection('fechamentos_semanais').doc(semanaId).get();
+    try {
+        const semanaId = `${this.formatDate(dataInicio)}_${this.formatDate(dataFim)}`;
+        const fechamentoDoc = await db.collection('fechamentos_semanais').doc(semanaId).get();
+        
+        if (fechamentoDoc.exists) {
+            const data = fechamentoDoc.data();
             
-            if (fechamentoDoc.exists) {
-                const data = fechamentoDoc.data();
-                this.state.fechamentoData = data.funcionarios || {};
-                console.log('✅ Dados de fechamento anteriores carregados');
+            // Certifique-se de que o objeto funcionarios existe
+            if (data && data.funcionarios) {
+                this.state.fechamentoData = data.funcionarios;
+                console.log('✅ Dados de fechamento carregados:', this.state.fechamentoData);
             } else {
                 this.state.fechamentoData = {};
-                console.log('ℹ️ Nenhum fechamento anterior encontrado');
+                console.log('⚠️ Documento existe, mas não tem dados de funcionários');
             }
-        } catch (error) {
-            console.error('Erro ao carregar fechamento:', error);
+        } else {
             this.state.fechamentoData = {};
+            console.log('ℹ️ Nenhum fechamento anterior encontrado');
         }
+    } catch (error) {
+        console.error('❌ Erro ao carregar fechamento:', error);
+        this.state.fechamentoData = {};
     }
+}
 
     calcularHorasTrabalhadas(horaInicio, horaFim) {
         if (!horaInicio || !horaFim) return 0;
@@ -782,42 +788,57 @@ class FechamentoSemanal {
     }
 
     obterDadosDiaFuncionario(uid, dateStr) {
-        // Primeiro verifica se há turnos registrados
-        const turnosDia = this.state.turnosData[dateStr]?.[uid];
+    // Primeiro verifica se há turnos registrados
+    const turnosDia = this.state.turnosData[dateStr]?.[uid];
+    
+    // Verifica se há dados salvos no fechamento
+    const dadosSalvos = this.state.fechamentoData[uid]?.diasTrabalhados?.[dateStr] || {};
+    
+    console.log(`Verificando dados para ${uid} em ${dateStr}:`, dadosSalvos);
+    
+    if (turnosDia && turnosDia.turnos.length > 0) {
+        // Somar dados de todos os turnos do dia
+        let horasTotal = 0;
+        let consumoTotal = 0;
         
-        // Dados salvos do fechamento (se existir)
-        const dadosSalvos = this.state.fechamentoData[uid]?.[dateStr] || {};
+        turnosDia.turnos.forEach(turno => {
+            horasTotal += turno.horas;
+            consumoTotal += turno.consumo;
+        });
         
-        if (turnosDia && turnosDia.turnos.length > 0) {
-            // Somar dados de todos os turnos do dia
-            let horasTotal = 0;
-            let consumoTotal = 0;
-            
-            turnosDia.turnos.forEach(turno => {
-                horasTotal += turno.horas;
-                consumoTotal += turno.consumo;
-            });
-            
-            // Usar dados salvos se existirem, senão usar calculados
-            return {
-                trabalhou: true,
-                horas: dadosSalvos.horas !== undefined ? dadosSalvos.horas : horasTotal,
-                alimentacao: dadosSalvos.alimentacao || 0,
-                transporteTipo: dadosSalvos.transporteTipo || 'nenhum',
-                consumo: consumoTotal, // Sempre usar o consumo calculado do turno
-                turnos: turnosDia.turnos
-            };
-        }
-        
+        // Usar dados salvos se existirem, senão usar calculados
         return {
-            trabalhou: false,
-            horas: 0,
-            alimentacao: 0,
-            transporteTipo: 'nenhum',
-            consumo: 0,
+            trabalhou: true,
+            horas: dadosSalvos.horas !== undefined ? dadosSalvos.horas : horasTotal,
+            alimentacao: dadosSalvos.alimentacao || 0,
+            transporteTipo: dadosSalvos.transporteTipo || 'nenhum',
+            consumo: consumoTotal, // Sempre usar o consumo calculado do turno
+            turnos: turnosDia.turnos
+        };
+    }
+    
+    // Verificar se existem dados salvos mesmo sem turnos registrados
+    if (dadosSalvos && Object.keys(dadosSalvos).length > 0) {
+        console.log(`Dados salvos sem turnos para ${uid} em ${dateStr}:`, dadosSalvos);
+        return {
+            trabalhou: true,
+            horas: dadosSalvos.horas || 0,
+            alimentacao: dadosSalvos.alimentacao || 0,
+            transporteTipo: dadosSalvos.transporteTipo || 'nenhum',
+            consumo: dadosSalvos.consumo || 0,
             turnos: []
         };
     }
+    
+    return {
+        trabalhou: false,
+        horas: 0,
+        alimentacao: 0,
+        transporteTipo: 'nenhum',
+        consumo: 0,
+        turnos: []
+    };
+}
 
     obterValorInput(id) {
         const element = document.getElementById(id);
