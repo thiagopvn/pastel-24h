@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', async () => {
-    // --- ELEMENTOS DA UI ---
     const btnAbrirTurno = document.getElementById('btnAbrirTurno');
     const btnFecharTurno = document.getElementById('btnFecharTurno');
     const formTurno = document.getElementById('formTurno');
@@ -48,6 +47,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.value = formatToBRL(numericValue);
         return numericValue;
     }
+
     function parseCurrencyToNumber(formattedValue) {
         if (!formattedValue) return 0;
         const cleaned = formattedValue
@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             .replace(',', '.');
         return parseFloat(cleaned) || 0;
     }
+
     function formatToBRL(value) {
         const numValue = parseFloat(value) || 0;
         return numValue.toLocaleString('pt-BR', {
@@ -63,31 +64,27 @@ document.addEventListener('DOMContentLoaded', async () => {
             currency: 'BRL'
         });
     }
+
     function setupCurrencyMask(inputElement) {
         if (!inputElement) return;
         
-        // Aplica máscara ao digitar
         inputElement.addEventListener('input', function() {
             applyCurrencyMask(this);
-            // Atualiza cálculos após aplicar máscara
             setTimeout(() => {
                 updatePaymentTotalsAndDivergence();
             }, 100);
         });
         
-        // Aplica máscara ao perder foco
         inputElement.addEventListener('blur', function() {
             applyCurrencyMask(this);
             updatePaymentTotalsAndDivergence();
         });
         
-        // Aplica formatação inicial se já tiver valor
         if (inputElement.value && !inputElement.readOnly) {
             applyCurrencyMask(inputElement);
         }
     }
 
-    // === FUNÇÕES DE PERSISTÊNCIA LOCAL ===
     function saveTurnoLocal(turnoData) {
         if (!turnoData) return;
         localStorage.setItem('currentTurnoId', turnoData.id);
@@ -117,245 +114,239 @@ document.addEventListener('DOMContentLoaded', async () => {
         turnoAbertoLocalmente = false;
     }
 
-    // === FUNÇÕES DE INICIALIZAÇÃO E ESTADO ===
     async function initializePage() {
-    if (isInitializing) return;
-    isInitializing = true;
-    
-    showLoadingState(true, "Carregando dados iniciais...");
-    try {
-        await loadProductPrices();
-        populateProductTables();
-        setupPriceListener();
-        setupAllCurrencyMasks();
+        if (isInitializing) return;
+        isInitializing = true;
         
-        // NOVO: Carregar lista de funcionários disponíveis
-        await carregarListaFuncionarios();
-        
-        await carregarDadosTurnoAnterior();
-        
-        const localTurno = getTurnoLocal();
-        
-        if (localTurno && localTurno.status === 'aberto') {
-            await checkAndSyncTurnoWithFirestore(localTurno.id);
-        } else {
-            await checkOpenTurnoInFirestore();
+        showLoadingState(true, "Carregando dados iniciais...");
+        try {
+            await loadProductPrices();
+            populateProductTables();
+            setupPriceListener();
+            setupAllCurrencyMasks();
+            
+            await carregarListaFuncionarios();
+            
+            await carregarDadosTurnoAnterior();
+            
+            const localTurno = getTurnoLocal();
+            
+            if (localTurno && localTurno.status === 'aberto') {
+                await checkAndSyncTurnoWithFirestore(localTurno.id);
+            } else {
+                await checkOpenTurnoInFirestore();
+            }
+            
+            setupTurnoListener();
+            setupEventListeners();
+            setInitialPeriodo();
+            
+            if (!turnoAbertoLocalmente && !currentTurnoId) {
+                toggleFormInputs(false);
+            }
+        } catch (error) {
+            console.error("Erro na inicialização da página:", error);
+            showError("Falha ao inicializar a página. Verifique sua conexão ou contate o suporte.");
+        } finally {
+            showLoadingState(false);
+            isInitializing = false;
         }
-        
-        setupTurnoListener();
-        setupEventListeners();
-        setInitialPeriodo();
-        
-        if (!turnoAbertoLocalmente && !currentTurnoId) {
-            toggleFormInputs(false);
-        }
-    } catch (error) {
-        console.error("Erro na inicialização da página:", error);
-        showError("Falha ao inicializar a página. Verifique sua conexão ou contate o suporte.");
-    } finally {
-        showLoadingState(false);
-        isInitializing = false;
     }
-}
 
-// === ADICIONE ESTAS NOVAS FUNÇÕES ===
+    async function carregarListaFuncionarios() {
+        try {
+            const snapshot = await db.collection('usuarios')
+                .where('role', '==', 'funcionario')
+                .get();
+            
+            listaFuncionariosDisponiveis = [];
+            const currentUserId = auth.currentUser?.uid;
+            
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (doc.id !== currentUserId) {
+                    listaFuncionariosDisponiveis.push({
+                        id: doc.id,
+                        nome: data.nome || data.email,
+                        email: data.email
+                    });
+                }
+            });
+            
+            console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
+        } catch (error) {
+            console.error("Erro ao carregar lista de funcionários:", error);
+            showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
+        }
+    }
 
-async function carregarListaFuncionarios() {
-    try {
-        const snapshot = await db.collection('usuarios')
-            .where('role', '==', 'funcionario')
-            .get();
+    function adicionarFuncionarioColaborador() {
+        const container = document.getElementById('funcionariosColaboradoresContainer');
+        if (!container) return;
         
-        listaFuncionariosDisponiveis = [];
-        const currentUserId = auth.currentUser?.uid;
+        const funcionarioId = `funcionario_${Date.now()}`;
         
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            if (doc.id !== currentUserId) {
-                listaFuncionariosDisponiveis.push({
-                    id: doc.id,
-                    nome: data.nome || data.email,
-                    email: data.email
+        const funcionarioDiv = document.createElement('div');
+        funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
+        funcionarioDiv.id = funcionarioId;
+        
+        const optionsHtml = listaFuncionariosDisponiveis.map(f => 
+            `<option value="${f.id}">${f.nome} (${f.email})</option>`
+        ).join('');
+        
+        funcionarioDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <h4 class="text-md font-semibold text-gray-700 flex items-center">
+                    <i class="fas fa-user mr-2"></i>
+                    Funcionário Colaborador
+                </h4>
+                <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
+                        class="text-red-500 hover:text-red-700 transition-colors">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
+                    </label>
+                    <select id="${funcionarioId}_select" 
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                        <option value="">-- Selecione um funcionário --</option>
+                        ${optionsHtml}
+                    </select>
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
+                    </label>
+                    <textarea id="${funcionarioId}_consumo" 
+                              rows="2"
+                              placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
+                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-bus mr-1"></i>Meio de Transporte
+                    </label>
+                    <select id="${funcionarioId}_transporte" 
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                        <option value="">-- Selecione --</option>
+                        <option value="onibus">Ônibus</option>
+                        <option value="metro">Metrô</option>
+                        <option value="trem">Trem</option>
+                        <option value="carro">Carro Próprio</option>
+                        <option value="moto">Moto</option>
+                        <option value="bicicleta">Bicicleta</option>
+                        <option value="ape">A pé</option>
+                        <option value="carona">Carona</option>
+                        <option value="uber">Uber/99/Táxi</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
+                    </label>
+                    <input type="number" 
+                           id="${funcionarioId}_horas" 
+                           min="0" 
+                           max="24" 
+                           step="0.5"
+                           placeholder="Ex: 8"
+                           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(funcionarioDiv);
+        funcionariosColaboradores.push(funcionarioId);
+    }
+
+    window.removerFuncionarioColaborador = function(funcionarioId) {
+        const elemento = document.getElementById(funcionarioId);
+        if (elemento) {
+            elemento.remove();
+            funcionariosColaboradores = funcionariosColaboradores.filter(id => id !== funcionarioId);
+        }
+    }
+
+    function coletarDadosFuncionariosColaboradores() {
+        const dados = [];
+        
+        funcionariosColaboradores.forEach(funcionarioId => {
+            const selectElement = document.getElementById(`${funcionarioId}_select`);
+            const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
+            const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
+            const horasElement = document.getElementById(`${funcionarioId}_horas`);
+            
+            if (selectElement && selectElement.value) {
+                const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
+                
+                dados.push({
+                    funcionarioId: selectElement.value,
+                    funcionarioNome: funcionarioSelecionado?.nome || '',
+                    consumo: consumoElement?.value || '',
+                    transporte: transporteElement?.value || '',
+                    horasTrabalhadas: parseFloat(horasElement?.value) || 0,
+                    registradoPor: {
+                        id: auth.currentUser?.uid,
+                        nome: localStorage.getItem('userName') || auth.currentUser?.email
+                    },
+                    dataRegistro: new Date().toISOString()
                 });
             }
         });
         
-        console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
-    } catch (error) {
-        console.error("Erro ao carregar lista de funcionários:", error);
-        showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
+        return dados;
     }
-}
 
-function adicionarFuncionarioColaborador() {
-    const container = document.getElementById('funcionariosColaboradoresContainer');
-    if (!container) return;
-    
-    const funcionarioId = `funcionario_${Date.now()}`;
-    
-    const funcionarioDiv = document.createElement('div');
-    funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
-    funcionarioDiv.id = funcionarioId;
-    
-    const optionsHtml = listaFuncionariosDisponiveis.map(f => 
-        `<option value="${f.id}">${f.nome} (${f.email})</option>`
-    ).join('');
-    
-    funcionarioDiv.innerHTML = `
-        <div class="flex justify-between items-start mb-3">
-            <h4 class="text-md font-semibold text-gray-700 flex items-center">
-                <i class="fas fa-user mr-2"></i>
-                Funcionário Colaborador
-            </h4>
-            <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
-                    class="text-red-500 hover:text-red-700 transition-colors">
-                <i class="fas fa-times-circle"></i>
-            </button>
-        </div>
+    async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
+        if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
-                </label>
-                <select id="${funcionarioId}_select" 
-                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                    <option value="">-- Selecione um funcionário --</option>
-                    ${optionsHtml}
-                </select>
-            </div>
+        try {
+            const batch = db.batch();
             
-            <div class="md:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
-                </label>
-                <textarea id="${funcionarioId}_consumo" 
-                          rows="2"
-                          placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
-                          class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-bus mr-1"></i>Meio de Transporte
-                </label>
-                <select id="${funcionarioId}_transporte" 
-                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                    <option value="">-- Selecione --</option>
-                    <option value="onibus">Ônibus</option>
-                    <option value="metro">Metrô</option>
-                    <option value="trem">Trem</option>
-                    <option value="carro">Carro Próprio</option>
-                    <option value="moto">Moto</option>
-                    <option value="bicicleta">Bicicleta</option>
-                    <option value="ape">A pé</option>
-                    <option value="carona">Carona</option>
-                    <option value="uber">Uber/99/Táxi</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
-                </label>
-                <input type="number" 
-                       id="${funcionarioId}_horas" 
-                       min="0" 
-                       max="24" 
-                       step="0.5"
-                       placeholder="Ex: 8"
-                       class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-            </div>
-        </div>
-    `;
-    
-    container.appendChild(funcionarioDiv);
-    funcionariosColaboradores.push(funcionarioId);
-}
-
-// Torne a função global para o onclick funcionar
-window.removerFuncionarioColaborador = function(funcionarioId) {
-    const elemento = document.getElementById(funcionarioId);
-    if (elemento) {
-        elemento.remove();
-        funcionariosColaboradores = funcionariosColaboradores.filter(id => id !== funcionarioId);
-    }
-}
-
-function coletarDadosFuncionariosColaboradores() {
-    const dados = [];
-    
-    funcionariosColaboradores.forEach(funcionarioId => {
-        const selectElement = document.getElementById(`${funcionarioId}_select`);
-        const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
-        const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
-        const horasElement = document.getElementById(`${funcionarioId}_horas`);
-        
-        if (selectElement && selectElement.value) {
-            const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
-            
-            dados.push({
-                funcionarioId: selectElement.value,
-                funcionarioNome: funcionarioSelecionado?.nome || '',
-                consumo: consumoElement?.value || '',
-                transporte: transporteElement?.value || '',
-                horasTrabalhadas: parseFloat(horasElement?.value) || 0,
-                registradoPor: {
-                    id: auth.currentUser?.uid,
-                    nome: localStorage.getItem('userName') || auth.currentUser?.email
-                },
-                dataRegistro: new Date().toISOString()
-            });
-        }
-    });
-    
-    return dados;
-}
-
-async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
-    if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
-    
-    try {
-        const batch = db.batch();
-        
-        for (const funcionarioData of dadosFuncionarios) {
-            const registroRef = db.collection('usuarios')
-                .doc(funcionarioData.funcionarioId)
-                .collection('registros_turnos')
-                .doc(turnoId);
-            
-            batch.set(registroRef, {
-                turnoId: turnoId,
-                consumo: funcionarioData.consumo,
-                transporte: funcionarioData.transporte,
-                horasTrabalhadas: funcionarioData.horasTrabalhadas,
-                registradoPor: funcionarioData.registradoPor,
-                dataRegistro: funcionarioData.dataRegistro,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-            
-            const userRef = db.collection('usuarios').doc(funcionarioData.funcionarioId);
-            batch.update(userRef, {
-                ultimoTurno: turnoId,
-                ultimoRegistro: funcionarioData.dataRegistro,
-                [`turnos.${turnoId}`]: {
+            for (const funcionarioData of dadosFuncionarios) {
+                const registroRef = db.collection('usuarios')
+                    .doc(funcionarioData.funcionarioId)
+                    .collection('registros_turnos')
+                    .doc(turnoId);
+                
+                batch.set(registroRef, {
+                    turnoId: turnoId,
                     consumo: funcionarioData.consumo,
                     transporte: funcionarioData.transporte,
                     horasTrabalhadas: funcionarioData.horasTrabalhadas,
-                    registradoPor: funcionarioData.registradoPor.nome
-                }
-            });
+                    registradoPor: funcionarioData.registradoPor,
+                    dataRegistro: funcionarioData.dataRegistro,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                const userRef = db.collection('usuarios').doc(funcionarioData.funcionarioId);
+                batch.update(userRef, {
+                    ultimoTurno: turnoId,
+                    ultimoRegistro: funcionarioData.dataRegistro,
+                    [`turnos.${turnoId}`]: {
+                        consumo: funcionarioData.consumo,
+                        transporte: funcionarioData.transporte,
+                        horasTrabalhadas: funcionarioData.horasTrabalhadas,
+                        registradoPor: funcionarioData.registradoPor.nome
+                    }
+                });
+            }
+            
+            await batch.commit();
+            console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
+        } catch (error) {
+            console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
+            throw error;
         }
-        
-        await batch.commit();
-        console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
-    } catch (error) {
-        console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
-        throw error;
     }
-}
 
-    // NOVA FUNÇÃO: Carrega dados do último turno fechado
     async function carregarDadosTurnoAnterior() {
         showLoadingState(true, "Verificando turnos anteriores...");
         try {
@@ -384,26 +375,20 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
         }
     }
 
-    // Novo método para estabelecer um listener em tempo real no Firestore
     function setupTurnoListener() {
-        // Cancela qualquer listener anterior
         if (unsubscribeTurnoListener) {
             unsubscribeTurnoListener();
         }
 
-        // Não configura listener se não houver turno aberto
         if (!currentTurnoId) return;
 
-        // Configura listener para o documento do turno atual
         unsubscribeTurnoListener = db.collection('turnos').doc(currentTurnoId)
             .onSnapshot((doc) => {
                 if (doc.exists) {
                     const turnoData = doc.data();
                     if (turnoData.status === 'aberto') {
-                        // Atualiza os dados locais se houver mudanças
                         saveTurnoLocal({ id: doc.id, ...turnoData });
                         
-                        // Só atualiza o formulário se estiver diferente ou se for primeiro carregamento
                         if (!turnoAbertoLocalmente) {
                             loadTurnoDataToForm(turnoData);
                             populateTurnoDetails(turnoData.abertura);
@@ -416,12 +401,10 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
                             turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
                         }
                     } else if (turnoData.status === 'fechado') {
-                        // Turno foi fechado em outro dispositivo/sessão
                         removeTurnoLocal();
                         resetFormAndState("Turno foi fechado em outro dispositivo/sessão.");
                     }
                 } else {
-                    // Documento não existe mais - algo errado aconteceu
                     removeTurnoLocal();
                     resetFormAndState("Turno não encontrado no servidor. Pode ter sido removido.");
                 }
@@ -430,7 +413,6 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
             });
     }
 
-    // Verifica e sincroniza com Firestore um turno salvo localmente
     async function checkAndSyncTurnoWithFirestore(turnoId) {
         try {
             const turnoDoc = await db.collection('turnos').doc(turnoId).get();
@@ -439,7 +421,6 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
                 const turnoData = turnoDoc.data();
                 
                 if (turnoData.status === 'aberto') {
-                    // Turno ainda está aberto no Firestore
                     saveTurnoLocal({ id: turnoDoc.id, ...turnoData });
                     loadTurnoDataToForm(turnoData);
                     populateTurnoDetails(turnoData.abertura);
@@ -451,19 +432,16 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
                     turnoAbertoLocalmente = true;
                     toggleFormInputs(true);
                 } else {
-                    // Turno fechado no servidor
                     removeTurnoLocal();
                     resetFormAndState("O turno foi fechado em outra sessão.");
                 }
             } else {
-                // Turno não existe mais no Firestore
                 removeTurnoLocal();
                 resetFormAndState("Turno salvo localmente não existe mais no servidor.");
             }
         } catch (error) {
             console.error("Erro ao verificar turno no Firestore:", error);
             
-            // Se offline, usa dados locais com alerta
             const localTurno = getTurnoLocal();
             if (localTurno) {
                 loadTurnoDataToForm(localTurno);
@@ -481,32 +459,26 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
         }
     }
 
-    // Verifica se há turnos abertos no Firestore
     async function checkOpenTurnoInFirestore() {
         try {
-            // Recupera o usuário atual
             const user = auth.currentUser;
             if (!user) {
                 showError("Usuário não autenticado. Faça login novamente.");
                 return;
             }
 
-            // Busca turnos abertos para o usuário atual
             const turnosQuery = await db.collection('turnos')
                 .where('status', '==', 'aberto')
                 .where('abertura.responsavelId', '==', user.uid)
                 .get();
 
             if (!turnosQuery.empty) {
-                // Encontrou um turno aberto
                 const turnoDoc = turnosQuery.docs[0];
                 const turnoData = turnoDoc.data();
                 currentTurnoId = turnoDoc.id;
                 
-                // Salva localmente
                 saveTurnoLocal({ id: turnoDoc.id, ...turnoData });
                 
-                // Carrega no formulário
                 loadTurnoDataToForm(turnoData);
                 populateTurnoDetails(turnoData.abertura);
                 
@@ -517,7 +489,6 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
                 turnoAbertoLocalmente = true;
                 toggleFormInputs(true);
             } else {
-                // Não há turno aberto
                 resetFormAndState("Nenhum turno aberto encontrado.");
             }
         } catch (error) {
@@ -526,7 +497,6 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
         }
     }
 
-    // Método adaptado para usar os novos métodos
     async function checkOpenTurno() {
         showLoadingState(true, "Verificando turno...");
         try {
@@ -557,406 +527,355 @@ async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) 
     }
     
     function setInitialPeriodo() {
-    if (turnoAbertoLocalmente || currentTurnoId) return; // Não muda se já houver um turno
-    
-    const currentHour = new Date().getHours();
-    
-    // Array de objetos com informações dos turnos
-    const turnos = [
-        { value: "Manhã", inicio: 6, fim: 14 },
-        { value: "Manhã-07-15", inicio: 7, fim: 15 },
-        { value: "Manhã-07-19", inicio: 7, fim: 19 },
-        { value: "Tarde", inicio: 14, fim: 22 },
-        { value: "Tarde-14-21", inicio: 14, fim: 21 },
-        { value: "Tarde-14-22", inicio: 14, fim: 22 },
-        { value: "Noite", inicio: 22, fim: 6 }, // Noite cruza meia-noite
-        { value: "Noite-21-07", inicio: 21, fim: 7 }, // Noite cruza meia-noite
-        { value: "Noite-19-2330", inicio: 19, fim: 23.5 }, // .5 para representar 23:30
-        { value: "Noite-19-07", inicio: 19, fim: 7 } // Noite cruza meia-noite
-    ];
-    
-    // Encontrar o turno mais adequado para a hora atual
-    let turnoSelecionado = "Manhã"; // Valor padrão caso nenhum turno corresponda
-    
-    for (const turno of turnos) {
-        if (turno.inicio < turno.fim) {
-            // Turno normal que não cruza a meia-noite
-            if (currentHour >= turno.inicio && currentHour < turno.fim) {
-                turnoSelecionado = turno.value;
-                break;
-            }
-        } else {
-            // Turno que cruza a meia-noite
-            if (currentHour >= turno.inicio || currentHour < turno.fim) {
-                turnoSelecionado = turno.value;
-                break;
+        if (turnoAbertoLocalmente || currentTurnoId) return;
+        
+        const currentHour = new Date().getHours();
+        
+        const turnos = [
+            { value: "Manhã", inicio: 6, fim: 14 },
+            { value: "Manhã-07-15", inicio: 7, fim: 15 },
+            { value: "Manhã-07-19", inicio: 7, fim: 19 },
+            { value: "Tarde", inicio: 14, fim: 22 },
+            { value: "Tarde-14-21", inicio: 14, fim: 21 },
+            { value: "Tarde-14-22", inicio: 14, fim: 22 },
+            { value: "Noite", inicio: 22, fim: 6 },
+            { value: "Noite-21-07", inicio: 21, fim: 7 },
+            { value: "Noite-19-2330", inicio: 19, fim: 23.5 },
+            { value: "Noite-19-07", inicio: 19, fim: 7 }
+        ];
+        
+        let turnoSelecionado = "Manhã";
+        
+        for (const turno of turnos) {
+            if (turno.inicio < turno.fim) {
+                if (currentHour >= turno.inicio && currentHour < turno.fim) {
+                    turnoSelecionado = turno.value;
+                    break;
+                }
+            } else {
+                if (currentHour >= turno.inicio || currentHour < turno.fim) {
+                    turnoSelecionado = turno.value;
+                    break;
+                }
             }
         }
+        
+        turnoPeriodoSelect.value = turnoSelecionado;
     }
-    
-    turnoPeriodoSelect.value = turnoSelecionado;
-}
 
     async function loadProductPrices() {
-    try {
-        const snapshot = await db.collection('produtos').get();
-        productPrices = {}; // Limpa antes de preencher
-        
-        snapshot.forEach(doc => {
-            const categoria = doc.id;
-            productPrices[categoria] = {};
+        try {
+            const snapshot = await db.collection('produtos').get();
+            productPrices = {};
             
-            // Converter estrutura de dados para o formato esperado
-            const data = doc.data();
-            Object.entries(data).forEach(([key, value]) => {
-                if (typeof value === 'number') {
-                    // Converte valor direto para objeto com propriedade 'preco'
-                    productPrices[categoria][key] = { preco: value };
-                } else if (typeof value === 'object' && value !== null) {
-                    // Mantém formato existente para compatibilidade
-                    productPrices[categoria][key] = value;
-                }
-            });
-        });
-        
-        console.log("✅ Preços carregados com sucesso:", productPrices);
-        
-        if (Object.keys(productPrices).length === 0) {
-            showError("Preços dos produtos não foram encontrados. Funcionalidades limitadas. Contate o administrador.");
-            return false;
-        }
-        return true;
-    } catch (error) {
-        console.error("Erro ao carregar preços: ", error);
-        showError("Erro ao carregar preços dos produtos. Tente recarregar a página.");
-        return false;
-    }
-}
-function setupPriceListener() {
-    console.log("🔄 Configurando listener para atualizações de preços...");
-    db.collection('produtos').onSnapshot(snapshot => {
-        snapshot.docChanges().forEach(change => {
-            if (change.type === 'modified') {
-                // Atualiza preços quando modificados
-                const categoria = change.doc.id;
-                const data = change.doc.data();
+            snapshot.forEach(doc => {
+                const categoria = doc.id;
+                productPrices[categoria] = {};
                 
-                console.log(`✅ Atualizando preços da categoria: ${categoria}`);
-                
-                // Atualiza a estrutura de dados local
-                if (!productPrices[categoria]) productPrices[categoria] = {};
-                
+                const data = doc.data();
                 Object.entries(data).forEach(([key, value]) => {
                     if (typeof value === 'number') {
                         productPrices[categoria][key] = { preco: value };
                     } else if (typeof value === 'object' && value !== null) {
                         productPrices[categoria][key] = value;
                     }
+                });
+            });
+            
+            console.log("✅ Preços carregados com sucesso:", productPrices);
+            
+            if (Object.keys(productPrices).length === 0) {
+                showError("Preços dos produtos não foram encontrados. Funcionalidades limitadas. Contate o administrador.");
+                return false;
+            }
+            return true;
+        } catch (error) {
+            console.error("Erro ao carregar preços: ", error);
+            showError("Erro ao carregar preços dos produtos. Tente recarregar a página.");
+            return false;
+        }
+    }
+
+    function setupPriceListener() {
+        console.log("🔄 Configurando listener para atualizações de preços...");
+        db.collection('produtos').onSnapshot(snapshot => {
+            snapshot.docChanges().forEach(change => {
+                if (change.type === 'modified') {
+                    const categoria = change.doc.id;
+                    const data = change.doc.data();
                     
-                    // Atualiza o preço na interface
-                    const precoDisplay = document.getElementById(`${key}_preco_display`);
-                    if (precoDisplay) {
-                        const precoUnit = typeof value === 'number' ? value : (value?.preco || 0);
-                        precoDisplay.textContent = formatToBRL(precoUnit);
-                        
-                        // Atualizar também o dataset.price no input de vendido
-                        const vendidoInput = document.getElementById(`${key}_vendido`);
-                        if (vendidoInput) {
-                            vendidoInput.dataset.price = precoUnit;
+                    console.log(`✅ Atualizando preços da categoria: ${categoria}`);
+                    
+                    if (!productPrices[categoria]) productPrices[categoria] = {};
+                    
+                    Object.entries(data).forEach(([key, value]) => {
+                        if (typeof value === 'number') {
+                            productPrices[categoria][key] = { preco: value };
+                        } else if (typeof value === 'object' && value !== null) {
+                            productPrices[categoria][key] = value;
                         }
                         
-                        console.log(`  - ${key}: atualizado para ${formatToBRL(precoUnit)}`);
-                    }
-                });
+                        const precoDisplay = document.getElementById(`${key}_preco_display`);
+                        if (precoDisplay) {
+                            const precoUnit = typeof value === 'number' ? value : (value?.preco || 0);
+                            precoDisplay.textContent = formatToBRL(precoUnit);
+                            
+                            const vendidoInput = document.getElementById(`${key}_vendido`);
+                            if (vendidoInput) {
+                                vendidoInput.dataset.price = precoUnit;
+                            }
+                            
+                            console.log(`  - ${key}: atualizado para ${formatToBRL(precoUnit)}`);
+                        }
+                    });
+                    
+                    calculateAll();
+                    
+                    turnoStatusP.textContent = "Preços atualizados pelo administrador. Totais recalculados.";
+                    turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
+                    setTimeout(() => {
+                        if (currentTurnoId) {
+                            const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
+                            turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                            turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+                        } else {
+                            turnoStatusP.textContent = "Nenhum turno aberto.";
+                            turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
+                        }
+                    }, 5000);
+                }
+            });
+        }, error => {
+            console.error("Erro no listener de preços:", error);
+        });
+    }
+    
+    function populateProductTables() {
+        tabelaPasteisBody.innerHTML = '';
+        tabelaCasquinhasBody.innerHTML = '';
+        tabelaCaldoCanaBody.innerHTML = '';
+        tabelaRefrigerantesBody.innerHTML = '';
+        tabelaGeloBody.innerHTML = '';
+
+        const localListaSaboresPasteis = [
+            "Carne com Queijo",
+            "Carne", 
+            "Frango com Catupiry",
+            "Frango com Queijo",
+            "Carioca",
+            "Pizza",
+            "Palmito",
+            "Queijo",
+            "4 Queijos",
+            "Bauru",
+            "Calabresa",
+            "Portuguesa",
+            "Carne Seca",
+            "Especial Carne Seca",
+            "Especial de Carne",
+            "Especial de Calabresa"
+        ];
+        
+        localListaSaboresPasteis.forEach((sabor, index) => {
+            const key = sabor.toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[ç]/g, 'c')
+                .replace(/[ãâáàä]/g, 'a')
+                .replace(/[éêèë]/g, 'e')
+                .replace(/[íìîï]/g, 'i')
+                .replace(/[óôõòö]/g, 'o')
+                .replace(/[úùûü]/g, 'u')
+                .replace(/4_queijos/g, '4_queijos');
+            
+            const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true);
+            
+            if (index === 12) {
+                row.classList.add('border-t-4', 'border-orange-400', 'pt-2');
                 
-                // Recalcula totais após atualizar preços
-                calculateAll();
+                const separatorRow = document.createElement('tr');
+                separatorRow.className = 'bg-orange-100';
+                separatorRow.innerHTML = `
+                    <td colspan="9" class="text-center font-bold text-orange-700 py-1 text-sm">
+                        === PASTÉIS ESPECIAIS ===
+                    </td>
+                `;
+                tabelaPasteisBody.appendChild(separatorRow);
+            }
+            
+            tabelaPasteisBody.appendChild(row);
+        });
+
+        const localListaCasquinhas = [
+            "Casquinha Crua",
+            "Casquinha Frita"
+        ];
+        
+        const casquinhaTitleRow = document.createElement('tr');
+        casquinhaTitleRow.className = 'bg-blue-100';
+        casquinhaTitleRow.innerHTML = `
+            <td colspan="9" class="text-center font-bold text-blue-700 py-1 text-sm">
+                === CASQUINHAS ===
+            </td>
+        `;
+        tabelaCasquinhasBody.appendChild(casquinhaTitleRow);
+        
+        localListaCasquinhas.forEach(casquinha => {
+            const key = casquinha.toLowerCase().replace(/\s+/g, '_');
+            const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
+            tabelaCasquinhasBody.appendChild(row);
+        });
+
+        const localListaCaldoCana = [
+            "Fardo de Cana",
+            "Copo 300ml",
+            "Copo 400ml",
+            "Copo 500ml", 
+            "Garrafa 500ml",
+            "Garrafa 1 Litro"
+        ];
+        
+        localListaCaldoCana.forEach((item, index) => {
+            const key = item.toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[ç]/g, 'c')
+                .replace(/ml/g, 'ml')
+                .replace(/litro/g, 'litro');
+            
+            const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
+            
+            if (index === 0) {
+                row.classList.add('bg-green-50');
+            }
+            
+            tabelaCaldoCanaBody.appendChild(row);
+        });
+
+        const localListaRefrigerantes = [
+            "Coca-Cola",
+            "Fanta Laranja",
+            "Fanta Uva",
+            "Guaraná",
+            "Refri Limão",
+            "Refri. Zero",
+            "Itubaina",
+            "Água",
+            "Água c/ Gás",
+            "Cerveja Longneck",
+            "Cerveja Lata"
+        ];
+        
+        localListaRefrigerantes.forEach((item, index) => {
+            const key = item.toLowerCase()
+                .replace(/\s+/g, '_')
+                .replace(/[ç]/g, 'c')
+                .replace(/[ãâáàä]/g, 'a')
+                .replace(/[éêèë]/g, 'e')
+                .replace(/[íìîï]/g, 'i')
+                .replace(/[óôõòö]/g, 'o')
+                .replace(/[úùûü]/g, 'u')
+                .replace(/\./g, '')
+                .replace(/\//g, '_');
+            
+            const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
+            
+            if (index === 9) {
+                row.classList.add('border-t-2', 'border-yellow-400', 'pt-1');
                 
-                // Notificar o usuário sobre a atualização
-                turnoStatusP.textContent = "Preços atualizados pelo administrador. Totais recalculados.";
-                turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
-                setTimeout(() => {
-                    if (currentTurnoId) {
-                        const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
-                        turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
-                        turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
-                    } else {
-                        turnoStatusP.textContent = "Nenhum turno aberto.";
-                        turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
-                    }
-                }, 5000);
+                const beerSeparator = document.createElement('tr');
+                beerSeparator.className = 'bg-yellow-50';
+                beerSeparator.innerHTML = `
+                    <td colspan="9" class="text-center text-yellow-700 py-1 text-xs font-medium">
+                        🍺 Bebidas Alcoólicas
+                    </td>
+                `;
+                
+                tabelaRefrigerantesBody.appendChild(beerSeparator);
+            }
+
+            tabelaRefrigerantesBody.appendChild(row);
+        });
+        
+        const geloKey = 'gelo_pacote';
+        const trGelo = document.createElement('tr');
+        trGelo.className = 'border-b item-row bg-blue-50 hover:bg-blue-100 transition-colors duration-150';
+        trGelo.dataset.itemKey = geloKey;
+        trGelo.dataset.categoryKey = 'gelo';
+        
+        const tdGeloName = document.createElement('td');
+        tdGeloName.className = 'px-2 py-2 font-medium text-blue-800';
+        tdGeloName.innerHTML = '<i class="fas fa-cube mr-1"></i>Gelo (Pacote)';
+        trGelo.appendChild(tdGeloName);
+        
+        trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm"));
+        trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas"));
+        trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));
+        
+        const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm");
+        tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true";
+        trGelo.appendChild(tdVendasGelo);
+        
+        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));
+        
+        const tdPrecoGelo = document.createElement('td');
+        tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600 text-center';
+        const precoGeloUnit = productPrices.gelo?.[geloKey]?.preco || 0;
+        tdPrecoGelo.textContent = formatToBRL(precoGeloUnit);
+        tdPrecoGelo.id = `${geloKey}_preco_display`;
+        trGelo.appendChild(tdPrecoGelo);
+        
+        const tdTotalGelo = document.createElement('td');
+        tdTotalGelo.className = 'px-2 py-2 text-sm text-gray-700 font-semibold text-right';
+        tdTotalGelo.id = `${geloKey}_total_item`;
+        tdTotalGelo.textContent = formatToBRL(0);
+        trGelo.appendChild(tdTotalGelo);
+        
+        tabelaGeloBody.appendChild(trGelo);
+        
+        console.log("✅ Tabelas populadas com sucesso!");
+        console.log("📊 Resumo:");
+        console.log(`  - Pastéis: ${localListaSaboresPasteis.length} itens (12 comuns + 4 especiais)`);
+        console.log(`  - Casquinhas: ${localListaCasquinhas.length} itens`);
+        console.log(`  - Caldo de Cana: ${localListaCaldoCana.length} itens`);
+        console.log(`  - Refrigerantes: ${localListaRefrigerantes.length} itens`);
+        console.log(`  - Gelo: 1 item especial`);
+        
+        const precosAusentes = [];
+        
+        localListaSaboresPasteis.forEach(sabor => {
+            const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c')
+                .replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e')
+                .replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o')
+                .replace(/[úùûü]/g, 'u');
+            if (!productPrices.pasteis?.[key]?.preco) {
+                precosAusentes.push(`pasteis/${key}`);
             }
         });
-    }, error => {
-        console.error("Erro no listener de preços:", error);
-    });
-}
-    
-function populateProductTables() {
-    // Limpar todas as tabelas antes de popular
-    tabelaPasteisBody.innerHTML = '';
-    tabelaCasquinhasBody.innerHTML = '';
-    tabelaCaldoCanaBody.innerHTML = '';
-    tabelaRefrigerantesBody.innerHTML = '';
-    tabelaGeloBody.innerHTML = '';
-
-    // ==========================
-    // PASTÉIS - Nova ordem completa
-    // ==========================
-    const localListaSaboresPasteis = [
-        // Pastéis Comuns (12 primeiros)
-        "Carne com Queijo",
-        "Carne", 
-        "Frango com Catupiry",
-        "Frango com Queijo",
-        "Carioca",
-        "Pizza",
-        "Palmito",
-        "Queijo",
-        "4 Queijos",
-        "Bauru",
-        "Calabresa",
-        "Portuguesa",
-        // Pastéis Especiais (4 últimos)
-        "Carne Seca",
-        "Especial Carne Seca",
-        "Especial de Carne",
-        "Especial de Calabresa"
-    ];
-    
-    localListaSaboresPasteis.forEach((sabor, index) => {
-        // Criar key normalizada para o banco
-        const key = sabor.toLowerCase()
-            .replace(/\s+/g, '_')
-            .replace(/[ç]/g, 'c')
-            .replace(/[ãâáàä]/g, 'a')
-            .replace(/[éêèë]/g, 'e')
-            .replace(/[íìîï]/g, 'i')
-            .replace(/[óôõòö]/g, 'o')
-            .replace(/[úùûü]/g, 'u')
-            .replace(/4_queijos/g, '4_queijos'); // Manter número no início
         
-        const row = createProductRowWithChegadas(sabor, key, 'pasteis', productPrices, true);
-        
-        // Adicionar separador visual antes dos pastéis especiais
-        if (index === 12) { // Antes de "Carne Seca"
-            row.classList.add('border-t-4', 'border-orange-400', 'pt-2');
-            
-            // Adicionar uma linha de título para Pastéis Especiais
-            const separatorRow = document.createElement('tr');
-            separatorRow.className = 'bg-orange-100';
-            separatorRow.innerHTML = `
-                <td colspan="9" class="text-center font-bold text-orange-700 py-1 text-sm">
-                    === PASTÉIS ESPECIAIS ===
-                </td>
-            `;
-            tabelaPasteisBody.appendChild(separatorRow);
+        if (precosAusentes.length > 0) {
+            console.warn("⚠️ Produtos sem preço definido:", precosAusentes);
+            showError(`Atenção: ${precosAusentes.length} produtos estão sem preço definido. Contacte o administrador.`);
         }
-        
-        tabelaPasteisBody.appendChild(row);
-    });
-
-    // ==========================
-    // CASQUINHAS - Nova nomenclatura
-    // ==========================
-    const localListaCasquinhas = [
-        "Casquinha Crua",
-        "Casquinha Frita"
-    ];
-    
-    // Adicionar título para Casquinhas
-    const casquinhaTitleRow = document.createElement('tr');
-    casquinhaTitleRow.className = 'bg-blue-100';
-    casquinhaTitleRow.innerHTML = `
-        <td colspan="9" class="text-center font-bold text-blue-700 py-1 text-sm">
-            === CASQUINHAS ===
-        </td>
-    `;
-    tabelaCasquinhasBody.appendChild(casquinhaTitleRow);
-    
-    localListaCasquinhas.forEach(casquinha => {
-        const key = casquinha.toLowerCase().replace(/\s+/g, '_');
-        const row = createProductRowWithChegadas(casquinha, key, 'casquinhas', productPrices, true);
-        tabelaCasquinhasBody.appendChild(row);
-    });
-
-    // ==========================
-    // CALDO DE CANA - Com Fardo de Cana
-    // ==========================
-    const localListaCaldoCana = [
-        "Fardo de Cana",
-        "Copo 300ml",
-        "Copo 400ml",
-        "Copo 500ml", 
-        "Garrafa 500ml",
-        "Garrafa 1 Litro"
-    ];
-    
-    localListaCaldoCana.forEach((item, index) => {
-        // Normalizar key
-        const key = item.toLowerCase()
-            .replace(/\s+/g, '_')
-            .replace(/[ç]/g, 'c')
-            .replace(/ml/g, 'ml')
-            .replace(/litro/g, 'litro');
-        
-        const row = createProductRowWithChegadas(item, key, 'caldo_cana', productPrices, true);
-        
-        // Destacar Fardo de Cana com cor diferente
-        if (index === 0) {
-            row.classList.add('bg-green-50');
-        }
-        
-        tabelaCaldoCanaBody.appendChild(row);
-    });
-
-    // ==========================
-    // REFRIGERANTES E BEBIDAS - Lista nova completa
-    // ==========================
-    const localListaRefrigerantes = [
-        "Coca-Cola",
-        "Fanta Laranja",
-        "Fanta Uva",
-        "Guaraná",
-        "Refri Limão",
-        "Refri. Zero",
-        "Itubaina",
-        "Água",
-        "Água c/ Gás",
-        "Cerveja Longneck",
-        "Cerveja Lata"
-    ];
-    
-    localListaRefrigerantes.forEach((item, index) => {
-        // Normalizar key
-        const key = item.toLowerCase()
-            .replace(/\s+/g, '_')
-            .replace(/[ç]/g, 'c')
-            .replace(/[ãâáàä]/g, 'a')
-            .replace(/[éêèë]/g, 'e')
-            .replace(/[íìîï]/g, 'i')
-            .replace(/[óôõòö]/g, 'o')
-            .replace(/[úùûü]/g, 'u')
-            .replace(/\./g, '') // Remover pontos
-            .replace(/\//g, '_'); // Substituir / por _
-        
-        const row = createProductRowWithChegadas(item, key, 'refrigerantes', productPrices, true);
-        
-        // Separador visual antes das cervejas
-        if (index === 9) { // Antes de "Cerveja Longneck"
-    row.classList.add('border-t-2', 'border-yellow-400', 'pt-1');
-    
-    // Adicionar linha de separação
-    const beerSeparator = document.createElement('tr');
-    beerSeparator.className = 'bg-yellow-50';
-    beerSeparator.innerHTML = `
-        <td colspan="9" class="text-center text-yellow-700 py-1 text-xs font-medium">
-            🍺 Bebidas Alcoólicas
-        </td>
-    `;
-    
-    // Adicionar primeiro o separador
-    tabelaRefrigerantesBody.appendChild(beerSeparator);
-}
-
-// Adicionar a linha depois do separador
-tabelaRefrigerantesBody.appendChild(row);
-    });
-    
-    // ==========================
-    // GELO - Estrutura especial
-    // ==========================
-    const geloKey = 'gelo_pacote';
-    const trGelo = document.createElement('tr');
-    trGelo.className = 'border-b item-row bg-blue-50 hover:bg-blue-100 transition-colors duration-150';
-    trGelo.dataset.itemKey = geloKey;
-    trGelo.dataset.categoryKey = 'gelo';
-    
-    const tdGeloName = document.createElement('td');
-    tdGeloName.className = 'px-2 py-2 font-medium text-blue-800';
-    tdGeloName.innerHTML = '<i class="fas fa-cube mr-1"></i>Gelo (Pacote)';
-    trGelo.appendChild(tdGeloName);
-    
-    // Campos do gelo: entrada, chegadas, sobra, vendas, consumo_interno
-    trGelo.appendChild(createInputCell('number', `${geloKey}_entrada`, '0', '', true, "w-full p-1 border rounded text-sm"));
-    trGelo.appendChild(createInputCell('number', `${geloKey}_chegadas`, '0', '', true, "w-full p-1 border rounded text-sm col-chegadas"));
-    trGelo.appendChild(createInputCell('number', `${geloKey}_sobra`, '0', '', true, "w-full p-1 border rounded text-sm"));
-    
-    const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm");
-    tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true";
-    trGelo.appendChild(tdVendasGelo);
-    
-    trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));
-    
-    const tdPrecoGelo = document.createElement('td');
-    tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600 text-center';
-    const precoGeloUnit = productPrices.gelo?.[geloKey]?.preco || 0;
-    tdPrecoGelo.textContent = formatToBRL(precoGeloUnit);
-    tdPrecoGelo.id = `${geloKey}_preco_display`;
-    trGelo.appendChild(tdPrecoGelo);
-    
-    const tdTotalGelo = document.createElement('td');
-    tdTotalGelo.className = 'px-2 py-2 text-sm text-gray-700 font-semibold text-right';
-    tdTotalGelo.id = `${geloKey}_total_item`;
-    tdTotalGelo.textContent = formatToBRL(0);
-    trGelo.appendChild(tdTotalGelo);
-    
-    tabelaGeloBody.appendChild(trGelo);
-    
-    // ==========================
-    // LOGS E VERIFICAÇÕES
-    // ==========================
-    console.log("✅ Tabelas populadas com sucesso!");
-    console.log("📊 Resumo:");
-    console.log(`  - Pastéis: ${localListaSaboresPasteis.length} itens (12 comuns + 4 especiais)`);
-    console.log(`  - Casquinhas: ${localListaCasquinhas.length} itens`);
-    console.log(`  - Caldo de Cana: ${localListaCaldoCana.length} itens`);
-    console.log(`  - Refrigerantes: ${localListaRefrigerantes.length} itens`);
-    console.log(`  - Gelo: 1 item especial`);
-    
-    // Verificar preços ausentes
-    const precosAusentes = [];
-    
-    // Verificar pastéis
-    localListaSaboresPasteis.forEach(sabor => {
-        const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c')
-            .replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e')
-            .replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o')
-            .replace(/[úùûü]/g, 'u');
-        if (!productPrices.pasteis?.[key]?.preco) {
-            precosAusentes.push(`pasteis/${key}`);
-        }
-    });
-    
-    // Verificar outras categorias...
-    if (precosAusentes.length > 0) {
-        console.warn("⚠️ Produtos sem preço definido:", precosAusentes);
-        showError(`Atenção: ${precosAusentes.length} produtos estão sem preço definido. Contacte o administrador.`);
     }
-}
 
-// Função auxiliar para criar linha com destaque especial (opcional)
-function createSpecialProductRow(itemName, itemKey, categoryKey, prices, highlightColor = 'yellow') {
-    const row = createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, true);
-    row.classList.add(`bg-${highlightColor}-50`, `hover:bg-${highlightColor}-100`);
-    return row;
-}
+    function createSpecialProductRow(itemName, itemKey, categoryKey, prices, highlightColor = 'yellow') {
+        const row = createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, true);
+        row.classList.add(`bg-${highlightColor}-50`, `hover:bg-${highlightColor}-100`);
+        return row;
+    }
 
-// Função para adicionar totalizadores intermediários (opcional)
-function addSubtotalRow(tableBody, label, idPrefix) {
-    const subtotalRow = document.createElement('tr');
-    subtotalRow.className = 'bg-gray-100 font-semibold';
-    subtotalRow.innerHTML = `
-        <td colspan="6" class="px-3 py-2 text-right">${label}:</td>
-        <td id="${idPrefix}Vendido" class="px-2 py-2 text-center">0</td>
-        <td></td>
-        <td id="${idPrefix}Valor" class="px-2 py-2 text-right">R$ 0,00</td>
-    `;
-    tableBody.appendChild(subtotalRow);
-    return subtotalRow;
-}
+    function addSubtotalRow(tableBody, label, idPrefix) {
+        const subtotalRow = document.createElement('tr');
+        subtotalRow.className = 'bg-gray-100 font-semibold';
+        subtotalRow.innerHTML = `
+            <td colspan="6" class="px-3 py-2 text-right">${label}:</td>
+            <td id="${idPrefix}Vendido" class="px-2 py-2 text-center">0</td>
+            <td></td>
+            <td id="${idPrefix}Valor" class="px-2 py-2 text-right">R$ 0,00</td>
+        `;
+        tableBody.appendChild(subtotalRow);
+        return subtotalRow;
+    }
 
-    // NOVA FUNÇÃO: Cria linha de produto com coluna CHEGADAS
     function createProductRowWithChegadas(itemName, itemKey, categoryKey, prices, isReadOnly = false) {
         const tr = document.createElement('tr');
         tr.className = 'border-b item-row hover:bg-orange-50 transition-colors duration-150';
@@ -968,12 +887,10 @@ function addSubtotalRow(tableBody, label, idPrefix) {
         tdName.textContent = itemName;
         tr.appendChild(tdName);
 
-        // Entrada (do turno anterior)
         tr.appendChild(createInputCell('number', `${itemKey}_entrada`, '0', '', isReadOnly));
         
-        // NOVA COLUNA: Chegadas (editável durante o turno)
         const tdChegadas = createInputCell('number', `${itemKey}_chegadas`, '0', '', isReadOnly, "w-full p-1 border rounded text-sm");
-        tdChegadas.classList.add('col-chegadas'); // Destaque visual
+        tdChegadas.classList.add('col-chegadas');
         tr.appendChild(tdChegadas);
         
         tr.appendChild(createInputCell('number', `${itemKey}_sobra`, '0', '', isReadOnly));
@@ -1009,103 +926,87 @@ function addSubtotalRow(tableBody, label, idPrefix) {
         return tr;
     }
 
-    // NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
     function adicionarIndicadorCampoTransferido(elemento, origem) {
-    if (!elemento) return;
-    
-    // Adiciona classes de estilo
-    elemento.classList.add('campo-transferido', 'bg-blue-50', 'border-blue-300');
-    
-    // Armazena informações
-    elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
-    elemento.dataset.valorOriginal = elemento.value;
-    
-    // Define como readonly
-    elemento.readOnly = true;
-    
-    // Criar wrapper se não existir
-    let wrapper = elemento.parentElement;
-    if (!wrapper.classList.contains('campo-bloqueado-wrapper')) {
-        wrapper = document.createElement('div');
-        wrapper.className = 'campo-bloqueado-wrapper';
+        if (!elemento) return;
         
-        elemento.parentNode.insertBefore(wrapper, elemento);
-        wrapper.appendChild(elemento);
+        elemento.classList.add('campo-transferido', 'bg-blue-50', 'border-blue-300');
         
-        // Adicionar ícone de bloqueio
-        const lockIcon = document.createElement('i');
-        lockIcon.className = 'fas fa-lock lock-icon';
-        lockIcon.title = 'Valor transferido do turno anterior - Não editável';
-        wrapper.appendChild(lockIcon);
+        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+        elemento.dataset.valorOriginal = elemento.value;
+        
+        elemento.readOnly = true;
+        
+        let wrapper = elemento.parentElement;
+        if (!wrapper.classList.contains('campo-bloqueado-wrapper')) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'campo-bloqueado-wrapper';
+            
+            elemento.parentNode.insertBefore(wrapper, elemento);
+            wrapper.appendChild(elemento);
+            
+            const lockIcon = document.createElement('i');
+            lockIcon.className = 'fas fa-lock lock-icon';
+            lockIcon.title = 'Valor transferido do turno anterior - Não editável';
+            wrapper.appendChild(lockIcon);
+        }
+        
+        const containerPai = wrapper.parentElement;
+        if (containerPai && !containerPai.querySelector('.indicador-transferido')) {
+            const indicador = document.createElement('span');
+            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+            indicador.title = 'Valor transferido do turno anterior';
+            containerPai.appendChild(indicador);
+        }
+        
+        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
+        camposTransferidosAnterior[campoId] = {
+            elemento: elemento,
+            valorOriginal: elemento.value
+        };
     }
-    
-    // Adiciona indicador de transferência
-    const containerPai = wrapper.parentElement;
-    if (containerPai && !containerPai.querySelector('.indicador-transferido')) {
-        const indicador = document.createElement('span');
-        indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
-        indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
-        indicador.title = 'Valor transferido do turno anterior';
-        containerPai.appendChild(indicador);
-    }
-    
-    // Rastreia o campo
-    const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
-    camposTransferidosAnterior[campoId] = {
-        elemento: elemento,
-        valorOriginal: elemento.value
-    };
-}
 
     function toggleFormInputs(isTurnoOpenForEditing) {
-        // Habilita/Desabilita todos os campos do formulário de acordo com o estado do turno
         const allInputsAndSelects = formTurno.querySelectorAll('input, select');
         allInputsAndSelects.forEach(el => {
             if (el.id === 'turnoPeriodo') {
-                el.disabled = isTurnoOpenForEditing; // Período só editável antes de abrir
+                el.disabled = isTurnoOpenForEditing;
                 if(el.disabled) el.classList.add('bg-gray-200'); else el.classList.remove('bg-gray-200');
                 return;
             }
-             // Campos de ID do turno são sempre readonly, mas podem precisar de estilo
             if (['turnoMes', 'turnoData', 'turnoResponsavel', 'turnoHora'].includes(el.id)) {
-                 el.classList.add('bg-gray-100'); // Sempre aparência de não editável
-                return; // Não precisa mudar readOnly, já é por padrão.
+                el.classList.add('bg-gray-100');
+                return;
             }
-             // Campos de "Vendido" e "Total Item" são sempre calculados e não-editáveis diretamente
             if (el.id.endsWith('_vendido') || el.id.endsWith('_total_item')) {
                 el.readOnly = true;
                 el.classList.add('bg-gray-100');
                 return;
             }
             
-            // Se o campo foi transferido do turno anterior, ele deve permanecer readonly
             if (el.dataset.transferidoDoTurno) {
                 el.readOnly = true;
                 return;
             }
 
-            // Lógica geral para os demais campos
             el.readOnly = !isTurnoOpenForEditing;
             if (el.readOnly) {
-                el.classList.add('bg-gray-100'); // Aparência de desabilitado
-                el.classList.remove('focus:ring-orange-500', 'focus:border-orange-500'); // Remove foco visual
+                el.classList.add('bg-gray-100');
+                el.classList.remove('focus:ring-orange-500', 'focus:border-orange-500');
             } else {
                 el.classList.remove('bg-gray-100');
                 el.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
             }
         });
-         // Após abrir o turno, 'entrada' deve ficar readonly, mas 'chegadas' editável
-         if (turnoAbertoLocalmente || currentTurnoId) { // Significa que o turno está "em andamento"
+        if (turnoAbertoLocalmente || currentTurnoId) {
             if(caixaInicioInput) caixaInicioInput.readOnly = true;
             if(caixaInicioInput) caixaInicioInput.classList.add('bg-gray-100');
             
-            // Entrada fica readonly (vem do turno anterior)
             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
                 inp.readOnly = true;
                 inp.classList.add('bg-gray-100');
             });
             
-            // Chegadas ficam editáveis durante o turno (se não for transferido)
             document.querySelectorAll('input[id$="_chegadas"]').forEach(inp => {
                 if (!inp.dataset.transferidoDoTurno) {
                     inp.readOnly = false;
@@ -1113,10 +1014,10 @@ function addSubtotalRow(tableBody, label, idPrefix) {
                     inp.classList.add('focus:ring-orange-500', 'focus:border-orange-500');
                 }
             });
-        } else { // Se nenhum turno aberto, entrada e chegadas estão disponíveis para o "Abrir Turno"
-             if(caixaInicioInput) caixaInicioInput.readOnly = false;
-             if(caixaInicioInput) caixaInicioInput.classList.remove('bg-gray-100');
-             document.querySelectorAll('input[id$="_entrada"], input[id$="_chegadas"]').forEach(inp => {
+        } else {
+            if(caixaInicioInput) caixaInicioInput.readOnly = false;
+            if(caixaInicioInput) caixaInicioInput.classList.remove('bg-gray-100');
+            document.querySelectorAll('input[id$="_entrada"], input[id$="_chegadas"]').forEach(inp => {
                 if (!inp.dataset.transferidoDoTurno) {
                     inp.readOnly = false;
                     inp.classList.remove('bg-gray-100');
@@ -1148,14 +1049,13 @@ function addSubtotalRow(tableBody, label, idPrefix) {
         clearError();
         toggleFormInputs(false); 
         
-        // Limpar totais e campos calculados para garantir que não haja lixo visual
         document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
-        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0'); // NOVO: limpar chegadas
+        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0');
         document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
         if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
         if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
         if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
-        if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md"; // Reseta cor de fundo
+        if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md";
 
         document.querySelectorAll('td[id^="total"]').forEach(el => {
             if (el.id.includes('Vendido')) el.textContent = '0';
@@ -1165,14 +1065,12 @@ function addSubtotalRow(tableBody, label, idPrefix) {
         if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
         if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
         
-        // Limpa campos específicos de Gelo
         const geloKey = 'gelo_pacote';
         const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
         if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
         const totalFooterGelo = document.getElementById('totalGeloValor');
         if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
         
-        // Remove todos os indicadores de campos transferidos
         document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
         document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
             el.removeAttribute('data-transferido-do-turno');
@@ -1181,11 +1079,11 @@ function addSubtotalRow(tableBody, label, idPrefix) {
         });
         camposTransferidosAnterior = {};
         funcionariosColaboradores = [];
-const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
-if (containerFuncionarios) {
-    containerFuncionarios.innerHTML = '';
-}
-        calculateAll(); // Garante que os totais gerais sejam zerados
+        const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
+        if (containerFuncionarios) {
+            containerFuncionarios.innerHTML = '';
+        }
+        calculateAll();
     }
     
     function populateTurnoDetails(aberturaData) {
@@ -1194,19 +1092,13 @@ if (containerFuncionarios) {
         turnoResponsavelInput.value = aberturaData.responsavelNome;
         turnoHoraInput.value = aberturaData.hora;
         turnoPeriodoSelect.value = aberturaData.periodo;
-        turnoPeriodoSelect.disabled = true; // Não pode mudar período após abrir
+        turnoPeriodoSelect.disabled = true;
         turnoPeriodoSelect.classList.add('bg-gray-200');
     }
 
-    // === FUNÇÕES DE CONTROLE DE CAIXA ===
-
-    /**
-     * CORRIGIDO: Soma campos de pagamento, atualiza total registrado e calcula divergência
-     */
     function updatePaymentTotalsAndDivergence() {
         console.log("🔄 Atualizando totais de pagamento e divergências...");
         
-        // Elementos dos campos de pagamento
         const paymentInputs = {
             dinheiro: document.getElementById('pagamentoDinheiro'),
             pixManual: document.getElementById('pagamentoPixManual'),
@@ -1215,7 +1107,6 @@ if (containerFuncionarios) {
             pagbankDCV: document.getElementById('pagamentoPagBankDCV')
         };
         
-        // Soma todos os valores de pagamento
         let totalRegistrado = 0;
         const paymentValues = {};
         
@@ -1227,12 +1118,10 @@ if (containerFuncionarios) {
             }
         });
         
-        // Atualiza o campo "Total Registrado"
         if (totalRegistradoPagamentosInput) {
             totalRegistradoPagamentosInput.value = formatToBRL(totalRegistrado);
         }
         
-        // Calcula divergência com total vendido
         const totalVendido = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput?.value || '0');
         const divergenciaVendas = totalVendido - totalRegistrado;
         
@@ -1240,10 +1129,8 @@ if (containerFuncionarios) {
         console.log(`💰 Total Registrado: ${formatToBRL(totalRegistrado)}`);
         console.log(`⚖️ Divergência: ${formatToBRL(divergenciaVendas)}`);
         
-        // Atualiza display de divergência de vendas vs pagamentos
         updateSalesDivergenceDisplay(divergenciaVendas, totalVendido, totalRegistrado);
         
-        // Atualiza também a diferença de caixa físico
         updatePhysicalCashDifference();
         
         return {
@@ -1254,19 +1141,14 @@ if (containerFuncionarios) {
         };
     }
 
-    /**
-     * NOVO: Atualiza display de divergência entre vendas e pagamentos
-     */
     function updateSalesDivergenceDisplay(divergencia, totalVendido, totalRegistrado) {
         let alertContainer = document.getElementById('salesDivergenceAlert');
         
-        // Cria o container se não existir
         if (!alertContainer) {
             alertContainer = document.createElement('div');
             alertContainer.id = 'salesDivergenceAlert';
             alertContainer.className = 'mt-4 p-4 rounded-lg border';
             
-            // Adiciona após o campo Total Registrado
             const totalRegistradoParent = totalRegistradoPagamentosInput?.parentElement?.parentElement;
             if (totalRegistradoParent) {
                 totalRegistradoParent.insertAdjacentElement('afterend', alertContainer);
@@ -1274,7 +1156,6 @@ if (containerFuncionarios) {
         }
         
         if (Math.abs(divergencia) < 0.01) {
-            // Sem divergência - sinal verde
             alertContainer.className = 'mt-4 p-4 rounded-lg border bg-green-50 border-green-300';
             alertContainer.innerHTML = `
                 <div class="flex items-center text-green-700">
@@ -1288,7 +1169,6 @@ if (containerFuncionarios) {
                 </div>
             `;
         } else {
-            // Com divergência - sinal vermelho
             alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
             const diferenca = Math.abs(divergencia);
             const tipo = divergencia > 0 ? 'faltam nos pagamentos' : 'sobram nos pagamentos';
@@ -1314,21 +1194,15 @@ if (containerFuncionarios) {
         }
     }
 
-    /**
-     * CORRIGIDO: Compara caixa físico contado vs (caixa inicial + pagamentos em dinheiro)
-     */
     function updatePhysicalCashDifference() {
         console.log("🏦 Atualizando diferença de caixa físico...");
         
-        // Pega os valores
         const caixaInicial = parseCurrencyToNumber(caixaInicioInput?.value || '0');
         const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
         const caixaFinalContado = parseCurrencyToNumber(caixaFinalContadoInput?.value || '0');
         
-        // Calcula o que deveria ter no caixa físico
         const caixaEsperado = caixaInicial + pagamentoDinheiro;
         
-        // Calcula a diferença
         const diferencaCaixa = caixaFinalContado - caixaEsperado;
         
         console.log(`💰 Caixa Inicial: ${formatToBRL(caixaInicial)}`);
@@ -1337,14 +1211,12 @@ if (containerFuncionarios) {
         console.log(`🔢 Caixa Contado: ${formatToBRL(caixaFinalContado)}`);
         console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
         
-        // Atualiza o display
         if (caixaDiferencaInput) {
             caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
         }
         
         if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
             if (Math.abs(diferencaCaixa) < 0.01) {
-                // Sem diferença - verde
                 caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
                 divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
                 divergenciaCaixaAlertaP.innerHTML = `
@@ -1352,7 +1224,6 @@ if (containerFuncionarios) {
                     ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
                 `;
             } else {
-                // Com diferença - vermelho ou amarelo
                 const isPositive = diferencaCaixa > 0;
                 const bgClass = isPositive ? 'bg-yellow-50 border-yellow-300' : 'bg-red-50 border-red-300';
                 const textClass = isPositive ? 'text-yellow-700' : 'text-red-700';
@@ -1380,9 +1251,6 @@ if (containerFuncionarios) {
         };
     }
 
-    /**
-     * Configura máscaras de moeda para todos os campos monetários
-     */
     function setupAllCurrencyMasks() {
         console.log("🎭 Configurando máscaras de moeda...");
         
@@ -1405,7 +1273,6 @@ if (containerFuncionarios) {
         });
     }
 
-    // === AÇÕES DE TURNO ===
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
             clearError();
@@ -1425,27 +1292,7 @@ if (containerFuncionarios) {
             showLoadingState(true, "Abrindo turno...");
 
             try {
-                const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
-
-// Validar se todos os funcionários têm dados completos
-let funcionariosIncompletos = false;
-dadosFuncionariosColaboradores.forEach(func => {
-    if (!func.consumo || !func.transporte || func.horasTrabalhadas === 0) {
-        funcionariosIncompletos = true;
-    }
-});
-
-if (funcionariosIncompletos) {
-    showError("Por favor, preencha todos os dados dos funcionários colaboradores (consumo, transporte e horas).");
-    return;
-}
-                
-                // Verificação adicional: transação para garantir que não exista outro turno aberto
                 await db.runTransaction(async (transaction) => {
-                    if (dadosFuncionariosColaboradores.length > 0) {
-    await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
-}
-                    // Verificar se o turno proposto já existe
                     const turnoRef = db.collection('turnos').doc(turnoIdProposto);
                     const turnoDoc = await transaction.get(turnoRef);
                     
@@ -1453,7 +1300,6 @@ if (funcionariosIncompletos) {
                         throw new Error(`Já existe um turno (${periodoSelecionado}) registrado para hoje (${dataAtual}).`);
                     }
                     
-                    // Verificar se há algum outro turno aberto para este funcionário
                     const user = auth.currentUser;
                     if (!user) {
                         throw new Error("Usuário não logado. Faça login novamente.");
@@ -1468,7 +1314,6 @@ if (funcionariosIncompletos) {
                         throw new Error("Você já possui um turno aberto. Feche-o antes de abrir um novo.");
                     }
                     
-                    // Se chegou aqui, está tudo ok
                     return true;
                 });
                 
@@ -1490,12 +1335,10 @@ if (funcionariosIncompletos) {
                     periodo: periodoSelecionado,
                 };
 
-                populateTurnoDetails(aberturaDataObj); // Atualiza os campos de Mês, Data, Hora, Período no form
+                populateTurnoDetails(aberturaDataObj);
 
-                // MODIFICADO: Usar o turno anterior para preencher entradas e caixa inicial
                 const estoqueAnterior = await getEstoqueInicial(dataAtual, periodoSelecionado);
                 
-                // TRANSFERÊNCIA AUTOMÁTICA: Preenche as entradas dos itens com base no estoque anterior
                 let itensTransferidosCount = 0;
                 
                 Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
@@ -1505,7 +1348,6 @@ if (funcionariosIncompletos) {
                             const sobraAnterior = estoqueAnterior.itens[categoryKey][itemKey].sobra || 0;
                             inputEntrada.value = sobraAnterior;
                                     
-                            // Marca como transferido para validação e estilo visual
                             adicionarIndicadorCampoTransferido(inputEntrada, estoqueAnterior.turnoId);
                             itensTransferidosCount++;
                         }
@@ -1516,16 +1358,13 @@ if (funcionariosIncompletos) {
                 if (inputEntradaGelo && estoqueAnterior.gelo?.gelo_pacote?.sobra) {
                     inputEntradaGelo.value = estoqueAnterior.gelo.gelo_pacote.sobra;
                             
-                    // Marca como transferido para validação e estilo visual
                     adicionarIndicadorCampoTransferido(inputEntradaGelo, estoqueAnterior.turnoId);
                     itensTransferidosCount++;
                 }
                         
-                // TRANSFERÊNCIA AUTOMÁTICA: Se tiver caixa final no turno anterior, usar como caixa inicial
                 if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
                     caixaInicioInput.value = formatToBRL(estoqueAnterior.caixaFinal);
                             
-                    // Marca como transferido para validação e estilo visual
                     adicionarIndicadorCampoTransferido(caixaInicioInput, estoqueAnterior.turnoId);
                 }
 
@@ -1533,7 +1372,7 @@ if (funcionariosIncompletos) {
                     adicionarResumoTurnoAnterior(estoqueAnterior.turnoId, estoqueAnterior);
                 }
 
-                const initialItensData = collectItemData(true); // Coleta apenas entradas, chegadas e preços unitários
+                const initialItensData = collectItemData(true);
 
                 const turnoDataToSave = {
                     abertura: aberturaDataObj,
@@ -1541,7 +1380,7 @@ if (funcionariosIncompletos) {
                     caixaInicial: parseCurrencyToNumber(caixaInicioInput.value) || 0,
                     itens: initialItensData.itens,
                     gelo: initialItensData.gelo,
-                    turnoAnteriorId: estoqueAnterior.turnoId, // Armazena o ID do turno anterior para rastreabilidade
+                    turnoAnteriorId: estoqueAnterior.turnoId,
                     dadosTransferidos: {
                         quantidadeItens: itensTransferidosCount,
                         caixaTransferido: estoqueAnterior.caixaFinal !== undefined,
@@ -1552,10 +1391,8 @@ if (funcionariosIncompletos) {
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 };
 
-                // Salva no Firestore
                 await db.collection('turnos').doc(turnoIdProposto).set(turnoDataToSave);
                 
-                // Salva localmente
                 saveTurnoLocal({
                     id: turnoIdProposto,
                     ...turnoDataToSave
@@ -1565,7 +1402,6 @@ if (funcionariosIncompletos) {
                 btnAbrirTurno.disabled = true;
                 btnFecharTurno.disabled = false;
                         
-                // Mensagem de status com informação sobre os dados transferidos
                 let statusMsg = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
                 if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
                     statusMsg += ` Dados transferidos: ${itensTransferidosCount} item(ns)`;
@@ -1576,9 +1412,8 @@ if (funcionariosIncompletos) {
                 turnoStatusP.textContent = statusMsg;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
                 
-                toggleFormInputs(true); // Habilita campos para fechamento, entradas ficam readonly, chegadas editáveis
+                toggleFormInputs(true);
                 
-                // Ativa listener para mudanças remotas
                 setupTurnoListener();
                 
                 calculateAll();
@@ -1586,7 +1421,7 @@ if (funcionariosIncompletos) {
             } catch (error) {
                 console.error("Erro ao abrir turno: ", error);
                 showError("Falha ao abrir turno: " + error.message + ". Verifique suas permissões ou contate o suporte.");
-                resetFormAndState("Erro ao tentar abrir o turno."); // Reseta se a abertura falhar
+                resetFormAndState("Erro ao tentar abrir o turno.");
             } finally {
                 showLoadingState(false);
             }
@@ -1594,165 +1429,148 @@ if (funcionariosIncompletos) {
     }
     
     async function getEstoqueInicial(dataTurnoAtual, periodoTurnoAtual) {
-    try {
-        // Verificar se o usuário está autenticado
-        const user = auth.currentUser;
-        if (!user) {
-            console.error("Usuário não autenticado ao buscar turno anterior");
-            try {
-                await auth.currentUser?.getIdToken(true);
-                console.log("Token de autenticação renovado com sucesso");
-            } catch (authError) {
-                console.error("Erro ao renovar token:", authError);
-                throw new Error("Sessão expirada. Faça login novamente.");
+        try {
+            const user = auth.currentUser;
+            if (!user) {
+                console.error("Usuário não autenticado ao buscar turno anterior");
+                try {
+                    await auth.currentUser?.getIdToken(true);
+                    console.log("Token de autenticação renovado com sucesso");
+                } catch (authError) {
+                    console.error("Erro ao renovar token:", authError);
+                    throw new Error("Sessão expirada. Faça login novamente.");
+                }
             }
-        }
 
-        console.log("Buscando último turno fechado para transferência de estoque...");
-        
-        // Buscar diretamente o último turno fechado, sem tentar um ID específico primeiro
-        const turnosRef = await db.collection('turnos')
-            .where('status', '==', 'fechado')
-            .orderBy('closedAt', 'desc')
-            .limit(1)
-            .get();
+            console.log("Buscando último turno fechado para transferência de estoque...");
             
-        if (!turnosRef.empty) {
-            const turnoDoc = turnosRef.docs[0];
-            const dados = turnoDoc.data();
-            
-            console.log(`✅ Turno anterior encontrado: ${turnoDoc.id} (fechado em: ${dados.fechamento?.hora || 'N/A'})`);
-            
-            const estoqueFinal = { 
-                itens: {}, 
-                gelo: {}, 
-                turnoId: turnoDoc.id,
-                caixaFinal: null,
-                formasPagamento: dados.formasPagamento || {},
-                trocaGas: dados.trocaGas || 'nao',
-                totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
-                totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
-                diferencaCaixa: dados.diferencaCaixaFinal,
-                fechamentoData: dados.fechamento || {},
-                fechamentoTimestamp: dados.closedAt || null
-            };
-            
-            // Transfere itens do inventário (apenas SOBRA vai para próxima ENTRADA)
-            if (dados.itens) {
-                Object.keys(dados.itens).forEach(cat => {
-                    estoqueFinal.itens[cat] = {};
-                    Object.keys(dados.itens[cat]).forEach(item => {
-                        estoqueFinal.itens[cat][item] = { 
-                          sobra: dados.itens[cat][item].sobra || 0,
-                          precoUnitario: dados.itens[cat][item].precoUnitario,
-                          vendido: dados.itens[cat][item].vendido,
-                          totalItemValor: dados.itens[cat][item].totalItemValor,
-                          chegadas: dados.itens[cat][item].chegadas || 0
-                        };
-                    });
-                });
-            }
-            
-            // Transfere gelo (apenas SOBRA vai para próxima ENTRADA)
-            if (dados.gelo && dados.gelo.gelo_pacote) { 
-                estoqueFinal.gelo.gelo_pacote = { 
-                    sobra: dados.gelo.gelo_pacote.sobra || 0,
-                    precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
-                    vendas: dados.gelo.gelo_pacote.vendas,
-                    totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
-                    chegadas: dados.gelo.gelo_pacote.chegadas || 0
+            const turnosRef = await db.collection('turnos')
+                .where('status', '==', 'fechado')
+                .orderBy('closedAt', 'desc')
+                .limit(1)
+                .get();
+                
+            if (!turnosRef.empty) {
+                const turnoDoc = turnosRef.docs[0];
+                const dados = turnoDoc.data();
+                
+                console.log(`✅ Turno anterior encontrado: ${turnoDoc.id} (fechado em: ${dados.fechamento?.hora || 'N/A'})`);
+                
+                const estoqueFinal = { 
+                    itens: {}, 
+                    gelo: {}, 
+                    turnoId: turnoDoc.id,
+                    caixaFinal: null,
+                    formasPagamento: dados.formasPagamento || {},
+                    trocaGas: dados.trocaGas || 'nao',
+                    totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
+                    totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
+                    diferencaCaixa: dados.diferencaCaixaFinal,
+                    fechamentoData: dados.fechamento || {},
+                    fechamentoTimestamp: dados.closedAt || null
                 };
+                
+                if (dados.itens) {
+                    Object.keys(dados.itens).forEach(cat => {
+                        estoqueFinal.itens[cat] = {};
+                        Object.keys(dados.itens[cat]).forEach(item => {
+                            estoqueFinal.itens[cat][item] = { 
+                              sobra: dados.itens[cat][item].sobra || 0,
+                              precoUnitario: dados.itens[cat][item].precoUnitario,
+                              vendido: dados.itens[cat][item].vendido,
+                              totalItemValor: dados.itens[cat][item].totalItemValor,
+                              chegadas: dados.itens[cat][item].chegadas || 0
+                            };
+                        });
+                    });
+                }
+                
+                if (dados.gelo && dados.gelo.gelo_pacote) { 
+                    estoqueFinal.gelo.gelo_pacote = { 
+                        sobra: dados.gelo.gelo_pacote.sobra || 0,
+                        precoUnitario: dados.gelo.gelo_pacote.precoUnitario,
+                        vendas: dados.gelo.gelo_pacote.vendas,
+                        totalItemValor: dados.gelo.gelo_pacote.totalItemValor,
+                        chegadas: dados.gelo.gelo_pacote.chegadas || 0
+                    };
+                }
+                
+                if (dados.caixaFinalContado !== undefined) {
+                    estoqueFinal.caixaFinal = dados.caixaFinalContado;
+                    console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${turnoDoc.id}`);
+                }
+                
+                return estoqueFinal;
+            } else {
+                console.log("⚠️ Nenhum turno fechado encontrado no sistema. Iniciando com estoque zero.");
             }
+        } catch (error) {
+            console.error("❌ Erro ao buscar último turno fechado:", error);
             
-            // Transferência de caixa - Pegar o caixa final do turno anterior
-            if (dados.caixaFinalContado !== undefined) {
-                estoqueFinal.caixaFinal = dados.caixaFinalContado;
-                console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${turnoDoc.id}`);
+            if (error.code === 'permission-denied') {
+                console.warn("⚠️ Erro de permissão ao acessar turnos. Iniciando com estoque zero.");
+            } else {
+                throw error;
             }
-            
-            return estoqueFinal;
-        } else {
-            console.log("⚠️ Nenhum turno fechado encontrado no sistema. Iniciando com estoque zero.");
         }
-    } catch (error) {
-        console.error("❌ Erro ao buscar último turno fechado:", error);
         
-        if (error.code === 'permission-denied') {
-            console.warn("⚠️ Erro de permissão ao acessar turnos. Iniciando com estoque zero.");
-        } else {
-            throw error;
-        }
+        return { 
+            itens: {}, 
+            gelo: {}, 
+            turnoId: null, 
+            caixaFinal: null,
+            formasPagamento: {},
+            trocaGas: 'nao',
+            totalVendidoCalculado: 0,
+            totalRegistradoPagamentos: 0,
+            diferencaCaixa: 0,
+            fechamentoData: {},
+            fechamentoTimestamp: null
+        };
     }
-    
-    // Fallback: Se não conseguiu recuperar dados do turno anterior
-    return { 
-        itens: {}, 
-        gelo: {}, 
-        turnoId: null, 
-        caixaFinal: null,
-        formasPagamento: {},
-        trocaGas: 'nao',
-        totalVendidoCalculado: 0,
-        totalRegistradoPagamentos: 0,
-        diferencaCaixa: 0,
-        fechamentoData: {},
-        fechamentoTimestamp: null
-    };
-}
 
-    // 2. Adicionar função para criar resumo do turno anterior
     function adicionarResumoTurnoAnterior(turnoAnteriorId, estoqueAnterior) {
         if (!turnoAnteriorId) return;
         
-        // Remover resumo anterior se existir
         const resumoExistente = document.getElementById('resumoTurnoAnterior');
         if (resumoExistente) {
             resumoExistente.remove();
         }
         
-        // Criar um elemento para mostrar informações do turno anterior
         const resumoContainer = document.createElement('div');
         resumoContainer.id = 'resumoTurnoAnterior';
         resumoContainer.className = 'bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6 fade-in';
         
-        // Título do resumo
         const titulo = document.createElement('h3');
         titulo.className = 'text-lg font-semibold text-blue-700 mb-2 flex items-center';
         titulo.innerHTML = '<i class="fas fa-exchange-alt mr-2"></i> Resumo do Turno Anterior';
         resumoContainer.appendChild(titulo);
         
-        // Detalhes do turno anterior
         const detalhes = document.createElement('div');
         detalhes.className = 'text-sm grid grid-cols-1 md:grid-cols-2 gap-4';
         
-        // Coluna da esquerda: Informações gerais
         const colEsquerda = document.createElement('div');
         colEsquerda.className = 'space-y-1';
         
-        // Formatar data do turno anterior para exibição
         const [dataAnterior, periodoAnterior] = turnoAnteriorId.split('_');
         const dataFormatada = dataAnterior.split('-').reverse().join('/');
         
-        // ID do turno anterior
         const idTurno = document.createElement('p');
         idTurno.innerHTML = `<strong>Turno:</strong> ${periodoAnterior} de ${dataFormatada}`;
         colEsquerda.appendChild(idTurno);
         
-        // Responsável pelo fechamento
         if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.responsavelNome) {
             const responsavel = document.createElement('p');
             responsavel.innerHTML = `<strong>Fechado por:</strong> ${estoqueAnterior.fechamentoData.responsavelNome}`;
             colEsquerda.appendChild(responsavel);
         }
         
-        // Hora do fechamento
         if (estoqueAnterior.fechamentoData && estoqueAnterior.fechamentoData.hora) {
             const hora = document.createElement('p');
             hora.innerHTML = `<strong>Horário:</strong> ${estoqueAnterior.fechamentoData.hora}`;
             colEsquerda.appendChild(hora);
         }
         
-        // Caixa final do turno anterior
         if (estoqueAnterior.caixaFinal !== undefined) {
             const caixaFinal = document.createElement('p');
             caixaFinal.className = 'text-green-700 font-medium';
@@ -1760,7 +1578,6 @@ if (funcionariosIncompletos) {
             colEsquerda.appendChild(caixaFinal);
         }
         
-        // Informação sobre troca de gás
         if (estoqueAnterior.trocaGas === 'sim') {
             const trocaGas = document.createElement('p');
             trocaGas.className = 'text-orange-700 font-medium mt-2 bg-orange-50 p-1 rounded';
@@ -1770,25 +1587,21 @@ if (funcionariosIncompletos) {
         
         detalhes.appendChild(colEsquerda);
         
-        // Coluna da direita: Valores de vendas e pagamentos
         const colDireita = document.createElement('div');
         colDireita.className = 'space-y-1';
         
-        // Total vendido no turno anterior
         if (estoqueAnterior.totalVendidoCalculado) {
             const totalVendido = document.createElement('p');
             totalVendido.innerHTML = `<strong>Total Vendido:</strong> ${formatToBRL(estoqueAnterior.totalVendidoCalculado)}`;
             colDireita.appendChild(totalVendido);
         }
         
-        // Total registrado em pagamentos
         if (estoqueAnterior.totalRegistradoPagamentos) {
             const totalPagamentos = document.createElement('p');
             totalPagamentos.innerHTML = `<strong>Total Pagamentos:</strong> ${formatToBRL(estoqueAnterior.totalRegistradoPagamentos)}`;
             colDireita.appendChild(totalPagamentos);
         }
         
-        // Diferença de caixa
         if (estoqueAnterior.diferencaCaixa !== undefined) {
             const diferencaCaixa = document.createElement('p');
             if (Math.abs(estoqueAnterior.diferencaCaixa) > 0.01) {
@@ -1800,7 +1613,6 @@ if (funcionariosIncompletos) {
             colDireita.appendChild(diferencaCaixa);
         }
         
-        // Adicionar formas de pagamento em um único elemento para economizar espaço
         if (estoqueAnterior.formasPagamento && Object.keys(estoqueAnterior.formasPagamento).length > 0) {
             const pagamentos = document.createElement('div');
             pagamentos.className = 'mt-2 bg-white bg-opacity-50 p-2 rounded';
@@ -1813,7 +1625,6 @@ if (funcionariosIncompletos) {
             const pagamentosList = document.createElement('ul');
             pagamentosList.className = 'grid grid-cols-2 gap-x-2 text-xs mt-1';
             
-            // Mapeamento de nomes para exibição mais amigável
             const nomeAmigavel = {
                 dinheiro: "Dinheiro",
                 pixManual: "PIX Manual",
@@ -1837,7 +1648,6 @@ if (funcionariosIncompletos) {
         detalhes.appendChild(colDireita);
         resumoContainer.appendChild(detalhes);
         
-        // Adicionar botão para fechar o resumo
         const btnFechar = document.createElement('button');
         btnFechar.type = 'button';
         btnFechar.className = 'text-blue-600 hover:text-blue-800 text-xs mt-3 flex items-center';
@@ -1845,7 +1655,6 @@ if (funcionariosIncompletos) {
         btnFechar.onclick = () => resumoContainer.remove();
         resumoContainer.appendChild(btnFechar);
         
-        // Adicionar o resumo ao formulário
         const formTurno = document.getElementById('formTurno');
         if (formTurno && formTurno.firstChild) {
             formTurno.insertBefore(resumoContainer, formTurno.firstChild);
@@ -1871,11 +1680,11 @@ if (funcionariosIncompletos) {
             const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
 
             let divergenciaValorDetected = false;
-            if (Math.abs(totalVendidoCalc - totalPagamentos) > 0.015) { // Tolerância aumentada um pouco
+            if (Math.abs(totalVendidoCalc - totalPagamentos) > 0.015) {
                 divergenciaValorDetected = true;
             }
             
-            const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference(); // Retorna se o caixa físico tem divergência
+            const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference();
             
             fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
             fechamentoDivergenciaAlertaGeralDiv.textContent = '';
@@ -1891,7 +1700,7 @@ if (funcionariosIncompletos) {
                 }
                 alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
                 
-                fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>'); // Mostra na UI também
+                fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>');
                 fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
                 
                 if (!confirm(alertText)) {
@@ -1910,7 +1719,6 @@ if (funcionariosIncompletos) {
             if (!user) {
                 showError("Sessão expirada ou usuário deslogado. Faça login novamente para fechar o turno.");
                  showLoadingState(false);
-                // Não reabilitar o btnFecharTurno aqui, pois o estado do turno no DB pode ser incerto.
                 return;
             }
 
@@ -1932,9 +1740,23 @@ if (funcionariosIncompletos) {
             const caixaFinalContadoVal = parseCurrencyToNumber(caixaFinalContadoInput.value);
             const caixaDiferencaVal = Math.abs(diferencaCaixa);
 
-            // Verificação de turno aberto remoto via transação atômica
+            const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
+
+            let funcionariosIncompletos = false;
+            dadosFuncionariosColaboradores.forEach(func => {
+                if (!func.consumo || !func.transporte || func.horasTrabalhadas === 0) {
+                    funcionariosIncompletos = true;
+                }
+            });
+
+            if (funcionariosIncompletos) {
+                showError("Por favor, preencha todos os dados dos funcionários colaboradores (consumo, transporte e horas).");
+                showLoadingState(false);
+                btnFecharTurno.disabled = false;
+                return;
+            }
+
             try {
-                
                 await db.runTransaction(async (transaction) => {
                     const turnoRef = db.collection('turnos').doc(currentTurnoId);
                     const turnoDoc = await transaction.get(turnoRef);
@@ -1948,28 +1770,25 @@ if (funcionariosIncompletos) {
                         throw new Error("Turno já foi fechado em outra sessão.");
                     }
                     
-                    // Pegar o caixa inicial que foi registrado na abertura
                     const caixaInicialDoTurno = turnoData.caixaInicial;
 
                     const turnoUpdateData = {
-                        funcionariosColaboradores: dadosFuncionariosColaboradores,
                         status: 'fechado',
                         fechamento: fechamentoDataObj,
                         itens: dadosColetados.itens,
                         gelo: dadosColetados.gelo, 
                         trocaGas: document.getElementById('trocaGas').value,
-                        caixaInicial: caixaInicialDoTurno, // Usar o caixa inicial da abertura
+                        caixaInicial: caixaInicialDoTurno,
                         caixaFinalContado: caixaFinalContadoVal,
                         formasPagamento: formasPagamentoObj,
                         totalVendidoCalculadoFinal: totalVendidoCalc,
                         totalRegistradoPagamentosFinal: totalPagamentos,
                         diferencaCaixaFinal: caixaDiferencaVal,
+                        funcionariosColaboradores: dadosFuncionariosColaboradores,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        closedAt: firebase.firestore.FieldValue.serverTimestamp() // Adiciona timestamp de fechamento para consultas
-                        
+                        closedAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
                     
-                    // Atualiza o documento dentro da transação
                     transaction.update(turnoRef, turnoUpdateData);
                     
                     return {
@@ -1977,21 +1796,22 @@ if (funcionariosIncompletos) {
                         ...turnoUpdateData
                     };
                 });
+
+                if (dadosFuncionariosColaboradores.length > 0) {
+                    await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
+                }
                 
                 const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
-                turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} está aberto.`;
+                turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} fechado com sucesso!`;
                 turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
                 
-                // Remover dados locais
                 removeTurnoLocal();
                 
-                // Cancela o listener
                 if (unsubscribeTurnoListener) {
                     unsubscribeTurnoListener();
                     unsubscribeTurnoListener = null;
                 }
                 
-                // ADICIONADO: Atualizar os dados do turno anterior para o próximo que será aberto
                 await carregarDadosTurnoAnterior();
                 
                 resetFormAndState("Turno fechado com sucesso! Você já pode abrir um novo turno.");
@@ -1999,7 +1819,6 @@ if (funcionariosIncompletos) {
             } catch (error) {
                 console.error("Erro ao fechar turno: ", error);
                 showError("Falha ao fechar turno: " + error.message + ". O turno pode ainda estar aberto. Verifique e tente novamente ou contate o suporte.");
-                // Recarrega os dados do turno para garantir sincronização
                 await checkOpenTurno();
             } finally {
                 showLoadingState(false);
@@ -2011,7 +1830,6 @@ if (funcionariosIncompletos) {
         let isValid = true;
         const fieldsToValidate = [];
 
-        // Campos de Itens: Chegadas, Sobra, Descarte, Consumo Func.
         document.querySelectorAll('.item-row').forEach(row => {
             const itemKey = row.dataset.itemKey;
             const itemFields = itemKey === 'gelo_pacote' ? ['chegadas', 'sobra', 'vendas', 'consumo_interno'] : ['chegadas', 'sobra', 'descarte', 'consumo'];
@@ -2020,7 +1838,6 @@ if (funcionariosIncompletos) {
             });
         });
 
-        // Campos de Caixa e Pagamento
         fieldsToValidate.push(
             caixaInicioInput, 
             caixaFinalContadoInput,
@@ -2032,7 +1849,7 @@ if (funcionariosIncompletos) {
         );
         
         fieldsToValidate.forEach(input => {
-            if (input) { // Verifica se o input existe
+            if (input) {
                 const value = input.type === 'text' ? parseCurrencyToNumber(input.value) : parseFloat(input.value);
                 if (input.value.trim() === '' || isNaN(value)) {
                     input.classList.add('border-red-500');
@@ -2046,31 +1863,24 @@ if (funcionariosIncompletos) {
         return isValid;
     }
 
-    // NOVA FUNÇÃO: Validar se valores transferidos não foram alterados
     function validarCamposTransferidos(event) {
         const target = event.target;
         if (target && target.dataset && target.dataset.transferidoDoTurno) {
             const valorOriginal = target.dataset.valorOriginal;
             
-            // Verificar se o valor foi alterado
             if (valorOriginal !== undefined && target.value !== valorOriginal) {
-                // Restaurar o valor original
                 target.value = valorOriginal;
                 
-                // Adicionar animação de "shake" para feedback visual
                 target.classList.add('shake-animation');
                 setTimeout(() => {
                     target.classList.remove('shake-animation');
                 }, 500);
                 
-                // Exibir mensagem de erro
                 const msgErro = `O campo "${target.name || target.id}" foi transferido do turno anterior e não pode ser alterado.`;
                 
-                // Usar showError se disponível, caso contrário criar um alerta flutuante
                 if (typeof showError === 'function') {
                     showError(msgErro);
                 } else {
-                    // Criar alerta visual temporário
                     const alerta = document.createElement('div');
                     alerta.className = 'alerta-campo-transferido';
                     alerta.innerHTML = `
@@ -2081,7 +1891,6 @@ if (funcionariosIncompletos) {
                     `;
                     document.body.appendChild(alerta);
                     
-                    // Remover o alerta após alguns segundos
                     setTimeout(() => {
                         alerta.style.opacity = '0';
                         setTimeout(() => alerta.remove(), 300);
@@ -2094,12 +1903,10 @@ if (funcionariosIncompletos) {
         return true;
     }
 
-    // === CÁLCULOS E ATUALIZAÇÕES DINÂMICAS ===
     function setupEventListeners() {
         formTurno.addEventListener('input', (e) => {
             const target = e.target;
             
-            // NOVA VALIDAÇÃO: Verificar se está tentando alterar um campo transferido do turno anterior
             if (!validarCamposTransferidos(e)) {
                 e.preventDefault();
                 return;
@@ -2109,17 +1916,16 @@ if (funcionariosIncompletos) {
                 const row = target.closest('.item-row');
                 const itemKey = row.dataset.itemKey;
 
-                if (target.id.startsWith(itemKey)) { // Garante que o input é de um item
-                     target.classList.remove('border-red-500'); // Limpa erro ao digitar
+                if (target.id.startsWith(itemKey)) {
+                     target.classList.remove('border-red-500');
                     if (target.dataset.isGeloVenda === "true") {
                         calculateGeloTotal(row);
                     } else {
                         calculateItemRow(row);
                     }
-                    calculateTotals(); // Recalcula todos os totais agregados
+                    calculateTotals();
                 }
             } else if (target.classList.contains('payment-input') || target.id.includes('pagamento')) {
-                // CORRIGIDO: Atualiza totais quando campos de pagamento mudam
                 target.classList.remove('border-red-500');
                 setTimeout(() => {
                     updatePaymentTotalsAndDivergence();
@@ -2131,34 +1937,30 @@ if (funcionariosIncompletos) {
                     checkFechamentoDivergencia();
                 }, 100);
             }
-            const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
-if (btnAdicionarFuncionario) {
-    btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
-}
         });
+
+        const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
+        if (btnAdicionarFuncionario) {
+            btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
+        }
     }
     
-    // NOVA LÓGICA DE CÁLCULO: Entrada + Chegadas - Sobra - Descarte - Consumo = Vendido
     function calculateItemRow(rowElement) {
         const itemKey = rowElement.dataset.itemKey;
-        if (!itemKey || itemKey === 'gelo_pacote') return; // Gelo tem cálculo separado
+        if (!itemKey || itemKey === 'gelo_pacote') return;
 
         const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
         const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
         const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
         const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
         
         const vendidoInput = document.getElementById(`${itemKey}_vendido`);
         
-        // NOVA FÓRMULA: (Entrada + Chegadas) - Sobra - Descarte - Consumo = Vendido
         let vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
         
         if (vendidoCalculado < 0) {
-            // Se negativo, podemos mostrar um alerta ou apenas zerar.
-            // Por ora, zeramos para evitar valores negativos em "vendido".
             vendidoCalculado = 0; 
-            // Poderia adicionar uma classe de erro visual nos inputs que causaram isso.
         }
         
         if (vendidoInput) vendidoInput.value = vendidoCalculado;
@@ -2171,37 +1973,33 @@ if (btnAdicionarFuncionario) {
         }
     }
     
-    // NOVA LÓGICA PARA GELO: Vendas são informadas diretamente, não calculadas
     function calculateGeloTotal(rowElement) {
-    const itemKey = rowElement.dataset.itemKey; // Deve ser 'gelo_pacote'
-    if(itemKey !== 'gelo_pacote') return;
+        const itemKey = rowElement.dataset.itemKey;
+        if(itemKey !== 'gelo_pacote') return;
 
-    const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
-    const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
-    
-    const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
-    const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
-    const totalGeloFooter = document.getElementById('totalGeloValor');
+        const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
+        const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
+        
+        const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
+        const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
+        const totalGeloFooter = document.getElementById('totalGeloValor');
 
-    if (precoDisplay && totalItemDisplay) {
-        const precoGeloTexto = precoDisplay.textContent;
-        const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
-        const totalGeloValor = vendasGelo * precoUnitarioGelo;
-        
-        // Atualiza o total do item
-        totalItemDisplay.textContent = formatToBRL(totalGeloValor);
-        
-        // Atualiza também o rodapé da tabela
-        if (totalGeloFooter) {
-            totalGeloFooter.textContent = formatToBRL(totalGeloValor);
+        if (precoDisplay && totalItemDisplay) {
+            const precoGeloTexto = precoDisplay.textContent;
+            const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
+            const totalGeloValor = vendasGelo * precoUnitarioGelo;
+            
+            totalItemDisplay.textContent = formatToBRL(totalGeloValor);
+            
+            if (totalGeloFooter) {
+                totalGeloFooter.textContent = formatToBRL(totalGeloValor);
+            }
+            
+            calculateTotals();
+            
+            console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
         }
-        
-        // Forçar atualização do total geral
-        calculateTotals();
-        
-        console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
     }
-}
     
     function calculateTotals() {
         let totalPasteisComunsVendido = 0, totalPasteisComunsValor = 0;
@@ -2210,7 +2008,6 @@ if (btnAdicionarFuncionario) {
         let totalCaldoCanaVendido = 0, totalCaldoCanaValor = 0;
         let totalRefrigerantesVendido = 0, totalRefrigerantesValor = 0;
         
-        // PASTÉIS E CASQUINHAS
         const localListaSaboresPasteis = typeof listaSaboresPasteis !== 'undefined' ? listaSaboresPasteis : [];
         localListaSaboresPasteis.forEach(sabor => {
             const key = sabor.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/[ãâáàä]/g, 'a').replace(/[éêèë]/g, 'e').replace(/[íìîï]/g, 'i').replace(/[óôõòö]/g, 'o').replace(/[úùûü]/g, 'u');
@@ -2245,7 +2042,6 @@ if (btnAdicionarFuncionario) {
         document.getElementById('totalGeralPasteisVendido').textContent = totalGeralPasteisVendido;
         document.getElementById('totalGeralPasteisValor').textContent = formatToBRL(totalGeralPasteisValor);
         
-        // CALDO DE CANA
         const localListaCaldoCana = typeof listaCaldoCana !== 'undefined' ? listaCaldoCana : [];
         localListaCaldoCana.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\d+ml/, d => d.toLowerCase()).replace(/\d+litro/, d => d.toLowerCase());
@@ -2255,7 +2051,6 @@ if (btnAdicionarFuncionario) {
         document.getElementById('totalCaldoCanaVendido').textContent = totalCaldoCanaVendido;
         document.getElementById('totalCaldoCanaValor').textContent = formatToBRL(totalCaldoCanaValor);
 
-        // REFRIGERANTES
         const localListaRefrigerantes = typeof listaRefrigerantes !== 'undefined' ? listaRefrigerantes : [];
         localListaRefrigerantes.forEach(item => {
             const key = item.toLowerCase().replace(/\s+/g, '_').replace(/[ç]/g, 'c').replace(/\./g, '');
@@ -2265,11 +2060,9 @@ if (btnAdicionarFuncionario) {
         document.getElementById('totalRefrigerantesVendido').textContent = totalRefrigerantesVendido;
         document.getElementById('totalRefrigerantesValor').textContent = formatToBRL(totalRefrigerantesValor);
 
-        // GELO (valor total de vendas de gelo)
         const totalGeloValorVenda = parseCurrencyToNumber(document.getElementById(`gelo_pacote_total_item`)?.textContent);
         document.getElementById('totalGeloValor').textContent = formatToBRL(totalGeloValorVenda);
 
-        // TOTAL VENDIDO NO TURNO (CALCULADO PELOS ITENS) - AGORA CONSIDERA CHEGADAS
         const granTotalVendidoValor = totalGeralPasteisValor + totalCasquinhasValor + totalCaldoCanaValor + totalRefrigerantesValor + totalGeloValorVenda;
         totalVendidoTurnoCalculadoInput.value = formatToBRL(granTotalVendidoValor);
 
@@ -2286,17 +2079,14 @@ if (btnAdicionarFuncionario) {
         calculateTotals();
     }
 
-    // CORRIGIDO: Usa nova função de controle de caixa
     function updateTotalRegistradoPagamentos() {
         updatePaymentTotalsAndDivergence();
     }
     
-    // CORRIGIDO: Usa nova função de controle de caixa
     function updateCaixaDiferenca() {
         return updatePhysicalCashDifference();
     }
     
-    // CORRIGIDO: Verifica divergências gerais do fechamento
     function checkFechamentoDivergencia() {
         if (!totalVendidoTurnoCalculadoInput || !totalRegistradoPagamentosInput) return;
 
@@ -2344,27 +2134,24 @@ if (btnAdicionarFuncionario) {
         }
     }
 
-    // --- COLETA DE DADOS DO FORMULÁRIO ---
     function collectItemData(isOpeningTurno) {
         const data = { itens: {}, gelo: {} };
         
-        // Loop pelas seções de itens principais (pasteis, caldo, refris, casquinhas)
         document.querySelectorAll('.item-section[data-category]').forEach(section => {
             const categoryKey = section.dataset.category;
-            if (!['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes'].includes(categoryKey)) return; // Processa apenas essas categorias aqui
+            if (!['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes'].includes(categoryKey)) return;
 
             data.itens[categoryKey] = {};
             section.querySelectorAll('.item-row').forEach(row => {
                 const itemKey = row.dataset.itemKey;
                 const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-                const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0; // NOVO
-                // Usar productPrices carregado para pegar o preço unitário
+                const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
                 const precoUnitario = productPrices[categoryKey]?.[itemKey]?.preco || 0;
 
                 if (isOpeningTurno) {
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
-                        chegadas: chegadas, // NOVO: salvar chegadas na abertura (geralmente 0)
+                        chegadas: chegadas,
                         precoUnitario: precoUnitario
                     };
                 } else { 
@@ -2375,7 +2162,7 @@ if (btnAdicionarFuncionario) {
                     
                     data.itens[categoryKey][itemKey] = {
                         entrada: entrada,
-                        chegadas: chegadas, // NOVO: salvar chegadas no fechamento
+                        chegadas: chegadas,
                         sobra: sobra,
                         descarte: descarte,
                         consumo: consumo,
@@ -2387,16 +2174,15 @@ if (btnAdicionarFuncionario) {
             });
         });
 
-        // Coleta de Gelo - MODIFICADO para incluir chegadas
         const geloKey = 'gelo_pacote';
         const geloEntrada = parseFloat(document.getElementById(`${geloKey}_entrada`)?.value) || 0;
-        const geloChegadas = parseFloat(document.getElementById(`${geloKey}_chegadas`)?.value) || 0; // NOVO
+        const geloChegadas = parseFloat(document.getElementById(`${geloKey}_chegadas`)?.value) || 0;
         const precoUnitarioGelo = productPrices.gelo?.[geloKey]?.preco || 0;
 
         if (isOpeningTurno) {
              data.gelo[geloKey] = {
                 entrada: geloEntrada,
-                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo na abertura (geralmente 0)
+                chegadas: geloChegadas,
                 precoUnitario: precoUnitarioGelo
              };
         } else {
@@ -2405,12 +2191,12 @@ if (btnAdicionarFuncionario) {
             const geloConsumoInterno = parseFloat(document.getElementById(`${geloKey}_consumo_interno`)?.value) || 0;
             data.gelo[geloKey] = {
                 entrada: geloEntrada,
-                chegadas: geloChegadas, // NOVO: salvar chegadas de gelo no fechamento
+                chegadas: geloChegadas,
                 sobra: geloSobra,
                 vendas: geloVendas, 
                 consumoInterno: geloConsumoInterno,
                 precoUnitario: precoUnitarioGelo,
-                totalItemValor: geloVendas * precoUnitarioGelo // Valor das vendas de gelo
+                totalItemValor: geloVendas * precoUnitarioGelo
             };
         }
         return data;
@@ -2432,11 +2218,10 @@ if (btnAdicionarFuncionario) {
                             const entradaInput = document.getElementById(`${itemKey}_entrada`);
                             if (entradaInput) entradaInput.value = item.entrada || 0;
                             
-                            // NOVO: Carregar chegadas
                             const chegadasInput = document.getElementById(`${itemKey}_chegadas`);
                             if (chegadasInput) chegadasInput.value = item.chegadas || 0;
         
-                            if (turnoData.status === 'fechado' || turnoAbertoLocalmente) { // Preenche mais se for para fechar
+                            if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
                                  const sobraInput = document.getElementById(`${itemKey}_sobra`);
                                  if (sobraInput) sobraInput.value = item.sobra || 0;
                                  const descarteInput = document.getElementById(`${itemKey}_descarte`);
@@ -2444,11 +2229,9 @@ if (btnAdicionarFuncionario) {
                                  const consumoInput = document.getElementById(`${itemKey}_consumo`);
                                  if (consumoInput) consumoInput.value = item.consumo || 0;
                                  
-                                 // Preencher o dataset do preço no input de vendido se não existir ao carregar
                                  const vendidoInput = document.getElementById(`${itemKey}_vendido`);
                                  if (vendidoInput && item.precoUnitario && !vendidoInput.dataset.price) {
                                      vendidoInput.dataset.price = item.precoUnitario;
-                                     // Atualiza também o display do preço na tabela, se aplicável (ou é feito ao popular tabelas)
                                      const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
                                      if(precoDisplay) precoDisplay.textContent = formatToBRL(parseFloat(item.precoUnitario));
                                  }
@@ -2464,7 +2247,6 @@ if (btnAdicionarFuncionario) {
             const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
             if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
             
-            // NOVO: Carregar chegadas de gelo
             const geloChegadasInput = document.getElementById(`gelo_pacote_chegadas`);
             if (geloChegadasInput) geloChegadasInput.value = geloItem.chegadas || 0;
 
@@ -2475,8 +2257,7 @@ if (btnAdicionarFuncionario) {
                 if (geloVendasInput) geloVendasInput.value = geloItem.vendas || 0;
                 const geloConsumoInput = document.getElementById(`gelo_pacote_consumo_interno`);
                 if (geloConsumoInput) geloConsumoInput.value = geloItem.consumoInterno || 0;
-                // Preço do Gelo
-                 const precoGeloInputVendido = document.getElementById(`gelo_pacote_total_item`); // O total, não o 'vendido' input
+                 const precoGeloInputVendido = document.getElementById(`gelo_pacote_total_item`);
                  const precoGeloDisplay = document.getElementById(`gelo_pacote_preco_display`);
                  if (geloItem.precoUnitario && precoGeloDisplay) {
                      precoGeloDisplay.textContent = formatToBRL(parseFloat(geloItem.precoUnitario));
@@ -2484,7 +2265,7 @@ if (btnAdicionarFuncionario) {
             }
         }
 
-        if (turnoData.status === 'fechado') { // Se o turno já veio fechado do DB (raro, mas possível)
+        if (turnoData.status === 'fechado') {
             document.getElementById('trocaGas').value = turnoData.trocaGas || 'nao';
             if (turnoData.formasPagamento) {
                 Object.keys(turnoData.formasPagamento).forEach(key => {
@@ -2498,7 +2279,6 @@ if (btnAdicionarFuncionario) {
         calculateAll(); 
     }
 
-    // --- MENSAGENS DE ERRO/STATUS ---
     function showError(message) {
         errorMessagesP.textContent = message;
         errorMessagesP.classList.remove('hidden');
@@ -2509,11 +2289,9 @@ if (btnAdicionarFuncionario) {
         errorMessagesP.classList.add('hidden');
     }
     
-    // --- INICIALIZAÇÃO ---
-    // Adicionar event listener para detectar status de conectividade
     window.addEventListener('online', function() {
         console.log('Online - sincronizando dados...');
-        checkOpenTurno(); // Sincroniza quando ficar online novamente
+        checkOpenTurno();
     });
     
     window.addEventListener('offline', function() {
@@ -2524,21 +2302,14 @@ if (btnAdicionarFuncionario) {
         }
     });
 
-    // Detecta se o usuário está saindo da página e salva os dados
     window.addEventListener('beforeunload', function() {
-        // O localStorage já deve estar sendo atualizado ao longo do uso,
-        // mas podemos fazer uma última verificação aqui se necessário
         if (turnoAbertoLocalmente && currentTurnoId) {
-            // Os dados principais já devem estar salvos, mas poderia adicionar
-            // uma última sincronização se necessário
         }
     });
     
-    // Inicializa a página e carrega os dados necessários
     initializePage();
 });
 
-// Helpers de shared.js (inclua shared.js antes deste script)
 if (typeof getFormattedDate === 'undefined') {
     function getFormattedDate(date = new Date()) {
       const year = date.getFullYear();
