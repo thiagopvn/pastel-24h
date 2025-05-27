@@ -345,47 +345,53 @@ document.addEventListener('DOMContentLoaded', async () => {
 }
 
     async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
-        if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
+    if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
+    
+    try {
+        const batch = db.batch();
         
-        try {
-            const batch = db.batch();
-            
-            for (const funcionarioData of dadosFuncionarios) {
-                const registroRef = db.collection('usuarios')
-                    .doc(funcionarioData.funcionarioId)
-                    .collection('registros_turnos')
-                    .doc(turnoId);
-                
-                batch.set(registroRef, {
-                    turnoId: turnoId,
-                    consumo: funcionarioData.consumo,
-                    transporte: funcionarioData.transporte,
-                    horasTrabalhadas: funcionarioData.horasTrabalhadas,
-                    registradoPor: funcionarioData.registradoPor,
-                    dataRegistro: funcionarioData.dataRegistro,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
-                
-                const userRef = db.collection('usuarios').doc(funcionarioData.funcionarioId);
-                batch.update(userRef, {
-                    ultimoTurno: turnoId,
-                    ultimoRegistro: funcionarioData.dataRegistro,
-                    [`turnos.${turnoId}`]: {
-                        consumo: funcionarioData.consumo,
-                        transporte: funcionarioData.transporte,
-                        horasTrabalhadas: funcionarioData.horasTrabalhadas,
-                        registradoPor: funcionarioData.registradoPor.nome
-                    }
-                });
+        for (const funcionarioData of dadosFuncionarios) {
+            if (!funcionarioData.funcionarioId) {
+                console.warn("Funcionário sem ID, pulando...");
+                continue;
             }
             
-            await batch.commit();
-            console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
-        } catch (error) {
-            console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
-            throw error;
+            const turnoRef = db.collection('turnos').doc(turnoId);
+            const turnoDoc = await turnoRef.get();
+            
+            if (!turnoDoc.exists) {
+                throw new Error("Turno não encontrado");
+            }
+            
+            const turnoData = turnoDoc.data();
+            if (!turnoData.funcionariosColaboradores) {
+                turnoData.funcionariosColaboradores = [];
+            }
+            
+            turnoData.funcionariosColaboradores.push({
+                funcionarioId: funcionarioData.funcionarioId,
+                funcionarioNome: funcionarioData.funcionarioNome,
+                consumo: funcionarioData.consumo,
+                transporte: funcionarioData.transporte,
+                horasTrabalhadas: funcionarioData.horasTrabalhadas,
+                registradoPor: funcionarioData.registradoPor,
+                dataRegistro: funcionarioData.dataRegistro
+            });
+            
+            batch.update(turnoRef, {
+                funcionariosColaboradores: turnoData.funcionariosColaboradores,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
         }
+        
+        await batch.commit();
+        console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
+        
+    } catch (error) {
+        console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
+        throw error;
     }
+}
 
     async function carregarDadosTurnoAnterior() {
         showLoadingState(true, "Verificando turnos anteriores...");
