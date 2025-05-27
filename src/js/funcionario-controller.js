@@ -154,31 +154,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function carregarListaFuncionarios() {
-        try {
-            const snapshot = await db.collection('usuarios')
-                .where('role', '==', 'funcionario')
-                .get();
-            
-            listaFuncionariosDisponiveis = [];
-            const currentUserId = auth.currentUser?.uid;
-            
-            snapshot.forEach(doc => {
+    try {
+        if (!auth.currentUser) {
+            console.error("Usuário não autenticado ao carregar funcionários");
+            showError("Usuário não autenticado. Faça login novamente.");
+            return;
+        }
+
+        console.log("Carregando lista de funcionários...");
+        
+        const snapshot = await db.collection('usuarios')
+            .where('role', '==', 'funcionario')
+            .get();
+        
+        listaFuncionariosDisponiveis = [];
+        const currentUserId = auth.currentUser?.uid;
+        
+        if (snapshot.empty) {
+            console.log("Nenhum funcionário encontrado");
+            return;
+        }
+        
+        snapshot.forEach(doc => {
+            try {
                 const data = doc.data();
-                if (doc.id !== currentUserId) {
+                if (doc.id !== currentUserId && data) {
                     listaFuncionariosDisponiveis.push({
                         id: doc.id,
-                        nome: data.nome || data.email,
-                        email: data.email
+                        nome: data.nome || data.email || 'Funcionário sem nome',
+                        email: data.email || ''
                     });
                 }
-            });
-            
-            console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
-        } catch (error) {
-            console.error("Erro ao carregar lista de funcionários:", error);
+            } catch (err) {
+                console.error(`Erro ao processar funcionário ${doc.id}:`, err);
+            }
+        });
+        
+        console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
+        
+    } catch (error) {
+        console.error("Erro ao carregar lista de funcionários:", error);
+        
+        if (error.code === 'permission-denied') {
+            showError("Erro de permissão ao carregar funcionários. Contate o administrador para atualizar as permissões do Firebase.");
+        } else {
             showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
         }
+        
+        listaFuncionariosDisponiveis = [];
     }
+}
 
     function adicionarFuncionarioColaborador() {
         const container = document.getElementById('funcionariosColaboradoresContainer');
@@ -275,34 +300,49 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function coletarDadosFuncionariosColaboradores() {
-        const dados = [];
-        
-        funcionariosColaboradores.forEach(funcionarioId => {
+    const dados = [];
+    if (!funcionariosColaboradores || funcionariosColaboradores.length === 0) {
+        console.log("Nenhum funcionário colaborador para coletar dados");
+        return dados;
+    }
+    
+    funcionariosColaboradores.forEach(funcionarioId => {
+        try {
             const selectElement = document.getElementById(`${funcionarioId}_select`);
             const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
             const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
             const horasElement = document.getElementById(`${funcionarioId}_horas`);
-            
             if (selectElement && selectElement.value) {
                 const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
                 
-                dados.push({
+                if (!funcionarioSelecionado) {
+                    console.warn(`Funcionário ${selectElement.value} não encontrado na lista`);
+                    return;
+                }
+                const dadosFuncionario = {
                     funcionarioId: selectElement.value,
-                    funcionarioNome: funcionarioSelecionado?.nome || '',
+                    funcionarioNome: funcionarioSelecionado.nome || 'Nome não disponível',
                     consumo: consumoElement?.value || '',
                     transporte: transporteElement?.value || '',
                     horasTrabalhadas: parseFloat(horasElement?.value) || 0,
                     registradoPor: {
-                        id: auth.currentUser?.uid,
-                        nome: localStorage.getItem('userName') || auth.currentUser?.email
+                        id: auth.currentUser?.uid || '',
+                        nome: localStorage.getItem('userName') || auth.currentUser?.email || 'Usuário desconhecido'
                     },
                     dataRegistro: new Date().toISOString()
-                });
+                };
+                if (dadosFuncionario.funcionarioId) {
+                    dados.push(dadosFuncionario);
+                    console.log(`Dados coletados para funcionário: ${dadosFuncionario.funcionarioNome}`);
+                }
             }
-        });
-        
-        return dados;
-    }
+        } catch (err) {
+            console.error(`Erro ao coletar dados do funcionário ${funcionarioId}:`, err);
+        }
+    });
+    console.log(`Total de ${dados.length} funcionário(s) com dados coletados`);
+    return dados;
+}
 
     async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
         if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
