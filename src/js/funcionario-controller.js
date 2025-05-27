@@ -35,6 +35,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     let unsubscribeTurnoListener = null;
     let turnoAnteriorData = null;
     let camposTransferidosAnterior = {};
+    let funcionariosColaboradores = [];
+    let listaFuncionariosDisponiveis = [];
+
     function applyCurrencyMask(input) {
         let value = input.value.replace(/[^\d]/g, '');
         if (value === '') {
@@ -116,48 +119,241 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // === FUNÇÕES DE INICIALIZAÇÃO E ESTADO ===
     async function initializePage() {
-        // Prevenção contra chamadas recursivas
-        if (isInitializing) return;
-        isInitializing = true;
+    if (isInitializing) return;
+    isInitializing = true;
+    
+    showLoadingState(true, "Carregando dados iniciais...");
+    try {
+        await loadProductPrices();
+        populateProductTables();
+        setupPriceListener();
+        setupAllCurrencyMasks();
         
-        showLoadingState(true, "Carregando dados iniciais...");
-        try {
-            await loadProductPrices();
-            populateProductTables();
-            setupPriceListener();
-            setupAllCurrencyMasks();
-            
-            // Verificar e armazenar dados do último turno fechado para transferência
-            await carregarDadosTurnoAnterior();
-            
-            // Verifica se existe um turno em andamento, primeiro localmente e depois no Firestore
-            const localTurno = getTurnoLocal();
-            
-            if (localTurno && localTurno.status === 'aberto') {
-                // Temos um turno guardado localmente, vamos verificar se ele ainda existe no Firestore
-                await checkAndSyncTurnoWithFirestore(localTurno.id);
-            } else {
-                // Caso não haja turno local, busca no Firestore (pode haver um aberto em outro dispositivo)
-                await checkOpenTurnoInFirestore();
-            }
-            
-            // Configura listener para mudanças no Firestore
-            setupTurnoListener();
-            
-            setupEventListeners();
-            setInitialPeriodo();
-            
-            if (!turnoAbertoLocalmente && !currentTurnoId) {
-                toggleFormInputs(false);
-            }
-        } catch (error) {
-            console.error("Erro na inicialização da página:", error);
-            showError("Falha ao inicializar a página. Verifique sua conexão ou contate o suporte.");
-        } finally {
-            showLoadingState(false);
-            isInitializing = false;
+        // NOVO: Carregar lista de funcionários disponíveis
+        await carregarListaFuncionarios();
+        
+        await carregarDadosTurnoAnterior();
+        
+        const localTurno = getTurnoLocal();
+        
+        if (localTurno && localTurno.status === 'aberto') {
+            await checkAndSyncTurnoWithFirestore(localTurno.id);
+        } else {
+            await checkOpenTurnoInFirestore();
         }
+        
+        setupTurnoListener();
+        setupEventListeners();
+        setInitialPeriodo();
+        
+        if (!turnoAbertoLocalmente && !currentTurnoId) {
+            toggleFormInputs(false);
+        }
+    } catch (error) {
+        console.error("Erro na inicialização da página:", error);
+        showError("Falha ao inicializar a página. Verifique sua conexão ou contate o suporte.");
+    } finally {
+        showLoadingState(false);
+        isInitializing = false;
     }
+}
+
+// === ADICIONE ESTAS NOVAS FUNÇÕES ===
+
+async function carregarListaFuncionarios() {
+    try {
+        const snapshot = await db.collection('usuarios')
+            .where('role', '==', 'funcionario')
+            .get();
+        
+        listaFuncionariosDisponiveis = [];
+        const currentUserId = auth.currentUser?.uid;
+        
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            if (doc.id !== currentUserId) {
+                listaFuncionariosDisponiveis.push({
+                    id: doc.id,
+                    nome: data.nome || data.email,
+                    email: data.email
+                });
+            }
+        });
+        
+        console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
+    } catch (error) {
+        console.error("Erro ao carregar lista de funcionários:", error);
+        showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
+    }
+}
+
+function adicionarFuncionarioColaborador() {
+    const container = document.getElementById('funcionariosColaboradoresContainer');
+    if (!container) return;
+    
+    const funcionarioId = `funcionario_${Date.now()}`;
+    
+    const funcionarioDiv = document.createElement('div');
+    funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
+    funcionarioDiv.id = funcionarioId;
+    
+    const optionsHtml = listaFuncionariosDisponiveis.map(f => 
+        `<option value="${f.id}">${f.nome} (${f.email})</option>`
+    ).join('');
+    
+    funcionarioDiv.innerHTML = `
+        <div class="flex justify-between items-start mb-3">
+            <h4 class="text-md font-semibold text-gray-700 flex items-center">
+                <i class="fas fa-user mr-2"></i>
+                Funcionário Colaborador
+            </h4>
+            <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
+                    class="text-red-500 hover:text-red-700 transition-colors">
+                <i class="fas fa-times-circle"></i>
+            </button>
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
+                </label>
+                <select id="${funcionarioId}_select" 
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                    <option value="">-- Selecione um funcionário --</option>
+                    ${optionsHtml}
+                </select>
+            </div>
+            
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
+                </label>
+                <textarea id="${funcionarioId}_consumo" 
+                          rows="2"
+                          placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
+                          class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-bus mr-1"></i>Meio de Transporte
+                </label>
+                <select id="${funcionarioId}_transporte" 
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                    <option value="">-- Selecione --</option>
+                    <option value="onibus">Ônibus</option>
+                    <option value="metro">Metrô</option>
+                    <option value="trem">Trem</option>
+                    <option value="carro">Carro Próprio</option>
+                    <option value="moto">Moto</option>
+                    <option value="bicicleta">Bicicleta</option>
+                    <option value="ape">A pé</option>
+                    <option value="carona">Carona</option>
+                    <option value="uber">Uber/99/Táxi</option>
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
+                </label>
+                <input type="number" 
+                       id="${funcionarioId}_horas" 
+                       min="0" 
+                       max="24" 
+                       step="0.5"
+                       placeholder="Ex: 8"
+                       class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(funcionarioDiv);
+    funcionariosColaboradores.push(funcionarioId);
+}
+
+// Torne a função global para o onclick funcionar
+window.removerFuncionarioColaborador = function(funcionarioId) {
+    const elemento = document.getElementById(funcionarioId);
+    if (elemento) {
+        elemento.remove();
+        funcionariosColaboradores = funcionariosColaboradores.filter(id => id !== funcionarioId);
+    }
+}
+
+function coletarDadosFuncionariosColaboradores() {
+    const dados = [];
+    
+    funcionariosColaboradores.forEach(funcionarioId => {
+        const selectElement = document.getElementById(`${funcionarioId}_select`);
+        const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
+        const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
+        const horasElement = document.getElementById(`${funcionarioId}_horas`);
+        
+        if (selectElement && selectElement.value) {
+            const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
+            
+            dados.push({
+                funcionarioId: selectElement.value,
+                funcionarioNome: funcionarioSelecionado?.nome || '',
+                consumo: consumoElement?.value || '',
+                transporte: transporteElement?.value || '',
+                horasTrabalhadas: parseFloat(horasElement?.value) || 0,
+                registradoPor: {
+                    id: auth.currentUser?.uid,
+                    nome: localStorage.getItem('userName') || auth.currentUser?.email
+                },
+                dataRegistro: new Date().toISOString()
+            });
+        }
+    });
+    
+    return dados;
+}
+
+async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
+    if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
+    
+    try {
+        const batch = db.batch();
+        
+        for (const funcionarioData of dadosFuncionarios) {
+            const registroRef = db.collection('usuarios')
+                .doc(funcionarioData.funcionarioId)
+                .collection('registros_turnos')
+                .doc(turnoId);
+            
+            batch.set(registroRef, {
+                turnoId: turnoId,
+                consumo: funcionarioData.consumo,
+                transporte: funcionarioData.transporte,
+                horasTrabalhadas: funcionarioData.horasTrabalhadas,
+                registradoPor: funcionarioData.registradoPor,
+                dataRegistro: funcionarioData.dataRegistro,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            const userRef = db.collection('usuarios').doc(funcionarioData.funcionarioId);
+            batch.update(userRef, {
+                ultimoTurno: turnoId,
+                ultimoRegistro: funcionarioData.dataRegistro,
+                [`turnos.${turnoId}`]: {
+                    consumo: funcionarioData.consumo,
+                    transporte: funcionarioData.transporte,
+                    horasTrabalhadas: funcionarioData.horasTrabalhadas,
+                    registradoPor: funcionarioData.registradoPor.nome
+                }
+            });
+        }
+        
+        await batch.commit();
+        console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
+    } catch (error) {
+        console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
+        throw error;
+    }
+}
 
     // NOVA FUNÇÃO: Carrega dados do último turno fechado
     async function carregarDadosTurnoAnterior() {
@@ -815,32 +1011,51 @@ function addSubtotalRow(tableBody, label, idPrefix) {
 
     // NOVA FUNÇÃO: Adiciona indicador visual para campos transferidos do turno anterior
     function adicionarIndicadorCampoTransferido(elemento, origem) {
-        if (!elemento) return;
+    if (!elemento) return;
+    
+    // Adiciona classes de estilo
+    elemento.classList.add('campo-transferido', 'bg-blue-50', 'border-blue-300');
+    
+    // Armazena informações
+    elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
+    elemento.dataset.valorOriginal = elemento.value;
+    
+    // Define como readonly
+    elemento.readOnly = true;
+    
+    // Criar wrapper se não existir
+    let wrapper = elemento.parentElement;
+    if (!wrapper.classList.contains('campo-bloqueado-wrapper')) {
+        wrapper = document.createElement('div');
+        wrapper.className = 'campo-bloqueado-wrapper';
         
-        // Adiciona classe de estilo para destacar visualmente
-        elemento.classList.add('bg-blue-50', 'border-blue-300');
+        elemento.parentNode.insertBefore(wrapper, elemento);
+        wrapper.appendChild(elemento);
         
-        // Armazena informação de que este campo veio do turno anterior
-        elemento.dataset.transferidoDoTurno = origem || 'turno-anterior';
-        elemento.dataset.valorOriginal = elemento.value;
-        
-        // Adiciona um pequeno indicador visual ao lado do campo
-        const parentElement = elemento.parentElement;
-        if (parentElement && !parentElement.querySelector('.indicador-transferido')) {
-            const indicador = document.createElement('span');
-            indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
-            indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
-            indicador.title = 'Valor transferido do turno anterior - Não editável';
-            parentElement.appendChild(indicador);
-        }
-        
-        // Rastreia este campo para validação
-        const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
-        camposTransferidosAnterior[campoId] = {
-            elemento: elemento,
-            valorOriginal: elemento.value
-        };
+        // Adicionar ícone de bloqueio
+        const lockIcon = document.createElement('i');
+        lockIcon.className = 'fas fa-lock lock-icon';
+        lockIcon.title = 'Valor transferido do turno anterior - Não editável';
+        wrapper.appendChild(lockIcon);
     }
+    
+    // Adiciona indicador de transferência
+    const containerPai = wrapper.parentElement;
+    if (containerPai && !containerPai.querySelector('.indicador-transferido')) {
+        const indicador = document.createElement('span');
+        indicador.className = 'indicador-transferido text-xs text-blue-600 ml-1';
+        indicador.innerHTML = '<i class="fas fa-exchange-alt"></i>';
+        indicador.title = 'Valor transferido do turno anterior';
+        containerPai.appendChild(indicador);
+    }
+    
+    // Rastreia o campo
+    const campoId = elemento.id || `campo-${Math.random().toString(36).substring(2, 9)}`;
+    camposTransferidosAnterior[campoId] = {
+        elemento: elemento,
+        valorOriginal: elemento.value
+    };
+}
 
     function toggleFormInputs(isTurnoOpenForEditing) {
         // Habilita/Desabilita todos os campos do formulário de acordo com o estado do turno
@@ -965,7 +1180,11 @@ function addSubtotalRow(tableBody, label, idPrefix) {
             el.classList.remove('bg-blue-50', 'border-blue-300');
         });
         camposTransferidosAnterior = {};
-        
+        funcionariosColaboradores = [];
+const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
+if (containerFuncionarios) {
+    containerFuncionarios.innerHTML = '';
+}
         calculateAll(); // Garante que os totais gerais sejam zerados
     }
     
@@ -1206,8 +1425,26 @@ function addSubtotalRow(tableBody, label, idPrefix) {
             showLoadingState(true, "Abrindo turno...");
 
             try {
+                const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
+
+// Validar se todos os funcionários têm dados completos
+let funcionariosIncompletos = false;
+dadosFuncionariosColaboradores.forEach(func => {
+    if (!func.consumo || !func.transporte || func.horasTrabalhadas === 0) {
+        funcionariosIncompletos = true;
+    }
+});
+
+if (funcionariosIncompletos) {
+    showError("Por favor, preencha todos os dados dos funcionários colaboradores (consumo, transporte e horas).");
+    return;
+}
+                
                 // Verificação adicional: transação para garantir que não exista outro turno aberto
                 await db.runTransaction(async (transaction) => {
+                    if (dadosFuncionariosColaboradores.length > 0) {
+    await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
+}
                     // Verificar se o turno proposto já existe
                     const turnoRef = db.collection('turnos').doc(turnoIdProposto);
                     const turnoDoc = await transaction.get(turnoRef);
@@ -1697,6 +1934,7 @@ function addSubtotalRow(tableBody, label, idPrefix) {
 
             // Verificação de turno aberto remoto via transação atômica
             try {
+                
                 await db.runTransaction(async (transaction) => {
                     const turnoRef = db.collection('turnos').doc(currentTurnoId);
                     const turnoDoc = await transaction.get(turnoRef);
@@ -1714,6 +1952,7 @@ function addSubtotalRow(tableBody, label, idPrefix) {
                     const caixaInicialDoTurno = turnoData.caixaInicial;
 
                     const turnoUpdateData = {
+                        funcionariosColaboradores: dadosFuncionariosColaboradores,
                         status: 'fechado',
                         fechamento: fechamentoDataObj,
                         itens: dadosColetados.itens,
@@ -1727,6 +1966,7 @@ function addSubtotalRow(tableBody, label, idPrefix) {
                         diferencaCaixaFinal: caixaDiferencaVal,
                         updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                         closedAt: firebase.firestore.FieldValue.serverTimestamp() // Adiciona timestamp de fechamento para consultas
+                        
                     };
                     
                     // Atualiza o documento dentro da transação
@@ -1891,6 +2131,10 @@ function addSubtotalRow(tableBody, label, idPrefix) {
                     checkFechamentoDivergencia();
                 }, 100);
             }
+            const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
+if (btnAdicionarFuncionario) {
+    btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
+}
         });
     }
     

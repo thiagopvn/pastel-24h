@@ -1079,3 +1079,64 @@ a:focus, button:focus {
 .bg-blue-100 { background-color: #DBEAFE; }
 .bg-green-50 { background-color: #F0FDF4; }
 .bg-yellow-50 { background-color: #FEF3C7; }
+
+input:not([readonly]):not([disabled]) {
+    cursor: text !important;
+}
+
+/* Adiciona ícone de bloqueio APENAS em campos readonly ou disabled */
+input[readonly], input[disabled], select[disabled] {
+    cursor: not-allowed !important;
+    position: relative;
+}
+
+/* Container para ícone de bloqueio */
+.campo-bloqueado-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+}
+
+.campo-bloqueado-wrapper .lock-icon {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6B7280;
+    font-size: 14px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Apenas mostra ícone em campos que são readonly ou disabled */
+.campo-bloqueado-wrapper input[readonly] ~ .lock-icon,
+.campo-bloqueado-wrapper input[disabled] ~ .lock-icon,
+.campo-bloqueado-wrapper select[disabled] ~ .lock-icon {
+    display: block;
+}
+
+.campo-bloqueado-wrapper input:not([readonly]):not([disabled]) ~ .lock-icon {
+    display: none !important;
+}
+
+/* Estilo específico para campos transferidos */
+[data-transferido-do-turno] {
+    background-color: #EFF6FF !important;
+    border-color: #93C5FD !important;
+    padding-right: 2.5rem !important; /* Espaço para o ícone */
+}
+
+[data-transferido-do-turno]:hover {
+    background-color: #DBEAFE !important;
+}
+
+/* Animação de shake para tentativa de edição */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
+}
