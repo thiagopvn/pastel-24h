@@ -1184,43 +1184,234 @@
             }
 
             async function loadDashboardData(startDate = null, endDate = null) {
-                try {
-                    document.getElementById('refreshIcon').classList.add('animate-spin');
-                    
-                    let query = db.collection('turnos').where('status', '==', 'fechado');
-                    
-                    if (startDate && endDate) {
-                        const startId = `${startDate.toISOString().split('T')[0]}_Manhã`;
-                        const endId = `${endDate.toISOString().split('T')[0]}_Noite`;
-                        query = query.orderBy(firebase.firestore.FieldPath.documentId())
-                                     .startAt(startId)
-                                     .endAt(endId);
-                    } else {
-                        const date30DaysAgo = new Date();
-                        date30DaysAgo.setDate(date30DaysAgo.getDate() - 30);
-                        const startDateString = date30DaysAgo.toISOString().split('T')[0];
-                        query = query.orderBy(firebase.firestore.FieldPath.documentId(), 'desc')
-                                     .where(firebase.firestore.FieldPath.documentId(), '>=', `${startDateString}_Manhã`);
-                    }
-                    
-                    const snapshot = await query.get();
-                    const turnos = [];
-                    snapshot.forEach(doc => turnos.push({ id: doc.id, ...doc.data() }));
-                    
-                    await updateKPIs(turnos);
-                    await updateCharts(turnos);
-                    await updateAlertsAndTurnos();
-                    await updateTimeline();
-                    
-                    showToast('Dashboard atualizado com sucesso', 'success');
-                    
-                } catch (error) {
-                    console.error('Erro ao carregar dados do dashboard:', error);
-                    showToast('Erro ao carregar dados do dashboard', 'error');
-                } finally {
-                    document.getElementById('refreshIcon').classList.remove('animate-spin');
+    try {
+        document.getElementById('refreshIcon').classList.add('animate-spin');
+        
+        // Obter valores dos filtros
+        const filterTurno = document.getElementById('filterTurno').value;
+        const filterPagamento = document.getElementById('filterPagamento').value;
+        
+        // Se não houver datas, usar últimos 30 dias
+        if (!startDate || !endDate) {
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+        }
+        
+        // Normalizar datas para início e fim do dia
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        
+        console.log('Carregando dados:', {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            turno: filterTurno,
+            pagamento: filterPagamento
+        });
+        
+        // Buscar todos os turnos no período
+        const turnosSnapshot = await db.collection('turnos')
+            .where('status', '==', 'fechado')
+            .get();
+        
+        // Filtrar manualmente por data e outros critérios
+        const turnos = [];
+        turnosSnapshot.forEach(doc => {
+            const data = doc.data();
+            const turnoId = doc.id;
+            
+            // Extrair data do ID do turno (formato: YYYY-MM-DD_Periodo)
+            const [dataPart, periodoPart] = turnoId.split('_');
+            const turnoDate = new Date(dataPart + 'T12:00:00');
+            
+            // Verificar se está no período
+            if (turnoDate >= startDate && turnoDate <= endDate) {
+                // Aplicar filtro de turno se selecionado
+                if (!filterTurno || periodoPart === filterTurno) {
+                    turnos.push({ 
+                        id: turnoId, 
+                        ...data,
+                        dataObj: turnoDate,
+                        periodo: periodoPart
+                    });
                 }
             }
+        });
+        
+        // Ordenar por data
+        turnos.sort((a, b) => a.dataObj - b.dataObj);
+        
+        console.log(`Encontrados ${turnos.length} turnos após filtros`);
+        
+        // Se houver filtro de pagamento, filtrar turnos
+        let turnosFiltrados = turnos;
+        if (filterPagamento) {
+            turnosFiltrados = turnos.filter(turno => {
+                if (!turno.formasPagamento) return false;
+                
+                const pagamentoMap = {
+                    'dinheiro': turno.formasPagamento.dinheiro,
+                    'pixManual': turno.formasPagamento.pixManual,
+                    'stoneDCV': turno.formasPagamento.stoneDCV,
+                    'stoneVoucher': turno.formasPagamento.stoneVoucher,
+                    'pagbankDCV': turno.formasPagamento.pagbankDCV
+                };
+                
+                return pagamentoMap[filterPagamento] && pagamentoMap[filterPagamento] > 0;
+            });
+        }
+        
+        // Calcular período anterior para comparação
+        const diasPeriodo = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
+        const startDateAnterior = new Date(startDate);
+        startDateAnterior.setDate(startDateAnterior.getDate() - diasPeriodo);
+        const endDateAnterior = new Date(startDate);
+        endDateAnterior.setDate(endDateAnterior.getDate() - 1);
+        
+        // Buscar turnos do período anterior
+        const turnosAnterioresSnapshot = await db.collection('turnos')
+            .where('status', '==', 'fechado')
+            .get();
+            
+        const turnosAnteriores = [];
+        turnosAnterioresSnapshot.forEach(doc => {
+            const data = doc.data();
+            const turnoId = doc.id;
+            const [dataPart, periodoPart] = turnoId.split('_');
+            const turnoDate = new Date(dataPart + 'T12:00:00');
+            
+            if (turnoDate >= startDateAnterior && turnoDate <= endDateAnterior) {
+                if (!filterTurno || periodoPart === filterTurno) {
+                    turnosAnteriores.push({ id: turnoId, ...data });
+                }
+            }
+        });
+        
+        await updateKPIs(turnosFiltrados, turnosAnteriores);
+        await updateCharts(turnosFiltrados);
+        await updateAlertsAndTurnos();
+        await updateTimeline(startDate, endDate);
+        
+        showToast('Dashboard atualizado com sucesso', 'success');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados do dashboard:', error);
+        showToast('Erro ao carregar dados do dashboard', 'error');
+    } finally {
+        document.getElementById('refreshIcon').classList.remove('animate-spin');
+    }
+}
+
+// SUBSTITUIR A FUNÇÃO updateKPIs PARA INCLUIR CÁLCULO DE TENDÊNCIAS
+async function updateKPIs(turnos, turnosAnteriores = []) {
+    // Cálculos do período atual
+    let totalVendas = 0;
+    let totalPedidos = turnos.length;
+    let totalDivergencias = 0;
+    let totalCaixa = 0;
+    
+    turnos.forEach(turno => {
+        totalVendas += turno.totalVendidoCalculadoFinal || 0;
+        totalCaixa += turno.caixaFinalContado || 0;
+        
+        const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
+        const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
+        const diffCaixa = turno.diferencaCaixaFinal || 0;
+        
+        if (Math.abs(vendidoCalc - pagamentosReg) > 0.01 || Math.abs(diffCaixa) > 0.01) {
+            totalDivergencias++;
+        }
+    });
+    
+    // Cálculos do período anterior
+    let totalVendasAnterior = 0;
+    let totalPedidosAnterior = turnosAnteriores.length;
+    let totalDivergenciasAnterior = 0;
+    let totalCaixaAnterior = 0;
+    
+    turnosAnteriores.forEach(turno => {
+        totalVendasAnterior += turno.totalVendidoCalculadoFinal || 0;
+        totalCaixaAnterior += turno.caixaFinalContado || 0;
+        
+        const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
+        const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
+        const diffCaixa = turno.diferencaCaixaFinal || 0;
+        
+        if (Math.abs(vendidoCalc - pagamentosReg) > 0.01 || Math.abs(diffCaixa) > 0.01) {
+            totalDivergenciasAnterior++;
+        }
+    });
+    
+    const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : 0;
+    const ticketMedioAnterior = totalPedidosAnterior > 0 ? totalVendasAnterior / totalPedidosAnterior : 0;
+    const percentualDivergencias = totalPedidos > 0 ? (totalDivergencias / totalPedidos) * 100 : 0;
+    const percentualDivergenciasAnterior = totalPedidosAnterior > 0 ? (totalDivergenciasAnterior / totalPedidosAnterior) * 100 : 0;
+    const lucroEstimado = totalVendas * 0.35;
+    const lucroEstimadoAnterior = totalVendasAnterior * 0.35;
+    
+    // Calcular tendências
+    const calcularTendencia = (atual, anterior) => {
+        if (anterior === 0) return atual > 0 ? 100 : 0;
+        return ((atual - anterior) / anterior) * 100;
+    };
+    
+    const tendenciaVendas = calcularTendencia(totalVendas, totalVendasAnterior);
+    const tendenciaTicket = calcularTendencia(ticketMedio, ticketMedioAnterior);
+    const tendenciaPedidos = calcularTendencia(totalPedidos, totalPedidosAnterior);
+    const tendenciaDivergencias = calcularTendencia(percentualDivergencias, percentualDivergenciasAnterior);
+    const tendenciaCaixa = calcularTendencia(totalCaixa, totalCaixaAnterior);
+    const tendenciaLucro = calcularTendencia(lucroEstimado, lucroEstimadoAnterior);
+    
+    // Atualizar valores
+    document.getElementById('kpiVendas').textContent = formatCurrency(totalVendas);
+    document.getElementById('kpiTicket').textContent = formatCurrency(ticketMedio);
+    document.getElementById('kpiPedidos').textContent = totalPedidos;
+    document.getElementById('kpiDivergencias').textContent = formatPercent(percentualDivergencias);
+    document.getElementById('kpiCaixa').textContent = formatCurrency(totalCaixa);
+    document.getElementById('kpiLucro').textContent = formatCurrency(lucroEstimado);
+    
+    // Atualizar tendências
+    updateTrendIndicator('kpiVendasTrend', tendenciaVendas);
+    updateTrendIndicator('kpiTicketTrend', tendenciaTicket);
+    updateTrendIndicator('kpiPedidosTrend', tendenciaPedidos);
+    updateTrendIndicator('kpiDivergenciasTrend', -tendenciaDivergencias); // Negativo porque menos divergências é melhor
+    updateTrendIndicator('kpiCaixaTrend', tendenciaCaixa, true); // true = mostrar como status
+    updateTrendIndicator('kpiLucroTrend', tendenciaLucro);
+    
+    currentData = {
+        vendas: totalVendas,
+        ticket: ticketMedio,
+        pedidos: totalPedidos,
+        divergencias: percentualDivergencias,
+        caixa: totalCaixa,
+        lucro: lucroEstimado,
+        turnos: turnos
+    };
+}
+
+// NOVA FUNÇÃO PARA ATUALIZAR INDICADORES DE TENDÊNCIA
+function updateTrendIndicator(elementId, percentChange, isStatus = false) {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+    
+    if (isStatus) {
+        // Para status (como caixa atual)
+        element.innerHTML = `
+            <i class="fas fa-circle text-success-500 mr-1"></i>
+            <span>Atualizado</span>
+        `;
+    } else {
+        // Para tendências
+        const isPositive = percentChange >= 0;
+        const icon = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
+        const colorClass = isPositive ? 'text-success-500' : 'text-danger-500';
+        
+        element.innerHTML = `
+            <i class="fas ${icon} ${colorClass} mr-1"></i>
+            <span>${Math.abs(percentChange).toFixed(1)}%</span>
+        `;
+    }
+}
 
             async function updateKPIs(turnos) {
                 let totalVendas = 0;
@@ -1626,44 +1817,316 @@
                 }).join('');
             }
 
-            async function updateTimeline() {
-                try {
-                    const timeline = [
-                        {
-                            id: 1,
-                            type: 'abertura',
-                            title: 'Turno Manhã Aberto',
-                            description: 'Turno aberto por João Silva',
-                            timestamp: new Date(),
-                            icon: 'fa-play-circle',
-                            color: 'success'
-                        },
-                        {
-                            id: 2,
-                            type: 'fechamento',
-                            title: 'Turno Noite Fechado',
-                            description: 'Turno fechado por Maria Santos - R$ 1.250,00',
-                            timestamp: new Date(Date.now() - 3600000),
-                            icon: 'fa-stop-circle',
-                            color: 'danger'
-                        },
-                        {
-                            id: 3,
-                            type: 'ajuste',
-                            title: 'Ajuste de Caixa',
-                            description: 'Diferença de R$ 5,00 registrada',
-                            timestamp: new Date(Date.now() - 7200000),
-                            icon: 'fa-edit',
-                            color: 'warning'
-                        }
-                    ];
-                    
-                    renderTimeline(timeline);
-                    
-                } catch (error) {
-                    console.error('Erro ao carregar timeline:', error);
-                }
+            // SUBSTITUIR A FUNÇÃO updateTimeline COMPLETA
+async function updateTimeline(startDate = null, endDate = null) {
+    try {
+        const events = [];
+        
+        // Se não houver datas, usar últimas 24 horas
+        if (!startDate || !endDate) {
+            endDate = new Date();
+            startDate = new Date();
+            startDate.setHours(startDate.getHours() - 24);
+        }
+        
+        // Buscar abertura e fechamento de turnos
+        const turnosQuery = await db.collection('turnos')
+            .orderBy('createdAt', 'desc')
+            .limit(20)
+            .get();
+            
+        turnosQuery.forEach(doc => {
+            const turno = doc.data();
+            const turnoId = doc.id;
+            
+            // Evento de abertura
+            if (turno.abertura && turno.createdAt) {
+                events.push({
+                    id: `${turnoId}_abertura`,
+                    type: 'abertura',
+                    title: `Turno ${turnoId.split('_')[1]} Aberto`,
+                    description: `Aberto por ${turno.abertura.responsavelNome || 'Desconhecido'}`,
+                    timestamp: turno.createdAt.toDate ? turno.createdAt.toDate() : new Date(turno.createdAt),
+                    icon: 'fa-play-circle',
+                    color: 'success',
+                    turnoId: turnoId,
+                    responsavel: turno.abertura.responsavelNome
+                });
             }
+            
+            // Evento de fechamento
+            if (turno.status === 'fechado' && turno.closedAt) {
+                const totalVendido = turno.totalVendidoCalculadoFinal || 0;
+                events.push({
+                    id: `${turnoId}_fechamento`,
+                    type: 'fechamento',
+                    title: `Turno ${turnoId.split('_')[1]} Fechado`,
+                    description: `Fechado por ${turno.fechamento?.responsavelNome || 'Desconhecido'} - ${formatCurrency(totalVendido)}`,
+                    timestamp: turno.closedAt.toDate ? turno.closedAt.toDate() : new Date(turno.closedAt),
+                    icon: 'fa-stop-circle',
+                    color: 'danger',
+                    turnoId: turnoId,
+                    responsavel: turno.fechamento?.responsavelNome,
+                    valor: totalVendido
+                });
+            }
+            
+            // Evento de divergência
+            if (turno.diferencaCaixaFinal && Math.abs(turno.diferencaCaixaFinal) > 0.01) {
+                events.push({
+                    id: `${turnoId}_divergencia`,
+                    type: 'divergencia',
+                    title: 'Divergência Registrada',
+                    description: `Diferença de ${formatCurrency(Math.abs(turno.diferencaCaixaFinal))} no turno ${turnoId.split('_')[1]}`,
+                    timestamp: turno.closedAt?.toDate ? turno.closedAt.toDate() : new Date(),
+                    icon: 'fa-exclamation-triangle',
+                    color: 'warning',
+                    turnoId: turnoId,
+                    valor: turno.diferencaCaixaFinal
+                });
+            }
+        });
+        
+        // Buscar logs de auditoria se existirem
+        try {
+            const auditQuery = await db.collection('audit_logs')
+                .orderBy('timestamp', 'desc')
+                .limit(10)
+                .get();
+                
+            auditQuery.forEach(doc => {
+                const log = doc.data();
+                
+                if (log.action === 'user_created') {
+                    events.push({
+                        id: doc.id,
+                        type: 'usuario',
+                        title: 'Novo Usuário Criado',
+                        description: `${log.targetUserName || 'Usuário'} adicionado ao sistema`,
+                        timestamp: log.timestamp.toDate ? log.timestamp.toDate() : new Date(),
+                        icon: 'fa-user-plus',
+                        color: 'info'
+                    });
+                }
+                
+                if (log.action === 'price_update') {
+                    events.push({
+                        id: doc.id,
+                        type: 'preco',
+                        title: 'Preços Atualizados',
+                        description: `${log.changedCount || 0} preços alterados`,
+                        timestamp: log.timestamp.toDate ? log.timestamp.toDate() : new Date(),
+                        icon: 'fa-tags',
+                        color: 'purple'
+                    });
+                }
+            });
+        } catch (error) {
+            console.log('Coleção audit_logs não encontrada ou vazia');
+        }
+        
+        // Ordenar eventos por timestamp (mais recentes primeiro)
+        events.sort((a, b) => b.timestamp - a.timestamp);
+        
+        // Filtrar por período se especificado
+        const eventsFiltrados = events.filter(event => {
+            return event.timestamp >= startDate && event.timestamp <= endDate;
+        });
+        
+        renderTimeline(eventsFiltrados.slice(0, 50)); // Limitar a 50 eventos
+        
+    } catch (error) {
+        console.error('Erro ao carregar timeline:', error);
+        renderTimeline([]); // Renderizar vazio em caso de erro
+    }
+}
+
+// IMPLEMENTAR FUNÇÃO DE EXPORTAR TIMELINE
+async function exportTimeline() {
+    try {
+        showToast('Preparando exportação...', 'info');
+        
+        // Buscar todos os eventos da timeline
+        const events = [];
+        
+        // Buscar turnos dos últimos 30 dias
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() - 30);
+        
+        const turnosQuery = await db.collection('turnos')
+            .where('status', '==', 'fechado')
+            .orderBy('closedAt', 'desc')
+            .get();
+            
+        turnosQuery.forEach(doc => {
+            const turno = doc.data();
+            const turnoId = doc.id;
+            
+            if (turno.closedAt) {
+                const data = turno.closedAt.toDate ? turno.closedAt.toDate() : new Date(turno.closedAt);
+                
+                events.push({
+                    data: data.toLocaleString('pt-BR'),
+                    tipo: 'Fechamento',
+                    turno: turnoId,
+                    responsavel: turno.fechamento?.responsavelNome || 'N/A',
+                    totalVendido: turno.totalVendidoCalculadoFinal || 0,
+                    diferenca: turno.diferencaCaixaFinal || 0,
+                    observacoes: turno.fechamento?.observacoes || ''
+                });
+            }
+        });
+        
+        if (events.length === 0) {
+            showToast('Nenhum evento encontrado para exportar', 'warning');
+            return;
+        }
+        
+        // Converter para CSV
+        const headers = ['Data/Hora', 'Tipo', 'Turno', 'Responsável', 'Total Vendido', 'Diferença', 'Observações'];
+        const csvContent = [
+            headers.join(','),
+            ...events.map(event => [
+                `"${event.data}"`,
+                event.tipo,
+                event.turno,
+                `"${event.responsavel}"`,
+                event.totalVendido.toFixed(2).replace('.', ','),
+                event.diferenca.toFixed(2).replace('.', ','),
+                `"${event.observacoes}"`
+            ].join(','))
+        ].join('\n');
+        
+        // Criar blob e download
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `timeline_${getFormattedDate()}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showToast(`Timeline exportada com sucesso (${events.length} eventos)`, 'success');
+        
+    } catch (error) {
+        console.error('Erro ao exportar timeline:', error);
+        showToast('Erro ao exportar timeline', 'error');
+    }
+}
+
+// IMPLEMENTAR BUSCA NA TIMELINE
+function setupTimelineSearch() {
+    const searchInput = document.getElementById('timelineSearch');
+    if (!searchInput) return;
+    
+    let searchTimeout;
+    
+    searchInput.addEventListener('input', (e) => {
+        clearTimeout(searchTimeout);
+        const searchTerm = e.target.value.toLowerCase();
+        
+        searchTimeout = setTimeout(() => {
+            const timelineItems = document.querySelectorAll('.timeline-item');
+            
+            timelineItems.forEach(item => {
+                const title = item.querySelector('h4')?.textContent.toLowerCase() || '';
+                const description = item.querySelector('p')?.textContent.toLowerCase() || '';
+                
+                if (!searchTerm || title.includes(searchTerm) || description.includes(searchTerm)) {
+                    item.style.display = '';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // Mostrar mensagem se nenhum resultado
+            const visibleItems = document.querySelectorAll('.timeline-item:not([style*="display: none"])');
+            const container = document.getElementById('timelineContainer');
+            
+            const noResultsMsg = container.querySelector('.no-results-message');
+            if (visibleItems.length === 0 && searchTerm) {
+                if (!noResultsMsg) {
+                    const msg = document.createElement('div');
+                    msg.className = 'no-results-message text-center py-8 text-gray-500';
+                    msg.innerHTML = `
+                        <i class="fas fa-search text-3xl mb-2"></i>
+                        <p>Nenhum evento encontrado para "${searchTerm}"</p>
+                    `;
+                    container.appendChild(msg);
+                }
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        }, 300);
+    });
+}
+
+// IMPLEMENTAR FILTRO DO GRÁFICO DE VENDAS POR HORA
+function setupSalesHoursFilter() {
+    const select = document.getElementById('salesHoursPeriod');
+    if (!select) return;
+    
+    select.addEventListener('change', async (e) => {
+        const period = e.target.value;
+        let startDate, endDate;
+        
+        const now = new Date();
+        endDate = new Date(now);
+        
+        switch(period) {
+            case 'today':
+                startDate = new Date(now);
+                startDate.setHours(0, 0, 0, 0);
+                break;
+            case 'week':
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 7);
+                break;
+            case 'month':
+                startDate = new Date(now);
+                startDate.setMonth(now.getMonth() - 1);
+                break;
+            default:
+                startDate = new Date(now);
+                startDate.setHours(0, 0, 0, 0);
+        }
+        
+        // Recarregar apenas o gráfico de vendas por hora
+        await updateSalesHoursChartWithPeriod(startDate, endDate);
+    });
+}
+
+// FUNÇÃO PARA ATUALIZAR APENAS O GRÁFICO DE VENDAS POR HORA
+async function updateSalesHoursChartWithPeriod(startDate, endDate) {
+    try {
+        // Buscar turnos no período
+        const turnosQuery = await db.collection('turnos')
+            .where('status', '==', 'fechado')
+            .get();
+            
+        const turnos = [];
+        turnosQuery.forEach(doc => {
+            const data = doc.data();
+            const turnoId = doc.id;
+            const [dataPart] = turnoId.split('_');
+            const turnoDate = new Date(dataPart + 'T12:00:00');
+            
+            if (turnoDate >= startDate && turnoDate <= endDate) {
+                turnos.push({ id: turnoId, ...data });
+            }
+        });
+        
+        // Atualizar apenas o gráfico
+        updateSalesHoursChart(turnos);
+        
+    } catch (error) {
+        console.error('Erro ao atualizar gráfico de vendas por hora:', error);
+    }
+}
 
             function renderTimeline(timeline) {
                 const container = document.getElementById('timelineContainer');
@@ -1932,31 +2395,282 @@
                 }
             }
 
-            function setupEventListeners() {
-                document.getElementById('refreshData').addEventListener('click', () => {
-                    loadDashboardData();
-                });
-                
-                document.getElementById('clearAllAlerts').addEventListener('click', () => {
-                    if (confirm('Tem certeza que deseja marcar todos os alertas como resolvidos?')) {
-                        showToast('Todos os alertas foram marcados como resolvidos', 'success');
-                        updateAlertsAndTurnos();
-                    }
-                });
-                
-                document.getElementById('refreshTurnos').addEventListener('click', () => {
-                    updateTurnos();
-                });
-                
-                document.getElementById('exportTimeline').addEventListener('click', () => {
-                    showToast('Exportação iniciada...', 'info');
-                });
-                
-                document.getElementById('timelineSearch').addEventListener('input', (e) => {
-                    const searchTerm = e.target.value.toLowerCase();
-                    // Implementar busca na timeline
-                });
+            // ATUALIZAR A FUNÇÃO setupEventListeners
+function setupEventListeners() {
+    // Botão de refresh principal
+    document.getElementById('refreshData').addEventListener('click', () => {
+        const activePeriod = document.querySelector('.filter-chip.active');
+        if (activePeriod?.dataset.period === 'custom') {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            if (startDate && endDate) {
+                applyCustomRangeFilter(startDate, endDate);
+            } else {
+                loadDashboardData();
             }
+        } else {
+            loadDashboardData();
+        }
+    });
+    
+    // Filtros de turno e pagamento
+    document.getElementById('filterTurno').addEventListener('change', () => {
+        const activePeriod = document.querySelector('.filter-chip.active');
+        if (activePeriod) {
+            const period = activePeriod.dataset.period;
+            if (period === 'custom') {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                if (startDate && endDate) {
+                    applyCustomRangeFilter(startDate, endDate);
+                }
+            } else {
+                applyPeriodFilter(period);
+            }
+        } else {
+            loadDashboardData();
+        }
+    });
+    
+    document.getElementById('filterPagamento').addEventListener('change', () => {
+        const activePeriod = document.querySelector('.filter-chip.active');
+        if (activePeriod) {
+            const period = activePeriod.dataset.period;
+            if (period === 'custom') {
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                if (startDate && endDate) {
+                    applyCustomRangeFilter(startDate, endDate);
+                }
+            } else {
+                applyPeriodFilter(period);
+            }
+        } else {
+            loadDashboardData();
+        }
+    });
+    
+    // Limpar alertas
+    document.getElementById('clearAllAlerts').addEventListener('click', async () => {
+        if (confirm('Tem certeza que deseja marcar todos os alertas como resolvidos?')) {
+            try {
+                // Buscar todos os alertas ativos
+                const alertElements = document.querySelectorAll('[data-alert-id]');
+                const alertIds = Array.from(alertElements).map(el => el.dataset.alertId);
+                
+                // Criar batch para atualizar todos
+                const batch = db.batch();
+                
+                for (const alertId of alertIds) {
+                    // Criar registro de resolução
+                    const resolucaoRef = db.collection('alertas_resolvidos').doc();
+                    batch.set(resolucaoRef, {
+                        turnoId: alertId,
+                        resolvidoPor: auth.currentUser.uid,
+                        resolvidoEm: firebase.firestore.FieldValue.serverTimestamp(),
+                        tipo: 'limpeza_em_massa'
+                    });
+                }
+                
+                await batch.commit();
+                
+                showToast('Todos os alertas foram marcados como resolvidos', 'success');
+                updateAlertsAndTurnos();
+                
+            } catch (error) {
+                console.error('Erro ao limpar alertas:', error);
+                showToast('Erro ao limpar alertas', 'error');
+            }
+        }
+    });
+    
+    // Refresh turnos
+    document.getElementById('refreshTurnos').addEventListener('click', () => {
+        const icon = document.querySelector('#refreshTurnos i');
+        icon.classList.add('animate-spin');
+        
+        updateTurnos().finally(() => {
+            icon.classList.remove('animate-spin');
+        });
+    });
+    
+    // Exportar timeline
+    document.getElementById('exportTimeline').addEventListener('click', () => {
+        exportTimeline();
+    });
+    
+    // Configurar busca na timeline
+    setupTimelineSearch();
+    
+    // Configurar filtro de vendas por hora
+    setupSalesHoursFilter();
+}
+
+// IMPLEMENTAR FUNÇÃO PARA RESOLVER ALERTAS INDIVIDUALMENTE
+async function resolveAlert(alertId, justification = '') {
+    try {
+        // Criar registro de resolução
+        await db.collection('alertas_resolvidos').add({
+            turnoId: alertId,
+            resolvidoPor: auth.currentUser.uid,
+            resolvidoEm: firebase.firestore.FieldValue.serverTimestamp(),
+            justificativa: justification,
+            tipo: 'resolucao_individual'
+        });
+        
+        showToast(`Alerta ${alertId} resolvido com sucesso`, 'success');
+        updateAlertsAndTurnos();
+        
+    } catch (error) {
+        console.error('Erro ao resolver alerta:', error);
+        showToast('Erro ao resolver alerta', 'error');
+    }
+}
+
+// MELHORAR A FUNÇÃO renderAlerts
+function renderAlerts(alertas) {
+    const container = document.getElementById('alertsContainer');
+    
+    if (alertas.length === 0) {
+        container.innerHTML = `
+            <div class="flex items-center justify-center py-8 text-gray-500">
+                <div class="text-center">
+                    <i class="fas fa-check-circle text-3xl mb-2 text-success-500"></i>
+                    <p>Nenhum alerta no momento</p>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    // Agrupar alertas por severidade
+    const alertasCriticos = alertas.filter(a => a.severity === 'critical');
+    const alertasAtencao = alertas.filter(a => a.severity === 'warning');
+    
+    let html = '';
+    
+    // Renderizar alertas críticos primeiro
+    if (alertasCriticos.length > 0) {
+        html += '<div class="mb-4"><h5 class="text-xs font-semibold text-danger-600 mb-2">CRÍTICOS</h5>';
+        html += alertasCriticos.map(alerta => renderAlertItem(alerta)).join('');
+        html += '</div>';
+    }
+    
+    // Depois alertas de atenção
+    if (alertasAtencao.length > 0) {
+        html += '<div><h5 class="text-xs font-semibold text-warning-600 mb-2">ATENÇÃO</h5>';
+        html += alertasAtencao.map(alerta => renderAlertItem(alerta)).join('');
+        html += '</div>';
+    }
+    
+    container.innerHTML = html;
+    
+    // Re-anexar event listeners
+    container.querySelectorAll('[data-alert-id]').forEach(element => {
+        element.addEventListener('click', (e) => {
+            if (!e.target.classList.contains('resolve-alert-btn')) {
+                const alertId = element.dataset.alertId;
+                const alerta = alertas.find(a => a.id === alertId);
+                showAlertModal(alerta);
+            }
+        });
+    });
+    
+    container.querySelectorAll('.resolve-alert-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const alertId = btn.dataset.alertId;
+            resolveAlert(alertId);
+        });
+    });
+}
+
+// FUNÇÃO AUXILIAR PARA RENDERIZAR UM ITEM DE ALERTA
+function renderAlertItem(alerta) {
+    const timeDiff = new Date() - alerta.timestamp;
+    const minutesAgo = Math.floor(timeDiff / 60000);
+    const hoursAgo = Math.floor(minutesAgo / 60);
+    
+    let timeText = 'agora';
+    if (hoursAgo > 0) {
+        timeText = `há ${hoursAgo}h`;
+    } else if (minutesAgo > 0) {
+        timeText = `há ${minutesAgo}min`;
+    }
+    
+    return `
+        <div class="severity-${alerta.severity} p-4 rounded-lg table-row-hover cursor-pointer mb-2 transition-all duration-200" data-alert-id="${alerta.id}">
+            <div class="flex items-center justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center mb-1">
+                        <i class="fas fa-exclamation-triangle text-${alerta.severity === 'critical' ? 'danger' : 'warning'}-500 mr-2"></i>
+                        <h4 class="font-semibold text-gray-800">${alerta.title}</h4>
+                        <span class="ml-2 px-2 py-1 text-xs font-medium rounded-full ${alerta.severity === 'critical' ? 'bg-danger-100 text-danger-800' : 'bg-warning-100 text-warning-800'}">
+                            ${alerta.severity === 'critical' ? 'Crítico' : 'Atenção'}
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600">${alerta.message}</p>
+                    <div class="flex items-center space-x-4 mt-1">
+                        <p class="text-xs text-gray-500">${timeText}</p>
+                        <p class="text-xs text-gray-500">Diferença: ${formatCurrency(Math.abs(alerta.details.diffVendasPagamentos))}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button class="resolve-alert-btn bg-success-500 hover:bg-success-600 text-white px-3 py-1 rounded text-sm transition-all" data-alert-id="${alerta.id}">
+                        <i class="fas fa-check mr-1"></i>Resolver
+                    </button>
+                    <i class="fas fa-chevron-right text-gray-400"></i>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ADICIONAR FUNÇÃO PARA ATUALIZAR AUTOMATICAMENTE O PERÍODO DE VENDAS POR HORA
+function initializeChartPeriods() {
+    // Definir período padrão para hoje
+    const salesHoursPeriod = document.getElementById('salesHoursPeriod');
+    if (salesHoursPeriod) {
+        salesHoursPeriod.value = 'today';
+    }
+}
+
+// FUNÇÃO PARA FORMATAR PERÍODO PARA EXIBIÇÃO
+function formatPeriodDisplay(startDate, endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    const sameDay = start.toDateString() === end.toDateString();
+    
+    if (sameDay) {
+        return start.toLocaleDateString('pt-BR');
+    } else {
+        return `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}`;
+    }
+}
+
+// ADICIONAR INDICADOR DE PERÍODO ATUAL NO DASHBOARD
+function updatePeriodIndicator(startDate, endDate) {
+    // Criar ou atualizar indicador de período
+    let indicator = document.getElementById('currentPeriodIndicator');
+    
+    if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'currentPeriodIndicator';
+        indicator.className = 'bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium';
+        
+        // Inserir após os filtros
+        const filterContainer = document.querySelector('.filter-chip').parentElement;
+        if (filterContainer) {
+            filterContainer.appendChild(indicator);
+        }
+    }
+    
+    indicator.innerHTML = `
+        <i class="fas fa-calendar-alt mr-1"></i>
+        ${formatPeriodDisplay(startDate, endDate)}
+    `;
+}
 
             // Inicialização
             setupTabs();
