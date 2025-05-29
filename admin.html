@@ -1013,7 +1013,10 @@
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             protectRoute(['admin']);
-
+                // Importar classe UserManager se disponível
+                if (window.UserManager && !window.userManager) {
+                    window.userManager = new window.UserManager();
+                }
             const formatCurrency = (value) => {
                 return new Intl.NumberFormat('pt-BR', {
                     style: 'currency',
@@ -2376,24 +2379,23 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
             }
 
             async function loadUsersData() {
-                // Implementação simplificada - reutilizar do código original
-                showToast('Carregando dados de usuários...', 'info');
-                
-                if (window.userManager) {
-                    try {
-                        await window.userManager.load();
-                        return true;
-                    } catch (error) {
-                        console.error("Erro ao carregar usuários:", error);
-                        showToast("Erro ao carregar usuários: " + error.message, "error");
-                        return false;
-                    }
-                } else {
-                    console.warn("UserManager não encontrado");
-                    showToast("Sistema de usuários não encontrado. Recarregue a página.", "error");
-                    return false;
-                }
-            }
+    showToast('Carregando dados de usuários...', 'info');
+    
+    // Criar o userManager se não existir
+    if (!window.userManager) {
+        console.log("Criando nova instância do UserManager...");
+        window.userManager = new UserManager();
+    }
+    
+    try {
+        await window.userManager.load();
+        return true;
+    } catch (error) {
+        console.error("Erro ao carregar usuários:", error);
+        showToast("Erro ao carregar usuários: " + error.message, "error");
+        return false;
+    }
+}
 
             // ATUALIZAR A FUNÇÃO setupEventListeners
 function setupEventListeners() {
