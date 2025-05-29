@@ -1808,6 +1808,8 @@ if (toggleInactive) {
     }
 }
 
+window.UserManager = UserManager;
+
     // Gerenciador de Abas
     class TabManager {
         constructor() {
