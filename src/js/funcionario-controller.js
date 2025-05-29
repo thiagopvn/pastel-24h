@@ -1214,88 +1214,105 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 </div>
             `;
-        } else {
-            alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
-            const diferenca = Math.abs(divergencia);
-            const tipo = divergencia > 0 ? 'faltam nos pagamentos' : 'sobram nos pagamentos';
-            
-            alertContainer.innerHTML = `
-                <div class="text-red-700">
-                    <div class="flex items-center mb-2">
-                        <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
-                        <strong>🚨 Divergência detectada!</strong>
-                    </div>
-                    <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>📈 <strong>Total Vendido:</strong></div>
-                            <div>${formatToBRL(totalVendido)}</div>
-                            <div>💳 <strong>Total Pagamentos:</strong></div>
-                            <div>${formatToBRL(totalRegistrado)}</div>
-                            <div>⚖️ <strong>Diferença:</strong></div>
-                            <div class="font-bold text-red-600">${formatToBRL(diferenca)} (${tipo})</div>
-                        </div>
-                    </div>
+        } else if (divergencia > 0) {
+    // Falta nos pagamentos - problema
+    alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
+    alertContainer.innerHTML = `
+        <div class="text-red-700">
+            <div class="flex items-center mb-2">
+                <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
+                <strong>🚨 Divergência detectada!</strong>
+            </div>
+            <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
+                <div class="grid grid-cols-2 gap-2">
+                    <div>📈 <strong>Total Vendido:</strong></div>
+                    <div>${formatToBRL(totalVendido)}</div>
+                    <div>💳 <strong>Total Pagamentos:</strong></div>
+                    <div>${formatToBRL(totalRegistrado)}</div>
+                    <div>⚖️ <strong>Diferença:</strong></div>
+                    <div class="font-bold text-red-600">${formatToBRL(Math.abs(divergencia))} (faltam nos pagamentos)</div>
                 </div>
+            </div>
+        </div>
+    `;
+} else {
+    // Sobra nos pagamentos - OK
+    alertContainer.className = 'mt-4 p-4 rounded-lg border bg-green-50 border-green-300';
+    alertContainer.innerHTML = `
+        <div class="flex items-center text-green-700">
+            <i class="fas fa-check-circle mr-2 text-lg"></i>
+            <div>
+                <strong>✅ Valores conferem com sobra!</strong>
+                <div class="text-sm mt-1">
+                    Vendas: ${formatToBRL(totalVendido)} | Pagamentos: ${formatToBRL(totalRegistrado)}
+                    <br>Sobra de ${formatToBRL(Math.abs(divergencia))} nos pagamentos
+                </div>
+            </div>
+        </div>
+    `;
+}
+    }
+
+function updatePhysicalCashDifference() {
+    console.log("🏦 Atualizando diferença de caixa físico...");
+    
+    const caixaInicial = parseCurrencyToNumber(caixaInicioInput?.value || '0');
+    const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
+    const caixaFinalContado = parseCurrencyToNumber(caixaFinalContadoInput?.value || '0');
+    
+    const caixaEsperado = caixaInicial + pagamentoDinheiro;
+    
+    const diferencaCaixa = caixaFinalContado - caixaEsperado;
+    
+    console.log(`💰 Caixa Inicial: ${formatToBRL(caixaInicial)}`);
+    console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
+    console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
+    console.log(`🔢 Caixa Contado: ${formatToBRL(caixaFinalContado)}`);
+    console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
+    
+    if (caixaDiferencaInput) {
+        caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
+    }
+    
+    if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
+        if (Math.abs(diferencaCaixa) < 0.01) {
+            // Caixa exato - perfeito
+            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
+            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
+            divergenciaCaixaAlertaP.innerHTML = `
+                <i class="fas fa-check-circle mr-1"></i>
+                ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
+            `;
+        } else if (diferencaCaixa < 0) {
+            // Falta no caixa - PROBLEMA
+            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-red-50 border border-red-300';
+            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-red-700 font-medium';
+            divergenciaCaixaAlertaP.innerHTML = `
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                🚨 Falta de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico
+                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+            `;
+        } else {
+            // Sobra no caixa - OK
+            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
+            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
+            divergenciaCaixaAlertaP.innerHTML = `
+                <i class="fas fa-check-circle mr-1"></i>
+                ✅ Caixa físico com sobra de ${formatToBRL(diferencaCaixa)}! 
+                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
             `;
         }
     }
-
-    function updatePhysicalCashDifference() {
-        console.log("🏦 Atualizando diferença de caixa físico...");
-        
-        const caixaInicial = parseCurrencyToNumber(caixaInicioInput?.value || '0');
-        const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
-        const caixaFinalContado = parseCurrencyToNumber(caixaFinalContadoInput?.value || '0');
-        
-        const caixaEsperado = caixaInicial + pagamentoDinheiro;
-        
-        const diferencaCaixa = caixaFinalContado - caixaEsperado;
-        
-        console.log(`💰 Caixa Inicial: ${formatToBRL(caixaInicial)}`);
-        console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
-        console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
-        console.log(`🔢 Caixa Contado: ${formatToBRL(caixaFinalContado)}`);
-        console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
-        
-        if (caixaDiferencaInput) {
-            caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
-        }
-        
-        if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
-            if (Math.abs(diferencaCaixa) < 0.01) {
-                caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
-                divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
-                divergenciaCaixaAlertaP.innerHTML = `
-                    <i class="fas fa-check-circle mr-1"></i>
-                    ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
-                `;
-            } else {
-                const isPositive = diferencaCaixa > 0;
-                const bgClass = isPositive ? 'bg-yellow-50 border-yellow-300' : 'bg-red-50 border-red-300';
-                const textClass = isPositive ? 'text-yellow-700' : 'text-red-700';
-                const tipo = isPositive ? 'sobra' : 'falta';
-                const icon = isPositive ? 'fa-info-circle' : 'fa-exclamation-triangle';
-                const emoji = isPositive ? '⚠️' : '🚨';
-                
-                caixaDiferencaContainer.className = `p-4 rounded-lg ${bgClass}`;
-                divergenciaCaixaAlertaP.className = `text-sm mt-2 ${textClass} font-medium`;
-                divergenciaCaixaAlertaP.innerHTML = `
-                    <i class="fas ${icon} mr-1"></i>
-                    ${emoji} ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico
-                    <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
-                `;
-            }
-        }
-        
-        return {
-            caixaInicial,
-            pagamentoDinheiro,
-            caixaEsperado,
-            caixaFinalContado,
-            diferencaCaixa,
-            isValid: Math.abs(diferencaCaixa) < 0.01
-        };
-    }
+    
+    return {
+        caixaInicial,
+        pagamentoDinheiro,
+        caixaEsperado,
+        caixaFinalContado,
+        diferencaCaixa,
+        isValid: diferencaCaixa >= -0.01
+    };
+}
 
     function setupAllCurrencyMasks() {
         console.log("🎭 Configurando máscaras de moeda...");
@@ -1725,26 +1742,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
             const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
 
-            let divergenciaValorDetected = false;
-            if (Math.abs(totalVendidoCalc - totalPagamentos) > 0.015) {
-                divergenciaValorDetected = true;
-            }
-            
-            const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference();
+            // Apenas detecta divergência se faltar dinheiro
+let divergenciaValorDetected = false;
+if ((totalVendidoCalc - totalPagamentos) > 0.015) { // Falta pagamento
+    divergenciaValorDetected = true;
+}
+
+const { diferencaCaixa } = updatePhysicalCashDifference();
+const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
             
             fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
             fechamentoDivergenciaAlertaGeralDiv.textContent = '';
             
             let confirmMsg = "Você está prestes a fechar o turno.";
-            if (divergenciaValorDetected || !caixaValido) {
-                let alertText = "ATENÇÃO: Divergências encontradas!\n";
-                if (divergenciaValorDetected) {
-                    alertText += `- Total Vendido (${formatToBRL(totalVendidoCalc)}) difere do Total de Pagamentos (${formatToBRL(totalPagamentos)}). Diferença: ${formatToBRL(totalVendidoCalc - totalPagamentos)}\n`;
-                }
-                if (!caixaValido) {
-                    alertText += `- Diferença no caixa físico: ${formatToBRL(Math.abs(diferencaCaixa))}\n`;
-                }
-                alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
+            if (divergenciaValorDetected || caixaComProblema) {
+    let alertText = "ATENÇÃO: Divergências encontradas!\n";
+    if (divergenciaValorDetected) {
+        alertText += `- Faltam ${formatToBRL(totalVendidoCalc - totalPagamentos)} nos pagamentos\n`;
+    }
+    if (caixaComProblema) {
+        alertText += `- Falta ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico\n`;
+    }
+    alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
                 
                 fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>');
                 fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
@@ -2245,19 +2264,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { isValid: caixaValido, diferencaCaixa } = updatePhysicalCashDifference();
 
         const diffValores = Math.abs(totalVendidoCalc - totalPagamentos);
-        const temDivergenciaVendas = diffValores > 0.01;
+        const temProblemaVendas = (totalVendidoCalc - totalPagamentos) > 0.01; // Falta pagamento
+        const temProblemaCaixa = diferencaCaixa < -0.01; // Falta no caixa
 
-        if (temDivergenciaVendas || !caixaValido) {
+        if (temProblemaVendas || temProblemaCaixa) {
             let message = "<strong>🚨 ATENÇÃO: DIVERGÊNCIAS DETECTADAS!</strong><br><br>";
             
-            if (temDivergenciaVendas) {
+            if (temProblemaVendas) {
                 message += `<div class="bg-white bg-opacity-50 p-3 rounded mb-2">`;
                 message += `📊 <strong>Vendas vs Pagamentos:</strong><br>`;
                 message += `• Total Vendido: ${formatToBRL(totalVendidoCalc)}<br>`;
                 message += `• Total Pagamentos: ${formatToBRL(totalPagamentos)}<br>`;
-                message += `• <span class="font-bold text-lg">Diferença: ${formatToBRL(totalVendidoCalc - totalPagamentos)}</span>`;
+                message += `• <span class="font-bold text-lg">Faltam: ${formatToBRL(totalVendidoCalc - totalPagamentos)}</span>`;
                 message += `</div>`;
             }
+
+                if (temProblemaCaixa) {
+                    message += `<div class="bg-white bg-opacity-50 p-3 rounded">`;
+                    message += `🏦 <strong>Caixa Físico:</strong><br>`;
+                    message += `• <span class="font-bold text-lg">Falta: ${formatToBRL(Math.abs(diferencaCaixa))}</span>`;
+                    message += `</div>`;
+                }
             
             if (!caixaValido) {
                 message += `<div class="bg-white bg-opacity-50 p-3 rounded">`;
