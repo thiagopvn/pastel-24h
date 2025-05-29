@@ -902,18 +902,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 class UserManager {
     constructor() {
-        this.container = document.getElementById('listaUsuariosContainer');
-        this.form = document.getElementById('formNovoUsuario');
-        this.showInactive = false;
-        
-        if (!this.container) {
-            console.warn("Container 'listaUsuariosContainer' não encontrado");
-        }
-        
-        if (!this.form) {
-            console.warn("Formulário 'formNovoUsuario' não encontrado");
-        }
+    this.container = document.getElementById('listaUsuariosContainer');
+    this.form = document.getElementById('formNovoUsuario');
+    this.showInactive = localStorage.getItem('admin_showInactiveUsers') === 'true';
+    if (!this.container) {
+        console.warn("Container 'listaUsuariosContainer' não encontrado");
     }
+    if (!this.form) {
+        console.warn("Formulário 'formNovoUsuario' não encontrado");
+    }
+    const toggleCheckbox = document.getElementById('toggleInactiveUsers');
+    if (toggleCheckbox) {
+        toggleCheckbox.checked = this.showInactive;
+    }
+}
 
     async ensureUserStatusField() {
         try {
@@ -997,43 +999,45 @@ class UserManager {
     }
 
     async fetchUsers() {
-        if (!auth.currentUser) {
-            throw new Error("Usuário não autenticado");
-        }
-        
-        try {
-            const snapshot = await db.collection('usuarios').get();
-            const users = [];
-            
-            snapshot.forEach(doc => {
-                const userData = doc.data();
-                
-                const isInactive = userData.status === 'inativo' || 
-                                   userData.active === false || 
-                                   userData.deletedAt !== undefined;
-                
-                if (!this.showInactive && isInactive) {
-                    return;
-                }
-                
-                users.push({
-                    id: doc.id,
-                    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
-                    email: userData.email || 'Sem email',
-                    role: userData.role || 'funcionario',
-                    status: userData.status || (isInactive ? 'inativo' : 'ativo'),
-                    createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
-                    deletedAt: userData.deletedAt || null
-                });
-            });
-            
-            users.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-            return users;
-            
-        } catch (error) {
-            throw error;
-        }
+    if (!auth.currentUser) {
+        throw new Error("Usuário não autenticado");
     }
+    
+    try {
+        const snapshot = await db.collection('usuarios').get();
+        const users = [];
+        
+        snapshot.forEach(doc => {
+            const userData = doc.data();
+            
+            const isInactive = userData.status === 'inativo' || 
+                               userData.active === false || 
+                               userData.deletedAt !== undefined;
+            
+            // CORREÇÃO: Sempre pular usuários inativos por padrão
+            // a menos que showInactive seja explicitamente true
+            if (isInactive && !this.showInactive) {
+                return; // pula este usuário
+            }
+            
+            users.push({
+                id: doc.id,
+                nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                email: userData.email || 'Sem email',
+                role: userData.role || 'funcionario',
+                status: userData.status || (isInactive ? 'inativo' : 'ativo'),
+                createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                deletedAt: userData.deletedAt || null
+            });
+        });
+        
+        users.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+        return users;
+        
+    } catch (error) {
+        throw error;
+    }
+}
 
     async reactivateUser(userId) {
         try {
@@ -1132,120 +1136,124 @@ class UserManager {
         }
     }
 
-    renderUsers() {
-        if (!this.container) return;
-        
-        const totalCount = document.getElementById('totalUsersCount');
-        if (totalCount) {
-            totalCount.textContent = appState.users.length;
-        }
-        
-        if (appState.users.length === 0) {
-            this.container.innerHTML = `
-                <div class="text-center py-12 text-gray-500">
-                    <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <i class="fas fa-users text-2xl text-gray-400"></i>
-                    </div>
-                    <p class="text-lg font-medium">Nenhum usuário encontrado</p>
-                    <p class="text-sm text-gray-400 mt-1">
-                        ${this.showInactive ? 'Não há usuários cadastrados' : 'Todos os usuários estão inativos'}
-                    </p>
+   renderUsers() {
+    if (!this.container) return;
+    
+    const usersToRender = this.showInactive 
+        ? appState.users 
+        : appState.users.filter(u => u.status !== 'inativo');
+    
+    const totalCount = document.getElementById('totalUsersCount');
+    if (totalCount) {
+        totalCount.textContent = usersToRender.length;
+    }
+    
+    if (usersToRender.length === 0) {
+        this.container.innerHTML = `
+            <div class="text-center py-12 text-gray-500">
+                <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-users text-2xl text-gray-400"></i>
                 </div>
-            `;
-            return;
-        }
+                <p class="text-lg font-medium">Nenhum usuário encontrado</p>
+                <p class="text-sm text-gray-400 mt-1">
+                    ${this.showInactive ? 'Não há usuários cadastrados' : 'Todos os usuários estão inativos'}
+                </p>
+            </div>
+        `;
+        return;
+    }
+    
+    this.container.innerHTML = usersToRender.map(usuario => {
+        const isInactive = usuario.status === 'inativo';
+        const isCurrentUser = usuario.id === auth.currentUser.uid;
         
-        this.container.innerHTML = appState.users.map(usuario => {
-            const isInactive = usuario.status === 'inativo';
-            const isCurrentUser = usuario.id === auth.currentUser.uid;
-            
-            return `
-                <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4 ${isInactive ? 'opacity-60' : ''}" 
-                     data-uid="${usuario.id}"
-                     data-status="${usuario.status || 'ativo'}">
-                     
-                    <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+        return `
+            <div class="glass-effect p-6 rounded-xl hover:shadow-lg transition-all duration-200 border border-gray-100 mb-4 ${isInactive ? 'opacity-60' : ''}" 
+                 data-uid="${usuario.id}"
+                 data-status="${usuario.status || 'ativo'}">
+                 
+                <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center space-y-4 lg:space-y-0">
+                    <div class="flex items-center space-x-4 flex-1">
+                        ${!isCurrentUser ? `
+                            <input type="checkbox" 
+                                   class="user-checkbox w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                   data-uid="${usuario.id}">
+                        ` : '<div class="w-4"></div>'}
+                        
                         <div class="flex items-center space-x-4 flex-1">
-                            ${!isCurrentUser ? `
-                                <input type="checkbox" 
-                                       class="user-checkbox w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
-                                       data-uid="${usuario.id}">
-                            ` : '<div class="w-4"></div>'}
+                            <div class="w-14 h-14 bg-gradient-to-br ${isInactive ? 'from-gray-400 to-gray-500' : 'from-primary-500 to-primary-600'} rounded-full flex items-center justify-center shadow-lg">
+                                <i class="fas fa-user text-white text-lg"></i>
+                            </div>
                             
-                            <div class="flex items-center space-x-4 flex-1">
-                                <div class="w-14 h-14 bg-gradient-to-br ${isInactive ? 'from-gray-400 to-gray-500' : 'from-primary-500 to-primary-600'} rounded-full flex items-center justify-center shadow-lg">
-                                    <i class="fas fa-user text-white text-lg"></i>
-                                </div>
+                            <div class="flex-1">
+                                <h4 class="text-lg font-semibold text-gray-800 flex items-center">
+                                    ${usuario.nome || 'Nome não informado'}
+                                    ${isInactive ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Inativo</span>' : ''}
+                                    ${isCurrentUser ? '<span class="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Você</span>' : ''}
+                                </h4>
+                                <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
                                 
-                                <div class="flex-1">
-                                    <h4 class="text-lg font-semibold text-gray-800 flex items-center">
-                                        ${usuario.nome || 'Nome não informado'}
-                                        ${isInactive ? '<span class="ml-2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Inativo</span>' : ''}
-                                        ${isCurrentUser ? '<span class="ml-2 text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Você</span>' : ''}
-                                    </h4>
-                                    <p class="text-gray-600">${usuario.email || 'Email não informado'}</p>
-                                    
-                                    <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                                        <span class="flex items-center">
-                                            <i class="fas fa-fingerprint mr-1"></i>
-                                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
+                                <div class="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                                    <span class="flex items-center">
+                                        <i class="fas fa-fingerprint mr-1"></i>
+                                        <code class="bg-gray-100 px-2 py-1 rounded text-xs">${usuario.id.substring(0, 8)}...</code>
+                                    </span>
+                                    <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
+                                        <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
+                                        ${this.getRoleText(usuario.role)}
+                                    </span>
+                                    ${usuario.deletedAt ? `
+                                        <span class="text-xs text-gray-400">
+                                            <i class="fas fa-clock mr-1"></i>
+                                            Inativado ${this.formatRelativeTime(usuario.deletedAt)}
                                         </span>
-                                        <span class="px-3 py-1 rounded-full text-xs font-medium ${this.getRoleBadgeClass(usuario.role)}">
-                                            <i class="fas ${this.getRoleIcon(usuario.role)} mr-1"></i>
-                                            ${this.getRoleText(usuario.role)}
-                                        </span>
-                                        ${usuario.deletedAt ? `
-                                            <span class="text-xs text-gray-400">
-                                                <i class="fas fa-clock mr-1"></i>
-                                                Inativado ${this.formatRelativeTime(usuario.deletedAt)}
-                                            </span>
-                                        ` : ''}
-                                    </div>
+                                    ` : ''}
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="flex items-center space-x-3">
-                            ${!isCurrentUser ? `
-                                ${isInactive ? `
-                                    <button class="restore-user-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                            data-user-id="${usuario.id}" 
-                                            data-user-name="${usuario.nome}"
-                                            title="Reativar usuário">
-                                        <i class="fas fa-undo mr-1"></i>Reativar
-                                    </button>
-                                ` : `
-                                    <button class="edit-user-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                            data-user-id="${usuario.id}" 
-                                            data-user-name="${usuario.nome}"
-                                            data-user-role="${usuario.role}"
-                                            title="Editar função do usuário">
-                                        <i class="fas fa-edit mr-1"></i>Editar
-                                    </button>
-                                    
-                                    <button class="delete-user-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
-                                            data-user-id="${usuario.id}" 
-                                            data-user-name="${usuario.nome}"
-                                            data-user-email="${usuario.email}"
-                                            title="Excluir usuário">
-                                        <i class="fas fa-trash mr-1"></i>Excluir
-                                    </button>
-                                `}
+                    </div>
+                    
+                    <div class="flex items-center space-x-3">
+                        ${!isCurrentUser ? `
+                            ${isInactive ? `
+                                <button class="restore-user-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        title="Reativar usuário">
+                                    <i class="fas fa-undo mr-1"></i>Reativar
+                                </button>
                             ` : `
-                                <button class="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium shadow-sm cursor-not-allowed" 
-                                        disabled 
-                                        title="Não é possível excluir seu próprio usuário">
-                                    <i class="fas fa-shield-alt mr-1"></i>Protegido
+                                <button class="edit-user-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        data-user-role="${usuario.role}"
+                                        title="Editar função do usuário">
+                                    <i class="fas fa-edit mr-1"></i>Editar
+                                </button>
+                                
+                                <button class="delete-user-btn bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md" 
+                                        data-user-id="${usuario.id}" 
+                                        data-user-name="${usuario.nome}"
+                                        data-user-email="${usuario.email}"
+                                        title="Excluir usuário">
+                                    <i class="fas fa-trash mr-1"></i>Excluir
                                 </button>
                             `}
-                        </div>
+                        ` : `
+                            <button class="bg-gray-300 text-gray-500 px-4 py-2 rounded-lg text-sm font-medium shadow-sm cursor-not-allowed" 
+                                    disabled 
+                                    title="Não é possível excluir seu próprio usuário">
+                                <i class="fas fa-shield-alt mr-1"></i>Protegido
+                            </button>
+                        `}
                     </div>
                 </div>
-            `;
-        }).join('');
-        
-        this.attachEventListeners();
-    }
+            </div>
+        `;
+    }).join('');
+    
+    this.attachEventListeners();
+}
 
     formatRelativeTime(timestamp) {
         if (!timestamp) return '';
@@ -1593,18 +1601,22 @@ class UserManager {
         });
         
         const toggleInactive = document.getElementById('toggleInactiveUsers');
-        if (toggleInactive) {
-            toggleInactive.addEventListener('change', async (e) => {
-                this.showInactive = e.target.checked;
-                await this.load();
-                
-                notifications.showMessage(
-                    this.showInactive ? 'Mostrando todos os usuários' : 'Mostrando apenas usuários ativos',
-                    'info',
-                    3000
-                );
-            });
-        }
+if (toggleInactive) {
+    toggleInactive.addEventListener('change', async (e) => {
+        this.showInactive = e.target.checked;
+        
+        // Persistir estado
+        localStorage.setItem('admin_showInactiveUsers', this.showInactive.toString());
+        
+        await this.load();
+        
+        notifications.showMessage(
+            this.showInactive ? 'Mostrando todos os usuários' : 'Mostrando apenas usuários ativos',
+            'info',
+            3000
+        );
+    });
+}
         
         const selectAllCheckbox = document.getElementById('selectAllUsers');
         if (selectAllCheckbox) {
