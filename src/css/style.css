@@ -1044,10 +1044,15 @@ a:focus, button:focus {
     }
 }
 
+/* Animação de shake para campos inválidos e botões */
 @keyframes shake {
     0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-10px); }
-    75% { transform: translateX(10px); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
 }
 
 .protection-warning {
@@ -1130,13 +1135,160 @@ input[readonly], input[disabled], select[disabled] {
     background-color: #DBEAFE !important;
 }
 
-/* Animação de shake para tentativa de edição */
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-    20%, 40%, 60%, 80% { transform: translateX(5px); }
+/* ========================================== */
+/* NOVOS ESTILOS PARA CAMPOS OBRIGATÓRIOS */
+/* ========================================== */
+
+/* Estilo para campos obrigatórios não preenchidos */
+.border-red-500.bg-red-50 {
+    background-color: #FEF2F2 !important;
+    border-color: #EF4444 !important;
 }
 
-.shake-animation {
-    animation: shake 0.5s ease-in-out;
+/* Ícone de erro nos campos */
+.error-icon {
+    color: #EF4444;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Tooltip de erro para campos */
+.field-error-tooltip {
+    animation: fadeIn 0.3s ease-in-out;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.field-error-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -5px;
+    left: 10px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-bottom: 5px solid #DC2626;
+}
+
+.field-error-tooltip.fade-out {
+    animation: fadeOut 0.3s ease-in-out;
+    opacity: 0;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-5px); }
+}
+
+/* Destaque visual aprimorado para campos obrigatórios */
+input.border-red-500.ring-2,
+select.border-red-500.ring-2 {
+    outline: none !important;
+}
+
+/* Melhoria no contraste para campos com erro */
+.bg-red-50:focus {
+    background-color: #FEE2E2 !important;
+}
+
+/* Container com posição relativa para os ícones de erro */
+.error-container {
+    position: relative;
+}
+
+/* Garante que o ícone de erro não interfira com a digitação */
+.error-icon {
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Destaque para fieldsets com campos obrigatórios não preenchidos */
+fieldset.border-red-300 {
+    border-color: #FCA5A5 !important;
+    background-color: rgba(254, 242, 242, 0.3) !important;
+    transition: all 0.3s ease-in-out;
+}
+
+fieldset.border-red-300 legend {
+    color: #DC2626 !important;
+    font-weight: 600;
+}
+
+/* Contador de erros nas legendas */
+.error-count {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    background-color: #FEE2E2;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    animation: pulse 2s infinite;
+}
+
+/* Melhoria na visibilidade dos campos com erro dentro de tabelas */
+.item-row .border-red-500 {
+    box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.5) !important;
+}
+
+/* Destaque para campos de pagamento com erro */
+.payment-input.border-red-500 {
+    font-weight: 600;
+    color: #7F1D1D;
+}
+
+/* Estilo para campos obrigatórios quando o turno está sendo fechado */
+.closing-validation .border-red-500 {
+    animation: pulse-red 1.5s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+/* Melhoria no contraste para leitura em campos com erro */
+input.bg-red-50:not([readonly]):not([disabled]) {
+    color: #991B1B !important;
+    font-weight: 500;
+}
+
+/* Transição suave ao remover erros */
+input:not(.border-red-500),
+select:not(.border-red-500) {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Indicador visual para seções com campos obrigatórios */
+fieldset.border-red-300::before {
+    content: '⚠️';
+    position: absolute;
+    top: -10px;
+    right: 10px;
+    font-size: 1.5rem;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-10px);
+    }
 }

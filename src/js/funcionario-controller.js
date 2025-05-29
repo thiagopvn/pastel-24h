@@ -1875,6 +1875,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function validateRequiredFieldsForClosure() {
         let isValid = true;
         const fieldsToValidate = [];
+        const invalidFields = [];
 
         document.querySelectorAll('.item-row').forEach(row => {
             const itemKey = row.dataset.itemKey;
@@ -1898,15 +1899,118 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (input) {
                 const value = input.type === 'text' ? parseCurrencyToNumber(input.value) : parseFloat(input.value);
                 if (input.value.trim() === '' || isNaN(value)) {
-                    input.classList.add('border-red-500');
+                    // Adiciona múltiplas classes para destaque máximo
+                    input.classList.add('border-red-500', 'border-2', 'bg-red-50', 'ring-2', 'ring-red-300', 'ring-opacity-50');
+                    input.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.3)';
+                    
+                    // Adiciona animação de shake
+                    input.classList.add('shake-animation');
+                    setTimeout(() => {
+                        input.classList.remove('shake-animation');
+                    }, 500);
+                    
+                    // Adiciona ícone de alerta se não existir
+                    const parent = input.parentElement;
+                    if (parent && !parent.querySelector('.error-icon')) {
+                        const errorIcon = document.createElement('span');
+                        errorIcon.className = 'error-icon absolute right-2 top-1/2 transform -translate-y-1/2 text-red-500';
+                        errorIcon.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+                        errorIcon.style.pointerEvents = 'none';
+                        parent.style.position = 'relative';
+                        parent.appendChild(errorIcon);
+                    }
+                    
+                    invalidFields.push(input);
                     isValid = false;
                 } else {
-                    input.classList.remove('border-red-500');
+                    // Remove todas as classes de erro
+                    input.classList.remove('border-red-500', 'border-2', 'bg-red-50', 'ring-2', 'ring-red-300', 'ring-opacity-50', 'shake-animation');
+                    input.style.boxShadow = '';
+                    
+                    // Remove ícone de erro se existir
+                    const parent = input.parentElement;
+                    const errorIcon = parent?.querySelector('.error-icon');
+                    if (errorIcon) {
+                        errorIcon.remove();
+                    }
+                }
+            }
+        });
+        
+        // Se houver campos inválidos, rola até o primeiro
+        if (invalidFields.length > 0) {
+            const firstInvalidField = invalidFields[0];
+            
+            // Encontra o fieldset ou seção pai para dar contexto
+            const section = firstInvalidField.closest('fieldset') || firstInvalidField.closest('.bg-white');
+            if (section) {
+                section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                firstInvalidField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            
+            // Foca no primeiro campo inválido após um pequeno delay
+            setTimeout(() => {
+                firstInvalidField.focus();
+            }, 300);
+            
+            // Mostra tooltip temporário no primeiro campo
+            showFieldErrorTooltip(firstInvalidField, 'Campo obrigatório');
+        }
+        
+        // Destaca também as seções que contêm campos inválidos
+        document.querySelectorAll('fieldset').forEach(fieldset => {
+            const camposInvalidos = fieldset.querySelectorAll('.border-red-500');
+            if (camposInvalidos.length > 0) {
+                fieldset.classList.add('border-red-300', 'bg-red-50', 'bg-opacity-30');
+                
+                // Adiciona contador de campos inválidos na legenda
+                const legend = fieldset.querySelector('legend');
+                if (legend && !legend.querySelector('.error-count')) {
+                    const errorCount = document.createElement('span');
+                    errorCount.className = 'error-count ml-2 text-red-600 text-sm font-normal';
+                    errorCount.textContent = `(${camposInvalidos.length} campo${camposInvalidos.length > 1 ? 's' : ''} obrigatório${camposInvalidos.length > 1 ? 's' : ''})`;
+                    legend.appendChild(errorCount);
+                }
+            } else {
+                fieldset.classList.remove('border-red-300', 'bg-red-50', 'bg-opacity-30');
+                const errorCount = fieldset.querySelector('.error-count');
+                if (errorCount) {
+                    errorCount.remove();
                 }
             }
         });
         
         return isValid;
+    }
+    
+    // Nova função para mostrar tooltip de erro em campo específico
+    function showFieldErrorTooltip(field, message) {
+        // Remove tooltip existente se houver
+        const existingTooltip = document.querySelector('.field-error-tooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+        
+        const tooltip = document.createElement('div');
+        tooltip.className = 'field-error-tooltip absolute z-50 bg-red-600 text-white text-xs rounded py-1 px-2 pointer-events-none';
+        tooltip.textContent = message;
+        tooltip.style.whiteSpace = 'nowrap';
+        
+        // Posiciona o tooltip
+        const rect = field.getBoundingClientRect();
+        tooltip.style.left = `${rect.left}px`;
+        tooltip.style.top = `${rect.bottom + 5}px`;
+        
+        document.body.appendChild(tooltip);
+        
+        // Remove após 3 segundos
+        setTimeout(() => {
+            tooltip.classList.add('fade-out');
+            setTimeout(() => {
+                tooltip.remove();
+            }, 300);
+        }, 3000);
     }
 
     function validarCamposTransferidos(event) {
