@@ -1221,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="text-red-700">
             <div class="flex items-center mb-2">
                 <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
-                <strong>🚨 Divergência detectada!</strong>
+                <strong>🚨QUEBRA DE CAIXA. DIVERGÊNCIA DETECTADA! FAVOR REVISAR AS CONTAGENS</strong>
             </div>
             <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
                 <div class="grid grid-cols-2 gap-2">
