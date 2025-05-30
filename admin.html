@@ -1218,7 +1218,7 @@ document.getElementById('btnTabCaixaControle').addEventListener('click', () => {
     loadCashControlData();
 });
 
-async function loadCashControlData() {
+window.loadCashControlData = async function() {
     console.log("Iniciando loadCashControlData");
     showToast('Carregando dados do controle de caixa...', 'info');
     
