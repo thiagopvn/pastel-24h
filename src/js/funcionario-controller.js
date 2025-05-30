@@ -1242,10 +1242,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="flex items-center text-green-700">
             <i class="fas fa-check-circle mr-2 text-lg"></i>
             <div>
-                <strong>✅ Valores conferem com sobra!</strong>
+                <strong>✅ Valores conferem perfeitamente</strong>
                 <div class="text-sm mt-1">
                     Vendas: ${formatToBRL(totalVendido)} | Pagamentos: ${formatToBRL(totalRegistrado)}
-                    <br>Sobra de ${formatToBRL(Math.abs(divergencia))} nos pagamentos
                 </div>
             </div>
         </div>
@@ -1298,7 +1297,7 @@ function updatePhysicalCashDifference() {
             divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
             divergenciaCaixaAlertaP.innerHTML = `
                 <i class="fas fa-check-circle mr-1"></i>
-                ✅ Caixa físico com sobra de ${formatToBRL(diferencaCaixa)}! 
+                ✅ Caixa físico confere perfeitamente! 
                 <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
             `;
         }
