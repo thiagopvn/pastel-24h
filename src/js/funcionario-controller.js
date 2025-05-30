@@ -2507,8 +2507,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
 
-        fieldsToValidate.push(
-            caixaInicioInput, 
+         fieldsToValidate.push(
+            caixaInicialDinheiroInput,
+            caixaInicialMoedasInput,
             caixaFinalContadoInput,
             pagamentoDinheiroInput,
             document.getElementById('pagamentoPixManual'),
