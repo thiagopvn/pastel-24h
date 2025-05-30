@@ -1814,19 +1814,22 @@ window.UserManager = UserManager;
     class TabManager {
         constructor() {
             this.tabs = {
-                dashboard: {
-                    button: document.getElementById('btnTabDashboard'),
-                    content: document.getElementById('tabContentDashboard')
-                },
-                precos: {
-                    button: document.getElementById('btnTabPrecos'),
-                    content: document.getElementById('tabContentPrecos')
-                },
-                usuarios: {
-                    button: document.getElementById('btnTabUsuarios'),
-                    content: document.getElementById('tabContentUsuarios')
-                }
-                
+            dashboard: {
+                button: document.getElementById('btnTabDashboard'),
+                content: document.getElementById('tabContentDashboard')
+            },
+            precos: {
+                button: document.getElementById('btnTabPrecos'),
+                content: document.getElementById('tabContentPrecos')
+            },
+            usuarios: {
+                button: document.getElementById('btnTabUsuarios'),
+                content: document.getElementById('tabContentUsuarios')
+            },
+            caixaControle: {
+                button: document.getElementById('btnTabCaixaControle'),
+                content: document.getElementById('tabContentCaixaControle')
+            }
             };
             
             Object.entries(this.tabs).forEach(([tabName, tab]) => {
@@ -1908,6 +1911,410 @@ window.UserManager = UserManager;
             }
         }
     }
+
+    class CashControlManager {
+    constructor() {
+        this.form = document.getElementById('formCaixaControle');
+        this.dinheiroInput = document.getElementById('defaultCaixaDinheiro');
+        this.moedasInput = document.getElementById('defaultCaixaMoedas');
+        this.saveButton = this.form?.querySelector('button[type="submit"]');
+        this.alertsContainer = document.getElementById('cashControlAlerts') || this.createAlertsContainer();
+        
+        if (!this.form) {
+            console.warn("⚠️ Formulário de controle de caixa não encontrado");
+            return;
+        }
+        
+        this.setupFormHandler();
+        this.setupCurrencyMasks();
+    }
+    
+    createAlertsContainer() {
+        // Criar container para alertas se não existir
+        const container = document.createElement('div');
+        container.id = 'cashControlAlerts';
+        container.className = 'mt-4';
+        
+        if (this.form) {
+            this.form.appendChild(container);
+        }
+        
+        return container;
+    }
+    
+    setupCurrencyMasks() {
+        if (this.dinheiroInput) {
+            this.setupCurrencyMask(this.dinheiroInput);
+        }
+        
+        if (this.moedasInput) {
+            this.setupCurrencyMask(this.moedasInput);
+        }
+    }
+    
+    setupCurrencyMask(input) {
+        if (!input) return;
+        
+        input.addEventListener('input', function() {
+            let value = input.value.replace(/\D/g, '');
+            value = (parseFloat(value) / 100).toFixed(2);
+            input.value = value.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
+            });
+        });
+        
+        input.addEventListener('blur', function() {
+            if (input.value === '') {
+                input.value = 'R$ 0,00';
+            }
+        });
+        
+        // Inicializar com valor zero se vazio
+        if (input.value === '') {
+            input.value = 'R$ 0,00';
+        }
+    }
+    
+    setupFormHandler() {
+        if (!this.form) return;
+        
+        this.form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (this.saveButton) {
+                this.saveButton.disabled = true;
+                const originalText = this.saveButton.innerHTML;
+                this.saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...';
+                
+                try {
+                    await this.saveDefaultValues();
+                    this.saveButton.innerHTML = '<i class="fas fa-check mr-2"></i>Salvo!';
+                    setTimeout(() => {
+                        this.saveButton.disabled = false;
+                        this.saveButton.innerHTML = originalText;
+                    }, 2000);
+                } catch (error) {
+                    this.saveButton.disabled = false;
+                    this.saveButton.innerHTML = originalText;
+                }
+            } else {
+                await this.saveDefaultValues();
+            }
+        });
+    }
+    
+    async load() {
+        try {
+            const cashControlDoc = await db.collection('config').doc('cashControl').get();
+            
+            if (cashControlDoc.exists) {
+                const data = cashControlDoc.data();
+                
+                if (this.dinheiroInput) {
+                    this.dinheiroInput.value = (data.dinheiro || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                
+                if (this.moedasInput) {
+                    this.moedasInput.value = (data.moedas || 0).toLocaleString('pt-BR', {
+                        style: 'currency',
+                        currency: 'BRL'
+                    });
+                }
+                
+                // Atualizar info de última atualização
+                this.updateLastModifiedInfo(data);
+                
+                console.log("✅ Valores padrão de caixa carregados", data);
+                notifications.showMessage("Valores de caixa carregados com sucesso", "success");
+            } else {
+                // Definir valores padrão se não existir
+                if (this.dinheiroInput) {
+                    this.dinheiroInput.value = 'R$ 0,00';
+                }
+                
+                if (this.moedasInput) {
+                    this.moedasInput.value = 'R$ 0,00';
+                }
+                
+                // Criar documento com valores padrão
+                await db.collection('config').doc('cashControl').set({
+                    dinheiro: 0,
+                    moedas: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    createdBy: auth.currentUser.uid
+                });
+                
+                console.log("✅ Documento de controle de caixa criado com valores zerados");
+                notifications.showMessage("Configuração inicial de caixa criada", "info");
+            }
+        } catch (error) {
+            console.error("❌ Erro ao carregar valores de caixa:", error);
+            notifications.showMessage(`Erro ao carregar valores de caixa: ${error.message}`, "error");
+            this.showErrorAlert(`Erro ao carregar valores de caixa: ${error.message}`);
+        }
+    }
+    
+    updateLastModifiedInfo(data) {
+        const infoContainer = document.getElementById('lastCashControlUpdate');
+        if (!infoContainer) return;
+        
+        if (data.updatedAt) {
+            const date = data.updatedAt.toDate();
+            const formattedDate = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            
+            infoContainer.innerHTML = `
+                <div class="text-xs text-gray-500 mt-2">
+                    <i class="fas fa-clock mr-1"></i> Última atualização: ${formattedDate}
+                </div>
+            `;
+        }
+    }
+    
+    async saveDefaultValues() {
+        this.clearAlerts();
+        
+        try {
+            if (!this.dinheiroInput || !this.moedasInput) {
+                throw new Error("Campos de entrada não encontrados");
+            }
+            
+            // Extrair valores numéricos
+            const dinheiroStr = this.dinheiroInput.value.replace(/[^\d,.-]/g, '').replace(',', '.');
+            const moedasStr = this.moedasInput.value.replace(/[^\d,.-]/g, '').replace(',', '.');
+            
+            const dinheiro = parseFloat(dinheiroStr) || 0;
+            const moedas = parseFloat(moedasStr) || 0;
+            
+            if (dinheiro < 0 || moedas < 0) {
+                throw new Error("Os valores não podem ser negativos");
+            }
+            
+            // Buscar valores atuais para comparação
+            const currentDoc = await db.collection('config').doc('cashControl').get();
+            const currentData = currentDoc.exists ? currentDoc.data() : { dinheiro: 0, moedas: 0 };
+            
+            // Verificar se houve alteração
+            if (Math.abs(currentData.dinheiro - dinheiro) < 0.01 && Math.abs(currentData.moedas - moedas) < 0.01) {
+                this.showWarningAlert("Os valores são idênticos aos já salvos. Nenhuma alteração necessária.");
+                return;
+            }
+            
+            // Obter dados do usuário
+            const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
+            const userData = userDoc.exists ? userDoc.data() : {};
+            const userName = userData.nome || auth.currentUser.email || 'Usuário Admin';
+            
+            // Salvar valores no Firestore
+            await db.collection('config').doc('cashControl').set({
+                dinheiro,
+                moedas,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                updatedBy: auth.currentUser.uid,
+                updatedByName: userName
+            }, { merge: true });
+            
+            // Registrar na auditoria
+            await db.collection('audit_logs').add({
+                action: 'cash_default_updated',
+                oldValues: {
+                    dinheiro: currentData.dinheiro,
+                    moedas: currentData.moedas
+                },
+                newValues: {
+                    dinheiro,
+                    moedas
+                },
+                performedBy: auth.currentUser.uid,
+                performedByName: userName,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            this.updateLastModifiedInfo({
+                updatedAt: firebase.firestore.Timestamp.now()
+            });
+            
+            this.showSuccessAlert(`Valores padrão de caixa salvos com sucesso! Dinheiro: ${dinheiro.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}, Moedas: ${moedas.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}`);
+            notifications.showMessage("Valores padrão de caixa salvos com sucesso!", "success");
+            
+            return true;
+        } catch (error) {
+            console.error("❌ Erro ao salvar valores de caixa:", error);
+            this.showErrorAlert(`Erro ao salvar valores de caixa: ${error.message}`);
+            notifications.showMessage(`Erro ao salvar valores de caixa: ${error.message}`, "error");
+            return false;
+        }
+    }
+    
+    clearAlerts() {
+        if (this.alertsContainer) {
+            this.alertsContainer.innerHTML = '';
+        }
+    }
+    
+    showSuccessAlert(message) {
+        this.clearAlerts();
+        
+        if (!this.alertsContainer) return;
+        
+        const alert = document.createElement('div');
+        alert.className = 'bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-sm animate-bounce-in';
+        alert.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        this.alertsContainer.appendChild(alert);
+        
+        // Auto-remove após 5 segundos
+        setTimeout(() => {
+            alert.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+            setTimeout(() => alert.remove(), 500);
+        }, 5000);
+    }
+    
+    showErrorAlert(message) {
+        this.clearAlerts();
+        
+        if (!this.alertsContainer) return;
+        
+        const alert = document.createElement('div');
+        alert.className = 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm';
+        alert.innerHTML = `
+            <div class="flex items-start">
+                <i class="fas fa-exclamation-circle text-red-500 mr-2 mt-0.5"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        this.alertsContainer.appendChild(alert);
+    }
+    
+    showWarningAlert(message) {
+        this.clearAlerts();
+        
+        if (!this.alertsContainer) return;
+        
+        const alert = document.createElement('div');
+        alert.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm';
+        alert.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                <span>${message}</span>
+            </div>
+        `;
+        
+        this.alertsContainer.appendChild(alert);
+        
+        // Auto-remove após 5 segundos
+        setTimeout(() => {
+            alert.classList.add('opacity-0', 'transition-opacity', 'duration-500');
+            setTimeout(() => alert.remove(), 500);
+        }, 5000);
+    }
+}
+
+async function migrateExistingTurnos() {
+    try {
+        console.log("🔄 Verificando necessidade de migração de dados...");
+        
+        // Verificar se a migração já foi realizada
+        const migrationStatusDoc = await db.collection('config').doc('migrationStatus').get();
+        if (migrationStatusDoc.exists && migrationStatusDoc.data().cashSeparationCompleted) {
+            console.log("✅ Migração de separação de caixa já foi realizada anteriormente");
+            return 0;
+        }
+        
+        console.log("🔄 Iniciando migração de dados para separação de caixa...");
+        const turnosSnapshot = await db.collection('turnos').get();
+        
+        const batch = db.batch();
+        let count = 0;
+        
+        turnosSnapshot.forEach(doc => {
+            const turnoData = doc.data();
+            const updates = {};
+            
+            // Migrar caixaInicial para caixaInicialDinheiro e caixaInicialMoedas
+            if (turnoData.caixaInicial !== undefined && turnoData.caixaInicialDinheiro === undefined) {
+                updates.caixaInicialDinheiro = turnoData.caixaInicial;
+                updates.caixaInicialMoedas = 0;
+            }
+            
+            // Migrar caixaFinalContado para caixaFinalDinheiro e caixaFinalMoedas
+            if (turnoData.caixaFinalContado !== undefined && turnoData.caixaFinalDinheiro === undefined) {
+                updates.caixaFinalDinheiro = turnoData.caixaFinalContado;
+                updates.caixaFinalMoedas = 0;
+            }
+            
+            if (Object.keys(updates).length > 0) {
+                batch.update(doc.ref, updates);
+                count++;
+            }
+        });
+        
+        if (count > 0) {
+            await batch.commit();
+            console.log(`✅ ${count} turnos migrados para a nova estrutura de caixa separado`);
+            
+            // Registrar que a migração foi concluída
+            await db.collection('config').doc('migrationStatus').set({
+                cashSeparationCompleted: true,
+                migratedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                migratedBy: auth.currentUser.uid,
+                migratedCount: count
+            }, { merge: true });
+        } else {
+            console.log("ℹ️ Nenhum turno precisou ser migrado");
+            
+            // Registrar que a verificação foi feita mesmo sem migrações
+            await db.collection('config').doc('migrationStatus').set({
+                cashSeparationCompleted: true,
+                migratedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                migratedBy: auth.currentUser.uid,
+                migratedCount: 0
+            }, { merge: true });
+        }
+        
+        return count;
+    } catch (error) {
+        console.error("❌ Erro ao migrar turnos:", error);
+        notifications.showMessage("Erro ao migrar dados de turnos. Contate o suporte técnico.", "error", 10000);
+        throw error;
+    }
+}
+
+// Função de inicialização
+function initialize() {
+    console.log("🚀 Inicializando o sistema administrativo...");
+    
+    try {
+        // Executar migração de dados se necessário (apenas para administradores)
+        migrateExistingTurnos()
+            .then(count => {
+                if (count > 0) {
+                    notifications.showMessage(`Migração concluída: ${count} turnos atualizados para a nova estrutura de caixa separado.`, "success", 8000);
+                }
+            })
+            .catch(error => {
+                console.error("Erro na migração:", error);
+            });
+            
+        // Inicializar gerenciador de abas
+        const tabManager = new TabManager();
+        window.tabManager = tabManager;
+        
+        // Resto do código de inicialização...
+    } catch (error) {
+        console.error("❌ Erro na inicialização:", error);
+        notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
+    }
+}
 
     // Inicialização
     function initialize() {

@@ -1743,24 +1743,32 @@ trGelo.appendChild(tdConsumoGelo);
 function updatePhysicalCashDifference() {
     console.log("🏦 Atualizando diferença de caixa físico...");
     
-    const caixaInicial = parseCurrencyToNumber(caixaInicioInput?.value || '0');
+    // Obter valores iniciais separados
+    const caixaInicialDinheiro = parseCurrencyToNumber(document.getElementById('caixaInicialDinheiro')?.value || '0');
+    const caixaInicialMoedas = parseCurrencyToNumber(document.getElementById('caixaInicialMoedas')?.value || '0');
+    const caixaInicial = caixaInicialDinheiro + caixaInicialMoedas;
+    
+    // Obter valor do pagamento em dinheiro
     const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
-    const caixaFinalContado = parseCurrencyToNumber(caixaFinalContadoInput?.value || '0');
     
+    // Obter valores finais contados separados
+    const caixaFinalDinheiro = parseCurrencyToNumber(document.getElementById('caixaFinalDinheiro')?.value || '0');
+    const caixaFinalMoedas = parseCurrencyToNumber(document.getElementById('caixaFinalMoedas')?.value || '0');
+    const caixaFinalContado = caixaFinalDinheiro + caixaFinalMoedas;
     const caixaEsperado = caixaInicial + pagamentoDinheiro;
-    
     const diferencaCaixa = caixaFinalContado - caixaEsperado;
     
-    console.log(`💰 Caixa Inicial: ${formatToBRL(caixaInicial)}`);
+    console.log(`💰 Caixa Inicial: Dinheiro ${formatToBRL(caixaInicialDinheiro)} + Moedas ${formatToBRL(caixaInicialMoedas)} = ${formatToBRL(caixaInicial)}`);
     console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
     console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
-    console.log(`🔢 Caixa Contado: ${formatToBRL(caixaFinalContado)}`);
+    console.log(`🔢 Caixa Contado: Dinheiro ${formatToBRL(caixaFinalDinheiro)} + Moedas ${formatToBRL(caixaFinalMoedas)} = ${formatToBRL(caixaFinalContado)}`);
     console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
-    
     if (caixaDiferencaInput) {
         caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
     }
+    checkForLowCashValues(caixaFinalDinheiro, caixaFinalMoedas);
     
+    // Atualizar a visualização da diferença
     if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
         if (Math.abs(diferencaCaixa) < 0.01) {
             // Caixa exato - perfeito
@@ -1785,34 +1793,105 @@ function updatePhysicalCashDifference() {
             divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
             divergenciaCaixaAlertaP.innerHTML = `
                 <i class="fas fa-check-circle mr-1"></i>
-                ✅ Caixa físico confere perfeitamente! 
-                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaEsperado)}</small>
+                ✅ Sobra de ${formatToBRL(diferencaCaixa)} no caixa. 
+                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
             `;
         }
     }
-    
     return {
         caixaInicial,
+        caixaInicialDinheiro,
+        caixaInicialMoedas,
         pagamentoDinheiro,
         caixaEsperado,
         caixaFinalContado,
+        caixaFinalDinheiro,
+        caixaFinalMoedas,
         diferencaCaixa,
         isValid: diferencaCaixa >= -0.01
     };
 }
 
+function checkForLowCashValues(dinheiro, moedas) {
+    const dinheiroInput = document.getElementById('caixaFinalDinheiro');
+    const moedasInput = document.getElementById('caixaFinalMoedas');
+    
+    // Remover alertas existentes
+    removeExistingCashAlerts();
+    
+    // Verificar valores baixos
+    if (dinheiro < 200) {
+        showLowCashAlert(dinheiroInput, 'dinheiro', dinheiro);
+    }
+    
+    if (moedas < 20) {
+        showLowCashAlert(moedasInput, 'moedas', moedas);
+    }
+}
+
+function removeExistingCashAlerts() {
+    // Remover todos os alertas existentes
+    document.querySelectorAll('.cash-alert').forEach(alert => {
+        alert.remove();
+    });
+    
+    // Remover classes de alerta dos inputs
+    const dinheiroInput = document.getElementById('caixaFinalDinheiro');
+    const moedasInput = document.getElementById('caixaFinalMoedas');
+    
+    if (dinheiroInput) {
+        dinheiroInput.classList.remove('border-red-500', 'bg-red-50');
+    }
+    
+    if (moedasInput) {
+        moedasInput.classList.remove('border-red-500', 'bg-red-50');
+    }
+}
+
+function showLowCashAlert(inputElement, type, value) {
+    if (!inputElement) return;
+    
+    // Adicionar borda vermelha ao input
+    inputElement.classList.add('border-red-500', 'bg-red-50');
+    
+    // Criar mensagem de alerta
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'cash-alert mt-2 p-2 bg-red-100 text-red-800 text-xs rounded flex items-start';
+    alertDiv.dataset.alertType = type;
+    
+    const icon = type === 'dinheiro' ? 'fa-money-bill-wave' : 'fa-coins';
+    const typeName = type === 'dinheiro' ? 'Dinheiro' : 'Moedas';
+    const threshold = type === 'dinheiro' ? 'R$ 200,00' : 'R$ 20,00';
+    
+    alertDiv.innerHTML = `
+        <i class="fas fa-exclamation-triangle mt-0.5 mr-1"></i>
+        <div>
+            <strong>Alerta: ${typeName} abaixo do recomendado!</strong><br>
+            Valor atual: ${formatToBRL(value)}<br>
+            Valor mínimo recomendado: ${threshold}
+        </div>
+    `;
+    
+    // Adicionar o alerta após o input
+    const parent = inputElement.parentElement;
+    if (parent) {
+        parent.appendChild(alertDiv);
+    }
+}
+
     function setupAllCurrencyMasks() {
-        console.log("🎭 Configurando máscaras de moeda...");
         
-        const currencyFields = [
-            'caixaInicio',
-            'pagamentoDinheiro',
-            'pagamentoPixManual', 
-            'pagamentoStoneDCV',
-            'pagamentoStoneVoucher',
-            'pagamentoPagBankDCV',
-            'caixaFinalContado'
-        ];
+         const currencyFields = [
+        'caixaInicialDinheiro',
+        'caixaInicialMoedas',
+        'pagamentoDinheiro',
+        'pagamentoPixManual', 
+        'pagamentoStoneDCV',
+        'pagamentoStoneVoucher',
+        'pagamentoPagBankDCV',
+        'caixaFinalDinheiro',
+        'caixaFinalMoedas'
+    ];
         
         currencyFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);

@@ -519,15 +519,24 @@
     <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
         <i class="fas fa-cash-register mr-2"></i>Controle de Caixa
     </legend>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 mt-2">
-        <div>
-            <label for="caixaInicio" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-piggy-bank mr-1"></i>Caixa Inicial (Transferido Automaticamente)
-            </label>
-            <input type="text" id="caixaInicio" name="caixaInicio" 
-                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-                   placeholder="R$ 0,00" readonly>
-        </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+        <label for="caixaInicialDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
+            <i class="fas fa-money-bill-wave mr-1"></i>Caixa Inicial - Dinheiro
+        </label>
+        <input type="text" id="caixaInicialDinheiro" name="caixaInicialDinheiro" 
+               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
+               placeholder="R$ 0,00" readonly>
+    </div>
+    <div>
+        <label for="caixaInicialMoedas" class="block text-sm font-medium text-gray-700 mb-1">
+            <i class="fas fa-coins mr-1"></i>Caixa Inicial - Moedas
+        </label>
+        <input type="text" id="caixaInicialMoedas" name="caixaInicialMoedas" 
+               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
+               placeholder="R$ 0,00" readonly>
+    </div>
+</div>
         <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
             <label for="totalVendidoTurnoCalculado" class="block text-sm font-medium text-blue-700 mb-1">
                 <i class="fas fa-calculator mr-1"></i> Total Vendido no Turno (Calculado Pelos Itens)
