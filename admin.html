@@ -1224,7 +1224,6 @@ async function loadCashControlData() {
     try {
         const turnosAtivos = await db.collection('turnos')
             .where('status', '==', 'aberto')
-            .orderBy('createdAt', 'desc')
             .get();
             
         const turnosContainer = document.getElementById('turnosAtivosContainer');
