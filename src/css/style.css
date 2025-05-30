@@ -1398,3 +1398,19 @@ fieldset.border-red-300::before {
 .alerta-estoque-baixo.shake {
     animation: shake 0.5s ease-in-out;
 }
+
+/* Estilo para campos calculados automaticamente */
+#gelo_pacote_consumo_interno {
+    background-color: #F3F4F6 !important; /* Cinza claro */
+    border-color: #9CA3AF !important;
+    border-style: dashed !important;
+    color: #374151;
+    font-weight: 600;
+    position: relative;
+}
+
+/* Tooltip ao passar o mouse sobre campo calculado */
+#gelo_pacote_consumo_interno:hover {
+    border-color: #6B7280 !important;
+    box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1);
+}

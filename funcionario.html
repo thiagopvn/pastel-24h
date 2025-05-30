@@ -433,7 +433,12 @@
                     <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas (Pct)</th>
                     <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra (Pct)</th>
                     <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendas (Pct)</th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Interno (Pct)</th>
+                   <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">
+                        <span class="flex items-center">
+                            Consumo Interno (Pct)
+                            <i class="fas fa-calculator ml-1 text-blue-500" title="Calculado automaticamente"></i>
+                        </span>
+                    </th>
                     <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Pct.</th>
                     <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Venda Gelo</th>
                 </tr>
@@ -447,8 +452,12 @@
                     <td id="totalGeloValor" class="px-2 py-3">R$ 0.00</td>
                 </tr>
             </tfoot>
-        </table>
-    </div>
+       </table>
+</div>
+<div class="mt-2 text-xs text-gray-600 italic flex items-center">
+    <i class="fas fa-info-circle mr-1 text-blue-500"></i>
+    Consumo interno é calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas
+</div>
 </fieldset>
 
                     <!-- Botijão de Gás -->

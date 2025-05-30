@@ -937,8 +937,11 @@ function verificarEstoqueBaixo(itemKey, sobra) {
         const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm");
         tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true";
         trGelo.appendChild(tdVendasGelo);
-        
-        trGelo.appendChild(createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm"));
+const tdConsumoGelo = createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm bg-gray-200 cursor-not-allowed");
+const consumoInput = tdConsumoGelo.querySelector('input');
+consumoInput.readOnly = true;
+consumoInput.title = "Calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas";
+trGelo.appendChild(tdConsumoGelo);
         
         const tdPrecoGelo = document.createElement('td');
         tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600 text-center';
@@ -1105,6 +1108,11 @@ function verificarEstoqueBaixo(itemKey, sobra) {
             if (el.id.endsWith('_vendido') || el.id.endsWith('_total_item')) {
                 el.readOnly = true;
                 el.classList.add('bg-gray-100');
+                return;
+            }
+            if (el.id === 'gelo_pacote_consumo_interno') {
+                el.readOnly = true;
+                el.classList.add('bg-gray-200', 'cursor-not-allowed');
                 return;
             }
             
@@ -2237,13 +2245,24 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
    function calculateGeloTotal(rowElement) {
     const itemKey = rowElement.dataset.itemKey;
     if(itemKey !== 'gelo_pacote') return;
+    const entradaGelo = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+    const chegadasGelo = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+    const sobraGelo = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
     const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
     const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
-    const sobraGelo = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    
+    const consumoInternoCalculado = (entradaGelo + chegadasGelo) - sobraGelo - vendasGelo;
+    const consumoInternoInput = document.getElementById(`${itemKey}_consumo_interno`);
+    if (consumoInternoInput) {
+        consumoInternoInput.value = Math.max(0, consumoInternoCalculado);
+    }
+    
     verificarEstoqueBaixo(itemKey, sobraGelo);
+    
     const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
     const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
     const totalGeloFooter = document.getElementById('totalGeloValor');
+    
     if (precoDisplay && totalItemDisplay) {
         const precoGeloTexto = precoDisplay.textContent;
         const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
@@ -2254,6 +2273,7 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
         }
         calculateTotals();
         console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
+        console.log(`❄️ Consumo interno calculado: ${Math.max(0, consumoInternoCalculado)} pacotes`);
     }
 }
     
@@ -2453,15 +2473,17 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
             const geloSobra = parseFloat(document.getElementById(`${geloKey}_sobra`)?.value) || 0;
             const geloVendas = parseFloat(document.getElementById(`${geloKey}_vendas`)?.value) || 0; 
             const geloConsumoInterno = parseFloat(document.getElementById(`${geloKey}_consumo_interno`)?.value) || 0;
-            data.gelo[geloKey] = {
-                entrada: geloEntrada,
-                chegadas: geloChegadas,
-                sobra: geloSobra,
-                vendas: geloVendas, 
-                consumoInterno: geloConsumoInterno,
-                precoUnitario: precoUnitarioGelo,
-                totalItemValor: geloVendas * precoUnitarioGelo
-            };
+                const consumoCalculado = Math.max(0, (geloEntrada + geloChegadas) - geloSobra - geloVendas);
+
+                data.gelo[geloKey] = {
+                    entrada: geloEntrada,
+                    chegadas: geloChegadas,
+                    sobra: geloSobra,
+                    vendas: geloVendas, 
+                    consumoInterno: consumoCalculado, // Usar o valor recalculado
+                    precoUnitario: precoUnitarioGelo,
+                    totalItemValor: geloVendas * precoUnitarioGelo
+                };
         }
         return data;
     }
