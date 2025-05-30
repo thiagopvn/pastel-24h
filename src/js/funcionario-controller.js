@@ -58,32 +58,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     'gelo_pacote': 10
 };
 function verificarEstoqueBaixo(itemKey, sobra) {
-   const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
+    const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
     if (alertaExistente) {
-        alertaExistente.remove();
+        alertaExistente.classList.add('removing');
+        setTimeout(() => alertaExistente.remove(), 300);
     }
+    
     const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
     if (!limite) return;
+    if (sobra === '' || sobra === null || sobra === undefined) return;
     const sobraNum = parseFloat(sobra) || 0;
     if (sobraNum < limite && sobraNum >= 0) {
-        // Criar alerta de estoque baixo
-        const inputSobra = document.getElementById(`${itemKey}_sobra`);
-        if (!inputSobra) return;
-        const row = inputSobra.closest('tr');
-        if (!row) return;
-        const alertaRow = document.createElement('tr');
-        alertaRow.id = `alerta-estoque-${itemKey}`;
-        alertaRow.className = 'alerta-estoque-baixo fade-in';
-        alertaRow.innerHTML = `
-            <td colspan="9" class="px-3 py-2 bg-red-50 border-l-4 border-red-500">
-                <div class="flex items-center text-red-700 font-semibold animate-pulse">
-                    <i class="fas fa-exclamation-triangle mr-2"></i>
-                    <span>ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO</span>
-                    <span class="ml-2 text-sm">(Sobra: ${sobraNum} | Mínimo: ${limite})</span>
-                </div>
-            </td>
-        `;
-        row.insertAdjacentElement('afterend', alertaRow);
+        setTimeout(() => {
+            const inputSobra = document.getElementById(`${itemKey}_sobra`);
+            if (!inputSobra) return;
+            
+            const row = inputSobra.closest('tr');
+            if (!row) return;
+            
+            if (document.getElementById(`alerta-estoque-${itemKey}`)) return;
+            const alertaRow = document.createElement('tr');
+            alertaRow.id = `alerta-estoque-${itemKey}`;
+            alertaRow.className = 'alerta-estoque-baixo';
+            alertaRow.innerHTML = `
+                <td colspan="9" class="p-0">
+                    <div class="mx-4 my-2">
+                        <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg p-3 shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                                            <i class="fas fa-exclamation-triangle text-white"></i>
+                                        </div>
+                                    </div>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide">
+                                            ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO
+                                        </h3>
+                                        <p class="text-xs text-red-600 mt-0.5">
+                                            Quantidade atual: <span class="font-bold">${sobraNum}</span> | 
+                                            Mínimo recomendado: <span class="font-bold">${limite}</span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <button onclick="this.closest('.alerta-estoque-baixo').classList.add('removing'); setTimeout(() => this.closest('.alerta-estoque-baixo').remove(), 300);" 
+                                        class="text-red-400 hover:text-red-600 transition-colors duration-200">
+                                    <i class="fas fa-times-circle text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            row.insertAdjacentElement('afterend', alertaRow);
+        }, 500);
     }
 }
 
@@ -2127,51 +2155,62 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
     }
 
     function setupEventListeners() {
-        formTurno.addEventListener('input', (e) => {
-            const target = e.target;
-            
-            if (!validarCamposTransferidos(e)) {
-                e.preventDefault();
-                return;
-            }
-            
-            if (target.closest('.item-row') && target.type === 'number') {
-                const row = target.closest('.item-row');
-                const itemKey = row.dataset.itemKey;
-
-                if (target.id.startsWith(itemKey)) {
-                     target.classList.remove('border-red-500');
-                    if (target.dataset.isGeloVenda === "true") {
-                        calculateGeloTotal(row);
-                    } else {
-                        calculateItemRow(row);
-                    }
-                    calculateTotals();
-                }
-            } else if (target.classList.contains('payment-input') || target.id.includes('pagamento')) {
-                target.classList.remove('border-red-500');
-                setTimeout(() => {
-                    updatePaymentTotalsAndDivergence();
-                }, 100);
-            } else if (['caixaInicio', 'caixaFinalContado'].includes(target.id)) {
-                target.classList.remove('border-red-500');
-                setTimeout(() => {
-                    updatePhysicalCashDifference();
-                    checkFechamentoDivergencia();
-                }, 100);
-                
-            }
-            if (target.id && target.id.includes('_sobra')) {
-        const itemKey = target.id.replace('_sobra', '');
-        verificarEstoqueBaixo(itemKey, target.value);
-    }
-        });
-
-        const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
-        if (btnAdicionarFuncionario) {
-            btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
+    formTurno.addEventListener('input', (e) => {
+        const target = e.target;
+        
+        if (!validarCamposTransferidos(e)) {
+            e.preventDefault();
+            return;
         }
+        
+        if (target.closest('.item-row') && target.type === 'number') {
+            const row = target.closest('.item-row');
+            const itemKey = row.dataset.itemKey;
+
+            if (target.id.startsWith(itemKey)) {
+                target.classList.remove('border-red-500');
+                if (target.dataset.isGeloVenda === "true") {
+                    calculateGeloTotal(row);
+                } else {
+                    calculateItemRow(row);
+                }
+                calculateTotals();
+            }
+        } else if (target.classList.contains('payment-input') || target.id.includes('pagamento')) {
+            target.classList.remove('border-red-500');
+            setTimeout(() => {
+                updatePaymentTotalsAndDivergence();
+            }, 100);
+        } else if (['caixaInicio', 'caixaFinalContado'].includes(target.id)) {
+            target.classList.remove('border-red-500');
+            setTimeout(() => {
+                updatePhysicalCashDifference();
+                checkFechamentoDivergencia();
+            }, 100);
+        }
+        
+        if (target.id && target.id.includes('_sobra')) {
+            const itemKey = target.id.replace('_sobra', '');
+            verificarEstoqueBaixo(itemKey, target.value);
+        }
+    });
+    
+    formTurno.addEventListener('blur', (e) => {
+        const target = e.target;
+        
+        if (target.id && target.id.includes('_sobra')) {
+            const itemKey = target.id.replace('_sobra', '');
+            setTimeout(() => {
+                verificarEstoqueBaixo(itemKey, target.value);
+            }, 100);
+        }
+    }, true);
+
+    const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
+    if (btnAdicionarFuncionario) {
+        btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
     }
+}
     function calculateItemRow(rowElement) {
     const itemKey = rowElement.dataset.itemKey;
     if (!itemKey || itemKey === 'gelo_pacote') return;

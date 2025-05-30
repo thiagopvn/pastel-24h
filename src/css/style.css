@@ -1293,57 +1293,108 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Alerta de Estoque Baixo */
+/* Alerta de Estoque Baixo - Estilizado */
 .alerta-estoque-baixo {
-    animation: slideDown 0.5s ease-out forwards;
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-        max-height: 0;
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-        max-height: 100px;
-    }
+    opacity: 0;
+    animation: fadeInSlide 0.6s ease-out forwards;
+    animation-delay: 0.1s;
 }
 
 .alerta-estoque-baixo td {
-    animation: pulseBackground 2s ease-in-out infinite;
+    background-color: transparent !important;
+    border: none !important;
+    padding: 0 !important;
 }
 
-@keyframes pulseBackground {
-    0%, 100% {
-        background-color: #FEF2F2;
+@keyframes fadeInSlide {
+    0% {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
     }
     50% {
-        background-color: #FEE2E2;
+        transform: translateY(2px) scale(1.01);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
     }
 }
 
-/* Hover effect nos alertas */
-.alerta-estoque-baixo:hover td {
-    background-color: #FCA5A5 !important;
-    animation: none;
+/* Animação do ícone de alerta */
+.alerta-estoque-baixo .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.8;
+        transform: scale(0.95);
+    }
+}
+
+/* Efeito hover no alerta */
+.alerta-estoque-baixo > td > div > div {
+    transition: all 0.3s ease;
+}
+
+.alerta-estoque-baixo > td > div > div:hover {
+    transform: translateX(2px);
+    box-shadow: 0 6px 20px -5px rgba(239, 68, 68, 0.3);
+    border-color: #ef4444;
 }
 
 /* Transição suave ao remover */
 .alerta-estoque-baixo.removing {
-    animation: slideUp 0.3s ease-in forwards;
+    animation: fadeOutSlide 0.3s ease-in forwards;
 }
 
-@keyframes slideUp {
+@keyframes fadeOutSlide {
     from {
         opacity: 1;
-        transform: translateY(0);
-        max-height: 100px;
+        transform: translateY(0) scale(1);
     }
     to {
         opacity: 0;
-        transform: translateY(-20px);
-        max-height: 0;
+        transform: translateY(-10px) scale(0.95);
     }
+}
+
+/* Botão de fechar */
+.alerta-estoque-baixo button {
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.alerta-estoque-baixo button:hover {
+    opacity: 1;
+    transform: rotate(90deg);
+}
+
+/* Responsividade para telas menores */
+@media (max-width: 640px) {
+    .alerta-estoque-baixo .flex {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .alerta-estoque-baixo button {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+    }
+}
+
+/* Efeito de shake para chamar atenção */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
+    20%, 40%, 60%, 80% { transform: translateX(2px); }
+}
+
+.alerta-estoque-baixo.shake {
+    animation: shake 0.5s ease-in-out;
 }
