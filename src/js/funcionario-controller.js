@@ -336,55 +336,67 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function adicionarTooltipAjuda() {
-        const tooltips = {
-            'entrada': 'Quantidade inicial do turno (transferida do turno anterior)',
-            'chegadas': 'Quantidade que chegou durante o turno',
-            'sobra': 'Quantidade que sobrou no final do turno (não pode exceder entrada + chegadas)',
-            'descarte': 'Quantidade descartada ou perdida durante o turno',
-            'consumo': 'Quantidade consumida por funcionários',
-            'vendas': 'Quantidade vendida de gelo (apenas para gelo)',
-            'vendido': 'Calculado automaticamente: (entrada + chegadas) - sobra - descarte - consumo',
-            'consumo_interno': 'Consumo interno de gelo (calculado automaticamente)'
-        };
+    const tooltips = {
+        'entrada': 'Quantidade inicial do turno (transferida do turno anterior)',
+        'chegadas': 'Quantidade que chegou durante o turno',
+        'sobra': 'Quantidade que sobrou no final do turno (não pode exceder entrada + chegadas)',
+        'descarte': 'Quantidade descartada ou perdida durante o turno',
+        'consumo': 'Quantidade consumida por funcionários',
+        'vendas': 'Quantidade vendida de gelo (apenas para gelo)',
+        'vendido': 'Calculado automaticamente: (entrada + chegadas) - sobra - descarte - consumo',
+        'consumo_interno': 'Consumo interno de gelo (calculado automaticamente)'
+    };
+    
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+        const id = input.id;
+        if (!id) return;
         
-        document.querySelectorAll('input[type="number"]').forEach(input => {
-            const id = input.id;
-            if (!id) return;
-            
-            let tooltipText = '';
-            Object.entries(tooltips).forEach(([key, text]) => {
-                if (id.endsWith(`_${key}`)) {
-                    tooltipText = text;
-                }
-            });
-            
-            if (tooltipText) {
-                input.title = tooltipText;
-                input.setAttribute('data-tooltip', tooltipText);
-                
-                const th = input.closest('table')?.querySelector(`th:contains("${getColumnNameFromId(id)}")`);
-                if (th && !th.querySelector('.help-icon')) {
-                    const helpIcon = document.createElement('span');
-                    helpIcon.className = 'help-icon ml-1 text-gray-400 hover:text-gray-600 cursor-help inline-block';
-                    helpIcon.innerHTML = '<i class="fas fa-question-circle text-xs"></i>';
-                    helpIcon.title = tooltipText;
-                    th.appendChild(helpIcon);
-                }
+        let tooltipText = '';
+        Object.entries(tooltips).forEach(([key, text]) => {
+            if (id.endsWith(`_${key}`)) {
+                tooltipText = text;
             }
         });
         
-        function getColumnNameFromId(id) {
-            if (id.includes('_entrada')) return 'Entrada';
-            if (id.includes('_chegadas')) return 'Chegadas';
-            if (id.includes('_sobra')) return 'Sobra';
-            if (id.includes('_descarte')) return 'Descarte';
-            if (id.includes('_consumo_interno')) return 'Consumo Interno';
-            if (id.includes('_consumo')) return 'Consumo Func.';
-            if (id.includes('_vendas')) return 'Vendas';
-            if (id.includes('_vendido')) return 'Vendido';
-            return '';
+        if (tooltipText) {
+            input.title = tooltipText;
+            input.setAttribute('data-tooltip', tooltipText);
+            
+            let th = null;
+            const table = input.closest('table');
+            if (table) {
+                const headerText = getColumnNameFromId(id);
+                const allThs = table.querySelectorAll('th');
+                for (const thEl of allThs) {
+                    if (thEl.textContent.includes(headerText)) {
+                        th = thEl;
+                        break;
+                    }
+                }
+            }
+            
+            if (th && !th.querySelector('.help-icon')) {
+                const helpIcon = document.createElement('span');
+                helpIcon.className = 'help-icon ml-1 text-gray-400 hover:text-gray-600 cursor-help inline-block';
+                helpIcon.innerHTML = '<i class="fas fa-question-circle text-xs"></i>';
+                helpIcon.title = tooltipText;
+                th.appendChild(helpIcon);
+            }
         }
+    });
+    
+    function getColumnNameFromId(id) {
+        if (id.includes('_entrada')) return 'Entrada';
+        if (id.includes('_chegadas')) return 'Chegadas';
+        if (id.includes('_sobra')) return 'Sobra';
+        if (id.includes('_descarte')) return 'Descarte';
+        if (id.includes('_consumo_interno')) return 'Consumo Interno';
+        if (id.includes('_consumo')) return 'Consumo Func.';
+        if (id.includes('_vendas')) return 'Vendas';
+        if (id.includes('_vendido')) return 'Vendido';
+        return '';
     }
+}
 
     function atualizarLimitesVisuais(itemKey) {
         if (!itemKey) return;
