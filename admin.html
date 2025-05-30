@@ -1219,24 +1219,42 @@ document.getElementById('btnTabCaixaControle').addEventListener('click', () => {
 });
 
 async function loadCashControlData() {
-    console.log("Iniciando loadCashControlData"); // DEBUG
+    console.log("Iniciando loadCashControlData");
     showToast('Carregando dados do controle de caixa...', 'info');
     
     try {
-        // Adicionar verificação de autenticação
-        if (!auth.currentUser) {
-            console.error("Usuário não autenticado");
-            showToast('Erro: Usuário não autenticado', 'error');
-            return;
-        }
-
-        console.log("Buscando turnos com status 'aberto'..."); // DEBUG
-        
-        const turnosAtivos = await db.collection('turnos')
+        // Primeiro, buscar turnos com status 'aberto'
+        let turnosAtivos = await db.collection('turnos')
             .where('status', '==', 'aberto')
             .get();
         
-        console.log(`Encontrados ${turnosAtivos.size} turnos ativos`); // DEBUG
+        // Se não encontrar, buscar turnos sem campo de fechamento (alternativa)
+        if (turnosAtivos.empty) {
+            console.log("Nenhum turno com status 'aberto'. Buscando turnos sem fechamento...");
+            
+            // Buscar turnos que não têm o campo 'fechamento'
+            const turnosSemFechamento = await db.collection('turnos')
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get();
+            
+            // Filtrar apenas os que parecem estar abertos
+            const turnosAbertos = [];
+            turnosSemFechamento.forEach(doc => {
+                const data = doc.data();
+                // Considerar aberto se não tem fechamento E (não tem status OU status é 'aberto')
+                if (!data.fechamento && (!data.status || data.status === 'aberto')) {
+                    turnosAbertos.push(doc);
+                }
+            });
+            
+            // Converter para o formato esperado
+            turnosAtivos = {
+                empty: turnosAbertos.length === 0,
+                size: turnosAbertos.length,
+                forEach: (callback) => turnosAbertos.forEach(callback)
+            };
+        }
         
         const turnosContainer = document.getElementById('turnosAtivosContainer');
         
@@ -1254,32 +1272,34 @@ async function loadCashControlData() {
                 </div>
             `;
             document.getElementById('caixaAjusteContainer').classList.add('hidden');
-            console.log("Nenhum turno ativo encontrado."); // DEBUG
+            console.log("Nenhum turno ativo encontrado.");
             return;
         }
         
         let turnosHtml = '';
         const turnosList = [];
         
-        turnosAtivos.forEach(doc => {
+        turnosAtivos.forEach(async (doc) => {
             const turno = { id: doc.id, ...doc.data() };
-            turnosList.push(turno);
             
-            console.log(`Processando turno ${doc.id}:`, turno); // DEBUG detalhado
+            // Se o turno não tem status, atualizar para 'aberto'
+            if (!turno.status) {
+                console.log(`⚠️ Turno ${doc.id} sem status. Atualizando para 'aberto'...`);
+                await doc.ref.update({ status: 'aberto' });
+                turno.status = 'aberto';
+            }
+            
+            turnosList.push(turno);
             
             const [data, periodo] = doc.id.split('_');
             const dataFormatada = data ? data.split('-').reverse().join('/') : 'Data inválida';
             
-            // Verificar se os campos existem e usar valores padrão se necessário
             const caixaDinheiro = turno.caixaInicialDinheiro !== undefined ? turno.caixaInicialDinheiro : 0;
             const caixaMoedas = turno.caixaInicialMoedas !== undefined ? turno.caixaInicialMoedas : 0;
             const caixaAtual = caixaDinheiro + caixaMoedas;
             
-            // Verificar se há dados de abertura
             const responsavelNome = turno.abertura?.responsavelNome || 'Não identificado';
             const horaAbertura = turno.abertura?.hora || 'Não registrada';
-            
-            console.log(`Caixa do turno ${doc.id}: Dinheiro=${caixaDinheiro}, Moedas=${caixaMoedas}, Total=${caixaAtual}`); // DEBUG
             
             turnosHtml += `
                 <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
@@ -1330,28 +1350,17 @@ async function loadCashControlData() {
             `;
         });
         
-        console.log("Turnos encontrados:", turnosList); // DEBUG
-        
         turnosContainer.innerHTML = turnosHtml;
-        
         window.turnosAtivos = turnosList;
         
-        // Carregar histórico de ajustes
         await carregarHistoricoAjustes();
         
         showToast(`${turnosList.length} turno(s) ativo(s) carregado(s)`, 'success');
         
     } catch (error) {
         console.error('Erro ao carregar dados do controle de caixa:', error);
+        showToast('Erro ao carregar dados do controle de caixa: ' + error.message, 'error');
         
-        // Verificar tipo de erro
-        if (error.code === 'permission-denied') {
-            showToast('Erro de permissão. Verifique se você tem acesso aos turnos.', 'error');
-        } else {
-            showToast('Erro ao carregar dados do controle de caixa: ' + error.message, 'error');
-        }
-        
-        // Mostrar mensagem de erro no container
         const turnosContainer = document.getElementById('turnosAtivosContainer');
         if (turnosContainer) {
             turnosContainer.innerHTML = `
