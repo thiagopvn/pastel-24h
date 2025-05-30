@@ -1292,3 +1292,58 @@ fieldset.border-red-300::before {
         transform: translateY(-10px);
     }
 }
+
+/* Alerta de Estoque Baixo */
+.alerta-estoque-baixo {
+    animation: slideDown 0.5s ease-out forwards;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 100px;
+    }
+}
+
+.alerta-estoque-baixo td {
+    animation: pulseBackground 2s ease-in-out infinite;
+}
+
+@keyframes pulseBackground {
+    0%, 100% {
+        background-color: #FEF2F2;
+    }
+    50% {
+        background-color: #FEE2E2;
+    }
+}
+
+/* Hover effect nos alertas */
+.alerta-estoque-baixo:hover td {
+    background-color: #FCA5A5 !important;
+    animation: none;
+}
+
+/* Transição suave ao remover */
+.alerta-estoque-baixo.removing {
+    animation: slideUp 0.3s ease-in forwards;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 100px;
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+        max-height: 0;
+    }
+}

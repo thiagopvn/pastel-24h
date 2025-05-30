@@ -37,6 +37,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     let funcionariosColaboradores = [];
     let listaFuncionariosDisponiveis = [];
 
+    const LIMITES_ESTOQUE_MINIMO = {
+    'fardo_de_cana': 4,
+    'copo_300ml': 20,
+    'copo_400ml': 20,
+    'copo_500ml': 20,
+    'garrafa_500ml': 6,
+    'garrafa_1_litro': 6,
+    'coca-cola': 12,
+    'fanta_laranja': 8,
+    'fanta_uva': 8,
+    'guarana': 8,
+    'refri_limao': 8,
+    'refri_zero': 8,
+    'itubaina': 8,
+    'agua': 12,
+    'agua_c_gas': 6,
+    'cerveja_longneck': 6,
+    'cerveja_lata': 6,
+    'gelo_pacote': 10
+};
+function verificarEstoqueBaixo(itemKey, sobra) {
+   const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
+    if (alertaExistente) {
+        alertaExistente.remove();
+    }
+    const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
+    if (!limite) return;
+    const sobraNum = parseFloat(sobra) || 0;
+    if (sobraNum < limite && sobraNum >= 0) {
+        // Criar alerta de estoque baixo
+        const inputSobra = document.getElementById(`${itemKey}_sobra`);
+        if (!inputSobra) return;
+        const row = inputSobra.closest('tr');
+        if (!row) return;
+        const alertaRow = document.createElement('tr');
+        alertaRow.id = `alerta-estoque-${itemKey}`;
+        alertaRow.className = 'alerta-estoque-baixo fade-in';
+        alertaRow.innerHTML = `
+            <td colspan="9" class="px-3 py-2 bg-red-50 border-l-4 border-red-500">
+                <div class="flex items-center text-red-700 font-semibold animate-pulse">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    <span>ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO</span>
+                    <span class="ml-2 text-sm">(Sobra: ${sobraNum} | Mínimo: ${limite})</span>
+                </div>
+            </td>
+        `;
+        row.insertAdjacentElement('afterend', alertaRow);
+    }
+}
+
     function applyCurrencyMask(input) {
         let value = input.value.replace(/[^\d]/g, '');
         if (value === '') {
@@ -1073,64 +1123,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     function resetFormAndState(statusMessage = 'Nenhum turno aberto.') {
-        formTurno.reset();
-        setInitialPeriodo();
-        turnoMesInput.value = '';
-        turnoDataInput.value = '';
-        turnoResponsavelInput.value = '';
-        turnoHoraInput.value = '';
-        
-        btnAbrirTurno.disabled = false;
-        btnFecharTurno.disabled = true;
-        removeTurnoLocal();
-        turnoAbertoLocalmente = false;
-        
-        turnoStatusP.textContent = statusMessage;
-        if (statusMessage.toLowerCase().includes("erro")) {
-            turnoStatusP.className = 'text-center text-red-600 font-semibold mb-4';
-        } else {
-            turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
-        }
-
-        clearError();
-        toggleFormInputs(false); 
-        
-        document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
-        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0');
-        document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
-        if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
-        if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
-        if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
-        if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md";
-
-        document.querySelectorAll('td[id^="total"]').forEach(el => {
-            if (el.id.includes('Vendido')) el.textContent = '0';
-            else if (el.id.includes('Valor')) el.textContent = formatToBRL(0);
-        });
-        if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
-        if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
-        if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
-        
-        const geloKey = 'gelo_pacote';
-        const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
-        if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
-        const totalFooterGelo = document.getElementById('totalGeloValor');
-        if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
-        
-        document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
-        document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
-            el.removeAttribute('data-transferido-do-turno');
-            el.removeAttribute('data-valor-original');
-            el.classList.remove('bg-blue-50', 'border-blue-300');
-        });
-        camposTransferidosAnterior = {};
-        funcionariosColaboradores = [];
-        const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
-        if (containerFuncionarios) {
-            containerFuncionarios.innerHTML = '';
-        }
-        calculateAll();
+    formTurno.reset();
+    setInitialPeriodo();
+    turnoMesInput.value = '';
+    turnoDataInput.value = '';
+    turnoResponsavelInput.value = '';
+    turnoHoraInput.value = '';
+    
+    btnAbrirTurno.disabled = false;
+    btnFecharTurno.disabled = true;
+    removeTurnoLocal();
+    turnoAbertoLocalmente = false;
+    
+    turnoStatusP.textContent = statusMessage;
+    if (statusMessage.toLowerCase().includes("erro")) {
+        turnoStatusP.className = 'text-center text-red-600 font-semibold mb-4';
+    } else {
+        turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
     }
+
+    clearError();
+    toggleFormInputs(false); 
+    
+    document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
+    document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0');
+    document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
+    if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
+    if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
+    if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
+    if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md";
+
+    document.querySelectorAll('td[id^="total"]').forEach(el => {
+        if (el.id.includes('Vendido')) el.textContent = '0';
+        else if (el.id.includes('Valor')) el.textContent = formatToBRL(0);
+    });
+    if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
+    if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
+    if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
+    
+    const geloKey = 'gelo_pacote';
+    const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
+    if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
+    const totalFooterGelo = document.getElementById('totalGeloValor');
+    if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
+    
+    document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
+    document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
+        el.removeAttribute('data-transferido-do-turno');
+        el.removeAttribute('data-valor-original');
+        el.classList.remove('bg-blue-50', 'border-blue-300');
+    });
+    camposTransferidosAnterior = {};
+    funcionariosColaboradores = [];
+    const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
+    if (containerFuncionarios) {
+        containerFuncionarios.innerHTML = '';
+    }
+    
+    document.querySelectorAll('.alerta-estoque-baixo').forEach(alerta => {
+        alerta.remove();
+    });
+    
+    calculateAll();
+}
     
     function populateTurnoDetails(aberturaData) {
         turnoMesInput.value = aberturaData.mes;
@@ -2104,7 +2159,12 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
                     updatePhysicalCashDifference();
                     checkFechamentoDivergencia();
                 }, 100);
+                
             }
+            if (target.id && target.id.includes('_sobra')) {
+        const itemKey = target.id.replace('_sobra', '');
+        verificarEstoqueBaixo(itemKey, target.value);
+    }
         });
 
         const btnAdicionarFuncionario = document.getElementById('btnAdicionarFuncionario');
@@ -2112,62 +2172,51 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
             btnAdicionarFuncionario.addEventListener('click', adicionarFuncionarioColaborador);
         }
     }
-    
     function calculateItemRow(rowElement) {
-        const itemKey = rowElement.dataset.itemKey;
-        if (!itemKey || itemKey === 'gelo_pacote') return;
-
-        const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
-        const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
-        const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
-        const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
-        
-        const vendidoInput = document.getElementById(`${itemKey}_vendido`);
-        
-        let vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
-        
-        if (vendidoCalculado < 0) {
-            vendidoCalculado = 0; 
-        }
-        
-        if (vendidoInput) vendidoInput.value = vendidoCalculado;
-
-        const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
-        if (totalItemDisplay && vendidoInput) {
-            const precoUnitario = parseFloat(vendidoInput.dataset.price) || 0;
-            const totalItemValor = vendidoCalculado * precoUnitario;
-            totalItemDisplay.textContent = formatToBRL(totalItemValor);
-        }
+    const itemKey = rowElement.dataset.itemKey;
+    if (!itemKey || itemKey === 'gelo_pacote') return;
+    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
+    const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
+    verificarEstoqueBaixo(itemKey, sobra);
+    const vendidoInput = document.getElementById(`${itemKey}_vendido`);
+    let vendidoCalculado = (entrada + chegadas) - sobra - descarte - consumo;
+    if (vendidoCalculado < 0) {
+        vendidoCalculado = 0; 
     }
+    if (vendidoInput) vendidoInput.value = vendidoCalculado;
+    const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
+    if (totalItemDisplay && vendidoInput) {
+        const precoUnitario = parseFloat(vendidoInput.dataset.price) || 0;
+        const totalItemValor = vendidoCalculado * precoUnitario;
+        totalItemDisplay.textContent = formatToBRL(totalItemValor);
+    }
+}
     
-    function calculateGeloTotal(rowElement) {
-        const itemKey = rowElement.dataset.itemKey;
-        if(itemKey !== 'gelo_pacote') return;
-
-        const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
-        const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
-        
-        const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
-        const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
-        const totalGeloFooter = document.getElementById('totalGeloValor');
-
-        if (precoDisplay && totalItemDisplay) {
-            const precoGeloTexto = precoDisplay.textContent;
-            const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
-            const totalGeloValor = vendasGelo * precoUnitarioGelo;
-            
-            totalItemDisplay.textContent = formatToBRL(totalGeloValor);
-            
-            if (totalGeloFooter) {
-                totalGeloFooter.textContent = formatToBRL(totalGeloValor);
-            }
-            
-            calculateTotals();
-            
-            console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
+   function calculateGeloTotal(rowElement) {
+    const itemKey = rowElement.dataset.itemKey;
+    if(itemKey !== 'gelo_pacote') return;
+    const vendasGeloInput = document.getElementById(`${itemKey}_vendas`);
+    const vendasGelo = parseFloat(vendasGeloInput?.value) || 0;
+    const sobraGelo = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    verificarEstoqueBaixo(itemKey, sobraGelo);
+    const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
+    const totalItemDisplay = document.getElementById(`${itemKey}_total_item`);
+    const totalGeloFooter = document.getElementById('totalGeloValor');
+    if (precoDisplay && totalItemDisplay) {
+        const precoGeloTexto = precoDisplay.textContent;
+        const precoUnitarioGelo = parseCurrencyToNumber(precoGeloTexto);
+        const totalGeloValor = vendasGelo * precoUnitarioGelo;
+        totalItemDisplay.textContent = formatToBRL(totalGeloValor);
+        if (totalGeloFooter) {
+            totalGeloFooter.textContent = formatToBRL(totalGeloValor);
         }
+        calculateTotals();
+        console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
     }
+}
     
     function calculateTotals() {
         let totalPasteisComunsVendido = 0, totalPasteisComunsValor = 0;
