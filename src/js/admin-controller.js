@@ -1920,307 +1920,500 @@ window.UserManager = UserManager;
 
     class CashControlManager {
     constructor() {
-        this.form = document.getElementById('formCaixaControle');
-        this.dinheiroInput = document.getElementById('defaultCaixaDinheiro');
-        this.moedasInput = document.getElementById('defaultCaixaMoedas');
-        this.saveButton = this.form?.querySelector('button[type="submit"]');
-        this.alertsContainer = document.getElementById('cashControlAlerts') || this.createAlertsContainer();
+        this.turnosAtivosContainer = document.getElementById('turnosAtivosContainer');
+        this.caixaAjusteContainer = document.getElementById('caixaAjusteContainer');
+        this.formAjuste = document.getElementById('formAjusteCaixa');
+        this.historicoContainer = document.getElementById('historicoAjustesContainer');
+        this.alertsContainer = document.getElementById('cashControlAlerts');
         
-        if (!this.form) {
-            console.warn("⚠️ Formulário de controle de caixa não encontrado");
-            return;
-        }
-        
-        this.setupFormHandler();
-        this.setupCurrencyMasks();
+        this.currentTurno = null;
+        this.setupEventHandlers();
     }
     
-    createAlertsContainer() {
-        // Criar container para alertas se não existir
-        const container = document.createElement('div');
-        container.id = 'cashControlAlerts';
-        container.className = 'mt-4';
-        
-        if (this.form) {
-            this.form.appendChild(container);
+    setupEventHandlers() {
+        if (this.formAjuste) {
+            this.formAjuste.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                await this.saveAjuste();
+            });
         }
         
-        return container;
+        // Botão cancelar
+        const btnCancelar = document.getElementById('btnCancelarAjuste');
+        if (btnCancelar) {
+            btnCancelar.addEventListener('click', () => {
+                this.caixaAjusteContainer?.classList.add('hidden');
+                this.currentTurno = null;
+            });
+        }
+        
+        // Configurar máscaras de moeda
+        this.setupCurrencyMasks();
+        
+        // Atualizar total ao digitar
+        const newDinheiro = document.getElementById('newCaixaDinheiro');
+        const newMoedas = document.getElementById('newCaixaMoedas');
+        
+        if (newDinheiro) {
+            newDinheiro.addEventListener('input', () => this.updateNewTotal());
+        }
+        if (newMoedas) {
+            newMoedas.addEventListener('input', () => this.updateNewTotal());
+        }
     }
     
     setupCurrencyMasks() {
-        if (this.dinheiroInput) {
-            this.setupCurrencyMask(this.dinheiroInput);
-        }
+        const inputs = ['newCaixaDinheiro', 'newCaixaMoedas'];
         
-        if (this.moedasInput) {
-            this.setupCurrencyMask(this.moedasInput);
-        }
-    }
-    
-    setupCurrencyMask(input) {
-        if (!input) return;
-        
-        input.addEventListener('input', function() {
-            let value = input.value.replace(/\D/g, '');
-            value = (parseFloat(value) / 100).toFixed(2);
-            input.value = value.toLocaleString('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            });
-        });
-        
-        input.addEventListener('blur', function() {
-            if (input.value === '') {
-                input.value = 'R$ 0,00';
-            }
-        });
-        
-        // Inicializar com valor zero se vazio
-        if (input.value === '') {
-            input.value = 'R$ 0,00';
-        }
-    }
-    
-    setupFormHandler() {
-        if (!this.form) return;
-        
-        this.form.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        inputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            if (!input) return;
             
-            if (this.saveButton) {
-                this.saveButton.disabled = true;
-                const originalText = this.saveButton.innerHTML;
-                this.saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...';
+            input.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\D/g, '');
+                const numericValue = parseFloat(value) / 100;
                 
-                try {
-                    await this.saveDefaultValues();
-                    this.saveButton.innerHTML = '<i class="fas fa-check mr-2"></i>Salvo!';
-                    setTimeout(() => {
-                        this.saveButton.disabled = false;
-                        this.saveButton.innerHTML = originalText;
-                    }, 2000);
-                } catch (error) {
-                    this.saveButton.disabled = false;
-                    this.saveButton.innerHTML = originalText;
+                e.target.value = numericValue.toLocaleString('pt-BR', {
+                    style: 'currency',
+                    currency: 'BRL'
+                });
+            });
+            
+            input.addEventListener('blur', function(e) {
+                if (!e.target.value) {
+                    e.target.value = 'R$ 0,00';
                 }
-            } else {
-                await this.saveDefaultValues();
-            }
+            });
         });
     }
     
     async load() {
         try {
-            const cashControlDoc = await db.collection('config').doc('cashControl').get();
+            notifications.showMessage("Carregando controle de caixa...", "info");
             
-            if (cashControlDoc.exists) {
-                const data = cashControlDoc.data();
-                
-                if (this.dinheiroInput) {
-                    this.dinheiroInput.value = (data.dinheiro || 0).toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                    });
-                }
-                
-                if (this.moedasInput) {
-                    this.moedasInput.value = (data.moedas || 0).toLocaleString('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL'
-                    });
-                }
-                
-                // Atualizar info de última atualização
-                this.updateLastModifiedInfo(data);
-                
-                console.log("✅ Valores padrão de caixa carregados", data);
-                notifications.showMessage("Valores de caixa carregados com sucesso", "success");
-            } else {
-                // Definir valores padrão se não existir
-                if (this.dinheiroInput) {
-                    this.dinheiroInput.value = 'R$ 0,00';
-                }
-                
-                if (this.moedasInput) {
-                    this.moedasInput.value = 'R$ 0,00';
-                }
-                
-                // Criar documento com valores padrão
-                await db.collection('config').doc('cashControl').set({
-                    dinheiro: 0,
-                    moedas: 0,
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    createdBy: auth.currentUser.uid
-                });
-                
-                console.log("✅ Documento de controle de caixa criado com valores zerados");
-                notifications.showMessage("Configuração inicial de caixa criada", "info");
-            }
+            // Carregar turnos ativos
+            await this.loadTurnosAtivos();
+            
+            // Carregar histórico
+            await this.loadHistorico();
+            
         } catch (error) {
-            console.error("❌ Erro ao carregar valores de caixa:", error);
-            notifications.showMessage(`Erro ao carregar valores de caixa: ${error.message}`, "error");
-            this.showErrorAlert(`Erro ao carregar valores de caixa: ${error.message}`);
+            console.error("❌ Erro ao carregar controle de caixa:", error);
+            notifications.showMessage(`Erro ao carregar: ${error.message}`, "error");
         }
     }
     
-    updateLastModifiedInfo(data) {
-        const infoContainer = document.getElementById('lastCashControlUpdate');
-        if (!infoContainer) return;
+    async loadTurnosAtivos() {
+        if (!this.turnosAtivosContainer) return;
         
-        if (data.updatedAt) {
-            const date = data.updatedAt.toDate();
-            const formattedDate = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+        try {
+            // Buscar turnos com status 'aberto'
+            const turnosSnapshot = await db.collection('turnos')
+                .where('status', '==', 'aberto')
+                .get();
             
-            infoContainer.innerHTML = `
-                <div class="text-xs text-gray-500 mt-2">
-                    <i class="fas fa-clock mr-1"></i> Última atualização: ${formattedDate}
+            if (turnosSnapshot.empty) {
+                this.turnosAtivosContainer.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-info-circle text-4xl mb-2"></i>
+                        <p class="text-lg">Nenhum turno ativo no momento</p>
+                        <p class="text-sm mt-2">Os turnos devem estar abertos para poder ajustar o caixa</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            this.turnosAtivosContainer.innerHTML = '';
+            
+            turnosSnapshot.forEach(doc => {
+                const turno = { id: doc.id, ...doc.data() };
+                const turnoCard = this.createTurnoCard(turno);
+                this.turnosAtivosContainer.appendChild(turnoCard);
+            });
+            
+        } catch (error) {
+            console.error("Erro ao carregar turnos:", error);
+            this.turnosAtivosContainer.innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <i class="fas fa-exclamation-triangle text-4xl mb-2"></i>
+                    <p>Erro ao carregar turnos ativos</p>
                 </div>
             `;
         }
     }
     
-    async saveDefaultValues() {
-        this.clearAlerts();
+    createTurnoCard(turno) {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-50 p-4 rounded-lg hover:bg-gray-100 transition-all cursor-pointer border border-gray-200';
+        
+        const [data, periodo] = turno.id.split('_');
+        const responsavel = turno.abertura?.responsavelNome || 'Desconhecido';
+        const caixaDinheiro = turno.caixaInicialDinheiro || turno.caixaInicial || 0;
+        const caixaMoedas = turno.caixaInicialMoedas || 0;
+        const caixaTotal = caixaDinheiro + caixaMoedas;
+        
+        div.innerHTML = `
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="font-semibold text-gray-800">
+                        <i class="fas fa-store mr-2 text-primary-500"></i>
+                        Turno ${periodo} - ${data}
+                    </h4>
+                    <p class="text-sm text-gray-600 mt-1">
+                        <i class="fas fa-user mr-1"></i>Responsável: ${responsavel}
+                    </p>
+                    <div class="mt-2 flex gap-4 text-sm">
+                        <span class="text-gray-700">
+                            <i class="fas fa-money-bill-wave mr-1 text-green-500"></i>
+                            Dinheiro: ${this.formatCurrency(caixaDinheiro)}
+                        </span>
+                        <span class="text-gray-700">
+                            <i class="fas fa-coins mr-1 text-yellow-500"></i>
+                            Moedas: ${this.formatCurrency(caixaMoedas)}
+                        </span>
+                        <span class="font-semibold text-primary-700">
+                            Total: ${this.formatCurrency(caixaTotal)}
+                        </span>
+                    </div>
+                </div>
+                <button class="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-all">
+                    <i class="fas fa-edit mr-2"></i>Ajustar
+                </button>
+            </div>
+        `;
+        
+        div.addEventListener('click', () => {
+            this.selectTurno(turno);
+        });
+        
+        return div;
+    }
+    
+    selectTurno(turno) {
+        this.currentTurno = turno;
+        
+        // Mostrar formulário de ajuste
+        this.caixaAjusteContainer?.classList.remove('hidden');
+        
+        // Preencher informações do turno
+        const infoDisplay = document.getElementById('turnoInfoDisplay');
+        if (infoDisplay) {
+            const [data, periodo] = turno.id.split('_');
+            infoDisplay.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h4 class="font-semibold text-blue-800">
+                            <i class="fas fa-info-circle mr-2"></i>
+                            Ajustando Turno: ${periodo} - ${data}
+                        </h4>
+                        <p class="text-sm text-blue-600 mt-1">
+                            Responsável: ${turno.abertura?.responsavelNome || 'Desconhecido'}
+                        </p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-blue-600">ID do Turno</p>
+                        <p class="font-mono text-sm">${turno.id}</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Preencher valores atuais
+        const caixaDinheiro = turno.caixaInicialDinheiro || turno.caixaInicial || 0;
+        const caixaMoedas = turno.caixaInicialMoedas || 0;
+        const caixaTotal = caixaDinheiro + caixaMoedas;
+        
+        this.setInputValue('currentCaixaDinheiro', this.formatCurrency(caixaDinheiro));
+        this.setInputValue('currentCaixaMoedas', this.formatCurrency(caixaMoedas));
+        this.setInputValue('currentCaixaTotal', this.formatCurrency(caixaTotal));
+        
+        // Preencher novos valores com os atuais inicialmente
+        this.setInputValue('newCaixaDinheiro', this.formatCurrency(caixaDinheiro));
+        this.setInputValue('newCaixaMoedas', this.formatCurrency(caixaMoedas));
+        this.updateNewTotal();
+        
+        // Limpar motivo
+        const motivoInput = document.getElementById('motivoAjuste');
+        if (motivoInput) motivoInput.value = '';
+        
+        // Focar no primeiro campo
+        document.getElementById('newCaixaDinheiro')?.focus();
+        
+        // Scroll para o formulário
+        this.caixaAjusteContainer?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    
+    updateNewTotal() {
+        const newDinheiro = this.parseCurrency(document.getElementById('newCaixaDinheiro')?.value || '0');
+        const newMoedas = this.parseCurrency(document.getElementById('newCaixaMoedas')?.value || '0');
+        const newTotal = newDinheiro + newMoedas;
+        
+        this.setInputValue('newCaixaTotal', this.formatCurrency(newTotal));
+        
+        // Calcular e mostrar diferença
+        if (this.currentTurno) {
+            const currentDinheiro = this.currentTurno.caixaInicialDinheiro || this.currentTurno.caixaInicial || 0;
+            const currentMoedas = this.currentTurno.caixaInicialMoedas || 0;
+            const currentTotal = currentDinheiro + currentMoedas;
+            
+            const difDinheiro = newDinheiro - currentDinheiro;
+            const difMoedas = newMoedas - currentMoedas;
+            const difTotal = newTotal - currentTotal;
+            
+            const diferencaDisplay = document.getElementById('diferencaDisplay');
+            const diferencaInfo = document.getElementById('diferencaInfo');
+            
+            if (diferencaDisplay && diferencaInfo && Math.abs(difTotal) > 0.01) {
+                diferencaDisplay.classList.remove('hidden');
+                
+                const formatDif = (value) => {
+                    const formatted = this.formatCurrency(Math.abs(value));
+                    if (value > 0) return `+${formatted}`;
+                    if (value < 0) return `-${formatted}`;
+                    return formatted;
+                };
+                
+                diferencaInfo.innerHTML = `
+                    <p><strong>Diferença em Dinheiro:</strong> ${formatDif(difDinheiro)}</p>
+                    <p><strong>Diferença em Moedas:</strong> ${formatDif(difMoedas)}</p>
+                    <p class="font-bold text-lg mt-2 ${difTotal < 0 ? 'text-red-600' : 'text-green-600'}">
+                        <strong>Diferença Total:</strong> ${formatDif(difTotal)}
+                    </p>
+                    ${difTotal < 0 ? 
+                        '<p class="text-red-600 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>Valor será reduzido do caixa</p>' : 
+                        '<p class="text-green-600 mt-2"><i class="fas fa-plus-circle mr-1"></i>Valor será adicionado ao caixa</p>'
+                    }
+                `;
+            } else if (diferencaDisplay) {
+                diferencaDisplay.classList.add('hidden');
+            }
+        }
+    }
+    
+    async saveAjuste() {
+        if (!this.currentTurno) {
+            notifications.showMessage("Nenhum turno selecionado", "error");
+            return;
+        }
+        
+        const motivo = document.getElementById('motivoAjuste')?.value.trim();
+        if (!motivo) {
+            notifications.showMessage("Por favor, informe o motivo do ajuste", "warning");
+            document.getElementById('motivoAjuste')?.focus();
+            return;
+        }
+        
+        const newDinheiro = this.parseCurrency(document.getElementById('newCaixaDinheiro')?.value || '0');
+        const newMoedas = this.parseCurrency(document.getElementById('newCaixaMoedas')?.value || '0');
+        
+        const currentDinheiro = this.currentTurno.caixaInicialDinheiro || this.currentTurno.caixaInicial || 0;
+        const currentMoedas = this.currentTurno.caixaInicialMoedas || 0;
+        
+        // Verificar se houve mudança
+        if (Math.abs(newDinheiro - currentDinheiro) < 0.01 && Math.abs(newMoedas - currentMoedas) < 0.01) {
+            notifications.showMessage("Nenhuma alteração foi feita nos valores", "warning");
+            return;
+        }
+        
+        const submitButton = this.formAjuste.querySelector('button[type="submit"]');
+        const originalText = submitButton.innerHTML;
         
         try {
-            if (!this.dinheiroInput || !this.moedasInput) {
-                throw new Error("Campos de entrada não encontrados");
-            }
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...';
             
-            // Extrair valores numéricos
-            const dinheiroStr = this.dinheiroInput.value.replace(/[^\d,.-]/g, '').replace(',', '.');
-            const moedasStr = this.moedasInput.value.replace(/[^\d,.-]/g, '').replace(',', '.');
+            // Salvar o ajuste no turno
+            await db.collection('turnos').doc(this.currentTurno.id).update({
+                caixaInicialDinheiro: newDinheiro,
+                caixaInicialMoedas: newMoedas,
+                caixaInicial: newDinheiro + newMoedas, // Manter compatibilidade
+                ultimoAjusteCaixa: {
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                    responsavel: auth.currentUser.uid,
+                    responsavelNome: (await db.collection('usuarios').doc(auth.currentUser.uid).get()).data()?.nome || auth.currentUser.email,
+                    motivo: motivo,
+                    valoresAnteriores: {
+                        dinheiro: currentDinheiro,
+                        moedas: currentMoedas
+                    },
+                    valoresNovos: {
+                        dinheiro: newDinheiro,
+                        moedas: newMoedas
+                    }
+                }
+            });
             
-            const dinheiro = parseFloat(dinheiroStr) || 0;
-            const moedas = parseFloat(moedasStr) || 0;
+            // Registrar no histórico
+            await db.collection('ajustes_caixa').add({
+                turnoId: this.currentTurno.id,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+                responsavel: auth.currentUser.uid,
+                responsavelNome: (await db.collection('usuarios').doc(auth.currentUser.uid).get()).data()?.nome || auth.currentUser.email,
+                motivo: motivo,
+                valoresAnteriores: {
+                    dinheiro: currentDinheiro,
+                    moedas: currentMoedas,
+                    total: currentDinheiro + currentMoedas
+                },
+                valoresNovos: {
+                    dinheiro: newDinheiro,
+                    moedas: newMoedas,
+                    total: newDinheiro + newMoedas
+                },
+                diferenca: {
+                    dinheiro: newDinheiro - currentDinheiro,
+                    moedas: newMoedas - currentMoedas,
+                    total: (newDinheiro + newMoedas) - (currentDinheiro + currentMoedas)
+                }
+            });
             
-            if (dinheiro < 0 || moedas < 0) {
-                throw new Error("Os valores não podem ser negativos");
-            }
+            notifications.showMessage("Caixa ajustado com sucesso!", "success");
             
-            // Buscar valores atuais para comparação
-            const currentDoc = await db.collection('config').doc('cashControl').get();
-            const currentData = currentDoc.exists ? currentDoc.data() : { dinheiro: 0, moedas: 0 };
+            // Ocultar formulário
+            this.caixaAjusteContainer?.classList.add('hidden');
+            this.currentTurno = null;
             
-            // Verificar se houve alteração
-            if (Math.abs(currentData.dinheiro - dinheiro) < 0.01 && Math.abs(currentData.moedas - moedas) < 0.01) {
-                this.showWarningAlert("Os valores são idênticos aos já salvos. Nenhuma alteração necessária.");
+            // Recarregar dados
+            await this.load();
+            
+        } catch (error) {
+            console.error("Erro ao salvar ajuste:", error);
+            notifications.showMessage(`Erro ao salvar: ${error.message}`, "error");
+        } finally {
+            submitButton.disabled = false;
+            submitButton.innerHTML = originalText;
+        }
+    }
+    
+    async loadHistorico() {
+        if (!this.historicoContainer) return;
+        
+        try {
+            const historicoSnapshot = await db.collection('ajustes_caixa')
+                .orderBy('timestamp', 'desc')
+                .limit(10)
+                .get();
+            
+            if (historicoSnapshot.empty) {
+                this.historicoContainer.innerHTML = `
+                    <div class="text-center py-6 text-gray-500">
+                        <i class="fas fa-history text-3xl mb-2"></i>
+                        <p>Nenhum ajuste registrado ainda</p>
+                    </div>
+                `;
                 return;
             }
             
-            // Obter dados do usuário
-            const userDoc = await db.collection('usuarios').doc(auth.currentUser.uid).get();
-            const userData = userDoc.exists ? userDoc.data() : {};
-            const userName = userData.nome || auth.currentUser.email || 'Usuário Admin';
+            this.historicoContainer.innerHTML = '';
             
-            // Salvar valores no Firestore
-            await db.collection('config').doc('cashControl').set({
-                dinheiro,
-                moedas,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                updatedBy: auth.currentUser.uid,
-                updatedByName: userName
-            }, { merge: true });
-            
-            // Registrar na auditoria
-            await db.collection('audit_logs').add({
-                action: 'cash_default_updated',
-                oldValues: {
-                    dinheiro: currentData.dinheiro,
-                    moedas: currentData.moedas
-                },
-                newValues: {
-                    dinheiro,
-                    moedas
-                },
-                performedBy: auth.currentUser.uid,
-                performedByName: userName,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            historicoSnapshot.forEach(doc => {
+                const ajuste = doc.data();
+                const item = this.createHistoricoItem(ajuste);
+                this.historicoContainer.appendChild(item);
             });
             
-            this.updateLastModifiedInfo({
-                updatedAt: firebase.firestore.Timestamp.now()
-            });
-            
-            this.showSuccessAlert(`Valores padrão de caixa salvos com sucesso! Dinheiro: ${dinheiro.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}, Moedas: ${moedas.toLocaleString('pt-BR', {style: 'currency', currency: 'BRL'})}`);
-            notifications.showMessage("Valores padrão de caixa salvos com sucesso!", "success");
-            
-            return true;
         } catch (error) {
-            console.error("❌ Erro ao salvar valores de caixa:", error);
-            this.showErrorAlert(`Erro ao salvar valores de caixa: ${error.message}`);
-            notifications.showMessage(`Erro ao salvar valores de caixa: ${error.message}`, "error");
-            return false;
+            console.error("Erro ao carregar histórico:", error);
+            this.historicoContainer.innerHTML = `
+                <div class="text-center py-6 text-red-500">
+                    <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
+                    <p>Erro ao carregar histórico</p>
+                </div>
+            `;
         }
     }
     
-    clearAlerts() {
-        if (this.alertsContainer) {
-            this.alertsContainer.innerHTML = '';
-        }
+    createHistoricoItem(ajuste) {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-50 p-4 rounded-lg border border-gray-200';
+        
+        const timestamp = ajuste.timestamp?.toDate() || new Date();
+        const dataFormatada = timestamp.toLocaleDateString('pt-BR') + ' ' + 
+                             timestamp.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        const difTotal = ajuste.diferenca?.total || 0;
+        const tipoAjuste = difTotal < 0 ? 'Retirada' : 'Adição';
+        const corAjuste = difTotal < 0 ? 'text-red-600' : 'text-green-600';
+        
+        div.innerHTML = `
+            <div class="flex justify-between items-start mb-2">
+                <div>
+                    <h4 class="font-semibold text-gray-800">
+                        <i class="fas fa-${difTotal < 0 ? 'minus' : 'plus'}-circle mr-1 ${corAjuste}"></i>
+                        ${tipoAjuste} de ${this.formatCurrency(Math.abs(difTotal))}
+                    </h4>
+                    <p class="text-sm text-gray-600 mt-1">
+                        <i class="fas fa-user mr-1"></i>${ajuste.responsavelNome || 'Desconhecido'} - ${dataFormatada}
+                    </p>
+                </div>
+                <span class="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                    ${ajuste.turnoId}
+                </span>
+            </div>
+            
+            <div class="text-sm text-gray-700 mt-2">
+                <p class="mb-1"><strong>Motivo:</strong> ${ajuste.motivo}</p>
+                <div class="grid grid-cols-2 gap-4 mt-2 text-xs">
+                    <div>
+                        <span class="text-gray-500">Antes:</span> 
+                        D: ${this.formatCurrency(ajuste.valoresAnteriores?.dinheiro || 0)} | 
+                        M: ${this.formatCurrency(ajuste.valoresAnteriores?.moedas || 0)}
+                    </div>
+                    <div>
+                        <span class="text-gray-500">Depois:</span> 
+                        D: ${this.formatCurrency(ajuste.valoresNovos?.dinheiro || 0)} | 
+                        M: ${this.formatCurrency(ajuste.valoresNovos?.moedas || 0)}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        return div;
     }
     
-    showSuccessAlert(message) {
-        this.clearAlerts();
-        
+    // Métodos auxiliares
+    formatCurrency(value) {
+        return value.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+        });
+    }
+    
+    parseCurrency(value) {
+        if (typeof value === 'number') return value;
+        return parseFloat(value.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+    }
+    
+    setInputValue(inputId, value) {
+        const input = document.getElementById(inputId);
+        if (input) input.value = value;
+    }
+    
+    showAlert(message, type = 'info') {
         if (!this.alertsContainer) return;
         
+        const alertClass = {
+            success: 'bg-green-100 border-green-500 text-green-700',
+            error: 'bg-red-100 border-red-500 text-red-700',
+            warning: 'bg-yellow-100 border-yellow-500 text-yellow-700',
+            info: 'bg-blue-100 border-blue-500 text-blue-700'
+        }[type] || 'bg-gray-100 border-gray-500 text-gray-700';
+        
         const alert = document.createElement('div');
-        alert.className = 'bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-md shadow-sm animate-bounce-in';
+        alert.className = `border-l-4 p-4 mb-4 rounded ${alertClass}`;
         alert.innerHTML = `
             <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-2"></i>
+                <i class="fas fa-${type === 'error' ? 'exclamation-circle' : 'info-circle'} mr-2"></i>
                 <span>${message}</span>
             </div>
         `;
         
+        this.alertsContainer.innerHTML = '';
         this.alertsContainer.appendChild(alert);
         
-        // Auto-remove após 5 segundos
+        // Auto remover após 5 segundos
         setTimeout(() => {
-            alert.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-            setTimeout(() => alert.remove(), 500);
-        }, 5000);
-    }
-    
-    showErrorAlert(message) {
-        this.clearAlerts();
-        
-        if (!this.alertsContainer) return;
-        
-        const alert = document.createElement('div');
-        alert.className = 'bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm';
-        alert.innerHTML = `
-            <div class="flex items-start">
-                <i class="fas fa-exclamation-circle text-red-500 mr-2 mt-0.5"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        
-        this.alertsContainer.appendChild(alert);
-    }
-    
-    showWarningAlert(message) {
-        this.clearAlerts();
-        
-        if (!this.alertsContainer) return;
-        
-        const alert = document.createElement('div');
-        alert.className = 'bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm';
-        alert.innerHTML = `
-            <div class="flex items-center">
-                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
-                <span>${message}</span>
-            </div>
-        `;
-        
-        this.alertsContainer.appendChild(alert);
-        
-        // Auto-remove após 5 segundos
-        setTimeout(() => {
-            alert.classList.add('opacity-0', 'transition-opacity', 'duration-500');
-            setTimeout(() => alert.remove(), 500);
+            alert.remove();
         }, 5000);
     }
 }

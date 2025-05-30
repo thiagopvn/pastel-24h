@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <!-- Após as outras importações do Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-functions.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap">
@@ -210,7 +209,6 @@
             background: #EA580C;
         }
 
-        /* Estilos para a seção de preços */
         .price-card {
             position: relative;
             overflow: hidden;
@@ -238,7 +236,6 @@
             opacity: 0.2;
         }
 
-        /* Animação de destaque para cards modificados */
         .price-card.modified {
             animation: highlight-pulse 2s ease-in-out;
         }
@@ -249,7 +246,6 @@
             100% { transform: scale(1); }
         }
 
-        /* Grid responsivo para cards de preços */
         .prices-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -302,7 +298,6 @@
     </header>
 
     <main class="container mx-auto px-4 py-6 space-y-6">
-        <!-- Navegação por Abas -->
         <div class="glass-effect rounded-2xl p-4">
             <nav class="flex flex-wrap justify-center md:justify-start gap-2">
                 <button id="btnTabDashboard" class="tab-button active px-6 py-3 bg-primary-500 text-white font-semibold rounded-lg shadow-lg hover:bg-primary-600 transition-all flex items-center">
@@ -323,60 +318,141 @@
             </nav>
         </div>
 
-<div id="tabContentCaixaControle" class="tab-content hidden">
-    <div class="glass-effect rounded-2xl p-8">
-        <!-- Header da seção -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
-                <i class="fas fa-cash-register text-white text-2xl"></i>
-            </div>
-            <h2 class="text-3xl font-bold text-gray-800 mb-2">Controle de Caixa</h2>
-            <p class="text-gray-600 max-w-2xl mx-auto">
-                Configure os valores padrões para o caixa inicial dos turnos. Estes valores serão aplicados automaticamente ao abrir um novo turno.
-            </p>
-        </div>
-        
-        <form id="formCaixaControle" class="space-y-8">
-            <div class="bg-white p-6 rounded-xl shadow-md">
-                <h3 class="text-lg font-semibold text-primary-700 mb-4 border-b pb-2">Valores Padrão do Caixa</h3>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <label for="defaultCaixaDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-money-bill-wave mr-1"></i>Valor Padrão - Dinheiro
-                        </label>
-                        <input type="text" id="defaultCaixaDinheiro" name="defaultCaixaDinheiro" 
-                               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500 input-focus" 
-                               placeholder="R$ 0,00">
-                        <p class="mt-1 text-sm text-gray-500">Valor em cédulas para iniciar os turnos</p>
+        <div id="tabContentCaixaControle" class="tab-content hidden">
+            <div class="glass-effect rounded-2xl p-8">
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
+                        <i class="fas fa-cash-register text-white text-2xl"></i>
                     </div>
-                    
-                    <div>
-                        <label for="defaultCaixaMoedas" class="block text-sm font-medium text-gray-700 mb-1">
-                            <i class="fas fa-coins mr-1"></i>Valor Padrão - Moedas
-                        </label>
-                        <input type="text" id="defaultCaixaMoedas" name="defaultCaixaMoedas" 
-                               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500 input-focus" 
-                               placeholder="R$ 0,00">
-                        <p class="mt-1 text-sm text-gray-500">Valor em moedas para iniciar os turnos</p>
-                    </div>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Controle de Caixa</h2>
+                    <p class="text-gray-600 max-w-2xl mx-auto">
+                        Gerencie o caixa dos turnos ativos. Ajuste os valores quando necessário (ex: retiradas para depósito).
+                    </p>
                 </div>
-                
-                <!-- ... resto do conteúdo da aba ... -->
-                
-                <div class="mt-6 flex justify-end">
-                    <button type="submit" class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-lg shadow-md transition-all duration-300 flex items-center">
-                        <i class="fas fa-save mr-2"></i>Salvar Valores Padrão
-                    </button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
 
-        <!-- Conteúdo Dashboard -->
+                <div id="cashControlAlerts" class="mb-6"></div>
+
+                <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                    <h3 class="text-lg font-semibold text-primary-700 mb-4 border-b pb-2">
+                        <i class="fas fa-clock mr-2"></i>Turnos Ativos
+                    </h3>
+                    
+                    <div id="turnosAtivosContainer" class="space-y-4">
+                        <div class="text-center py-8 text-gray-500">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>Carregando turnos ativos...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="caixaAjusteContainer" class="hidden">
+                    <form id="formAjusteCaixa" class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-semibold text-primary-700 mb-4 border-b pb-2">
+                            <i class="fas fa-edit mr-2"></i>Ajustar Valores do Caixa
+                        </h3>
+                        
+                        <div id="turnoInfoDisplay" class="bg-blue-50 p-4 rounded-lg mb-6">
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                            <div>
+                                <h4 class="font-semibold text-gray-700 mb-3">Valores Atuais</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-money-bill-wave mr-1"></i>Dinheiro Atual
+                                        </label>
+                                        <input type="text" id="currentCaixaDinheiro" readonly 
+                                               class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-coins mr-1"></i>Moedas Atuais
+                                        </label>
+                                        <input type="text" id="currentCaixaMoedas" readonly 
+                                               class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-calculator mr-1"></i>Total Atual
+                                        </label>
+                                        <input type="text" id="currentCaixaTotal" readonly 
+                                               class="w-full p-3 bg-gray-100 border border-gray-300 rounded-lg font-bold">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h4 class="font-semibold text-gray-700 mb-3">Novos Valores</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-money-bill-wave mr-1 text-primary-500"></i>Novo Valor - Dinheiro
+                                        </label>
+                                        <input type="text" id="newCaixaDinheiro" required
+                                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" 
+                                               placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-coins mr-1 text-primary-500"></i>Novo Valor - Moedas
+                                        </label>
+                                        <input type="text" id="newCaixaMoedas" required
+                                               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" 
+                                               placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-600 mb-1">
+                                            <i class="fas fa-calculator mr-1 text-primary-500"></i>Novo Total
+                                        </label>
+                                        <input type="text" id="newCaixaTotal" readonly 
+                                               class="w-full p-3 bg-primary-50 border border-primary-300 rounded-lg font-bold text-primary-700">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                <i class="fas fa-comment-alt mr-1"></i>Motivo do Ajuste (obrigatório)
+                            </label>
+                            <textarea id="motivoAjuste" rows="3" required
+                                      class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500" 
+                                      placeholder="Ex: Retirada de R$ 800,00 para depósito bancário"></textarea>
+                        </div>
+                        
+                        <div id="diferencaDisplay" class="hidden bg-yellow-50 p-4 rounded-lg mb-6">
+                            <h4 class="font-semibold text-yellow-800 mb-2">
+                                <i class="fas fa-exclamation-triangle mr-1"></i>Resumo da Alteração
+                            </h4>
+                            <div id="diferencaInfo" class="text-sm space-y-1">
+                            </div>
+                        </div>
+                        
+                        <div class="flex gap-3 justify-end">
+                            <button type="button" id="btnCancelarAjuste" 
+                                    class="px-6 py-3 bg-gray-500 hover:bg-gray-600 text-white font-semibold rounded-lg transition-all">
+                                <i class="fas fa-times mr-2"></i>Cancelar
+                            </button>
+                            <button type="submit" 
+                                    class="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-white font-bold rounded-lg shadow-md transition-all">
+                                <i class="fas fa-save mr-2"></i>Confirmar Ajuste
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="mt-8 bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-lg font-semibold text-primary-700 mb-4 border-b pb-2">
+                        <i class="fas fa-history mr-2"></i>Histórico de Ajustes
+                    </h3>
+                    <div id="historicoAjustesContainer" class="space-y-3">
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div id="tabContentDashboard" class="tab-content space-y-6">
-            <!-- Seletor de Período e Filtros -->
             <div class="glass-effect rounded-2xl p-6">
                 <div class="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
                     <div class="flex-1">
@@ -440,7 +516,6 @@
                 </div>
             </div>
 
-            <!-- KPI Cards -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 <div class="kpi-card glass-effect rounded-2xl p-6 cursor-pointer" data-kpi="vendas">
                     <div class="flex items-center justify-between">
@@ -551,7 +626,6 @@
                 </div>
             </div>
 
-            <!-- Gráficos -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="glass-effect rounded-2xl p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -597,9 +671,7 @@
                 </div>
             </div>
 
-            <!-- Widgets de Alertas e Turnos -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <!-- Alertas e Divergências -->
                 <div class="glass-effect rounded-2xl p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-800">Alertas & Divergências</h3>
@@ -620,7 +692,6 @@
                     </div>
                 </div>
 
-                <!-- Widget de Turnos -->
                 <div class="glass-effect rounded-2xl p-6">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-800">Status dos Turnos</h3>
@@ -629,12 +700,10 @@
                         </button>
                     </div>
                     <div id="turnosContainer" class="space-y-3 max-h-80 overflow-y-auto scrollbar-thin">
-                        <!-- Turnos serão inseridos aqui -->
                     </div>
                 </div>
             </div>
 
-            <!-- Timeline de Ações -->
             <div class="glass-effect rounded-2xl p-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-800">Timeline de Ações</h3>
@@ -646,15 +715,12 @@
                     </div>
                 </div>
                 <div id="timelineContainer" class="space-y-4 max-h-96 overflow-y-auto scrollbar-thin relative">
-                    <!-- Timeline será inserida aqui -->
                 </div>
             </div>
         </div>
 
-        <!-- Conteúdo Preços -->
         <div id="tabContentPrecos" class="tab-content hidden">
             <div class="glass-effect rounded-2xl p-8">
-                <!-- Header da seção -->
                 <div class="text-center mb-8">
                     <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
                         <i class="fas fa-tags text-white text-2xl"></i>
@@ -666,7 +732,6 @@
                 </div>
                 
                 <form id="formPrecos" class="space-y-10">
-                    <!-- Pastéis -->
                     <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
                         <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
                             <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
@@ -683,7 +748,6 @@
                                 </span>
                             </div>
                             <div id="precosPasteisContainer" class="prices-grid">
-                                <!-- Cards de preços serão inseridos aqui pelo JavaScript -->
                                 <div class="text-center p-8 text-gray-500">
                                     <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
                                     <p>Carregando preços...</p>
@@ -692,7 +756,6 @@
                         </div>
                     </fieldset>
 
-                    <!-- Casquinhas -->
                     <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
                         <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
                             <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
@@ -717,7 +780,6 @@
                         </div>
                     </fieldset>
 
-                    <!-- Caldo de Cana -->
                     <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
                         <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
                             <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
@@ -742,7 +804,6 @@
                         </div>
                     </fieldset>
 
-                    <!-- Refrigerantes e Bebidas -->
                     <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
                         <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
                             <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
@@ -767,7 +828,6 @@
                         </div>
                     </fieldset>
                     
-                    <!-- Gelo -->
                     <fieldset class="price-fieldset border border-gray-200 p-8 rounded-2xl shadow-sm hover:shadow-md transition-all duration-300">
                         <legend class="text-xl font-bold text-primary-700 px-4 bg-white flex items-center">
                             <div class="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center mr-3">
@@ -792,7 +852,6 @@
                         </div>
                     </fieldset>
 
-                    <!-- Botões de ação -->
                     <div class="bg-gradient-to-r from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200">
                         <div class="flex flex-col lg:flex-row gap-4 justify-between items-center">
                             <div class="text-center lg:text-left">
@@ -813,7 +872,6 @@
                             </div>
                         </div>
                         
-                        <!-- Status de salvamento -->
                         <div id="precosSalvosMsg" class="mt-4 text-center hidden">
                             <div class="inline-flex items-center px-4 py-2 bg-success-100 text-success-800 rounded-full text-sm font-medium">
                                 <i class="fas fa-check-circle mr-2"></i>
@@ -832,190 +890,171 @@
             </div>
         </div>
 
-      <!-- Substitua o conteúdo de tabContentUsuarios por este HTML melhorado -->
-<div id="tabContentUsuarios" class="tab-content hidden">
-    <div class="glass-effect rounded-2xl p-6">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
-                <i class="fas fa-users text-white text-2xl"></i>
-            </div>
-            <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Usuários</h2>
-            <p class="text-gray-600 max-w-2xl mx-auto">
-                Adicione, edite ou remova usuários do sistema. Configure suas permissões de acesso.
-            </p>
-        </div>
-        
-        <!-- Controles e Filtros -->
-        <div class="mb-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-gray-50 p-4 rounded-lg">
-            <!-- Busca -->
-            <div class="relative flex-1 max-w-md">
-                <input type="text" 
-                       id="filterUsers" 
-                       placeholder="Buscar por nome, email ou ID..." 
-                       class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
-                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
-                <span id="userSearchCount" class="absolute right-3 top-3 text-sm text-gray-500"></span>
-            </div>
-            
-            <!-- Ações -->
-            <div class="flex items-center gap-3">
-                <!-- Toggle inativos -->
-                <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" id="toggleInactiveUsers" class="mr-2">
-                    <span class="text-sm text-gray-700">Mostrar inativos</span>
-                </label>
+        <div id="tabContentUsuarios" class="tab-content hidden">
+            <div class="glass-effect rounded-2xl p-6">
+                <div class="text-center mb-8">
+                    <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full mb-4 shadow-lg">
+                        <i class="fas fa-users text-white text-2xl"></i>
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Gerenciar Usuários</h2>
+                    <p class="text-gray-600 max-w-2xl mx-auto">
+                        Adicione, edite ou remova usuários do sistema. Configure suas permissões de acesso.
+                    </p>
+                </div>
                 
-                <!-- Botão refresh -->
-                <button id="refreshUsers" 
-                        class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
-                    <i class="fas fa-sync-alt mr-2"></i>
-                    Atualizar
-                </button>
-                
-                <!-- Ordenação -->
-                <div class="relative group">
-                    <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
-                        <i class="fas fa-sort mr-2"></i>
-                        Ordenar
-                    </button>
-                    <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg hidden group-hover:block z-10">
-                        <button data-sort="name" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
-                            <span>Por Nome</span>
-                            <i class="fas fa-sort-up text-gray-400"></i>
+                <div class="mb-6 flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-gray-50 p-4 rounded-lg">
+                    <div class="relative flex-1 max-w-md">
+                        <input type="text" 
+                               id="filterUsers" 
+                               placeholder="Buscar por nome, email ou ID..." 
+                               class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                        <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        <span id="userSearchCount" class="absolute right-3 top-3 text-sm text-gray-500"></span>
+                    </div>
+                    
+                    <div class="flex items-center gap-3">
+                        <label class="flex items-center cursor-pointer">
+                            <input type="checkbox" id="toggleInactiveUsers" class="mr-2">
+                            <span class="text-sm text-gray-700">Mostrar inativos</span>
+                        </label>
+                        
+                        <button id="refreshUsers" 
+                                class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
+                            <i class="fas fa-sync-alt mr-2"></i>
+                            Atualizar
                         </button>
-                        <button data-sort="email" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
-                            <span>Por Email</span>
-                            <i class="fas fa-sort-up text-gray-400"></i>
-                        </button>
-                        <button data-sort="role" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
-                            <span>Por Função</span>
-                            <i class="fas fa-sort-up text-gray-400"></i>
-                        </button>
-                        <button data-sort="date" data-order="desc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
-                            <span>Por Data</span>
-                            <i class="fas fa-sort-down text-gray-400"></i>
-                        </button>
+                        
+                        <div class="relative group">
+                            <button class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-all flex items-center">
+                                <i class="fas fa-sort mr-2"></i>
+                                Ordenar
+                            </button>
+                            <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg hidden group-hover:block z-10">
+                                <button data-sort="name" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                                    <span>Por Nome</span>
+                                    <i class="fas fa-sort-up text-gray-400"></i>
+                                </button>
+                                <button data-sort="email" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                                    <span>Por Email</span>
+                                    <i class="fas fa-sort-up text-gray-400"></i>
+                                </button>
+                                <button data-sort="role" data-order="asc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                                    <span>Por Função</span>
+                                    <i class="fas fa-sort-up text-gray-400"></i>
+                                </button>
+                                <button data-sort="date" data-order="desc" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center justify-between">
+                                    <span>Por Data</span>
+                                    <i class="fas fa-sort-down text-gray-400"></i>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
-        
-        <!-- Ações em lote (inicialmente oculto) -->
-        <div id="bulkActions" class="hidden mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between">
-            <span class="selected-count text-blue-700 font-medium">0 selecionado(s)</span>
-            <div class="flex gap-2">
-                <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
-                    <i class="fas fa-trash mr-1"></i>Excluir Selecionados
-                </button>
-                <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
-                    <i class="fas fa-times mr-1"></i>Cancelar
-                </button>
-            </div>
-        </div>
-        
-        <!-- Formulário para adicionar usuário -->
-        <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
-            <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
-                <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
-            </h3>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Nome Completo -->
-                <div>
-                    <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-user mr-1"></i>Nome Completo
-                    </label>
-                    <input type="text" id="novoUsuarioNome" required 
-                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                           placeholder="Nome do Funcionário">
-                </div>
                 
-                <!-- Email -->
-                <div>
-                    <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-envelope mr-1"></i>Email
-                    </label>
-                    <input type="email" id="novoUsuarioEmail" required 
-                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                           placeholder="email@exemplo.com">
-                </div>
-                
-                <!-- Senha -->
-                <div>
-                    <label for="novoUsuarioSenha" class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-lock mr-1"></i>Senha
-                    </label>
-                    <div class="relative">
-                        <input type="password" id="novoUsuarioSenha" required minlength="6"
-                               class="w-full p-3 pr-24 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                               placeholder="Mínimo 6 caracteres">
-                        <button type="button" id="btnGerarSenha" 
-                                class="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-all"
-                                title="Gerar senha aleatória">
-                            <i class="fas fa-sync-alt mr-1"></i>Gerar
+                <div id="bulkActions" class="hidden mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between">
+                    <span class="selected-count text-blue-700 font-medium">0 selecionado(s)</span>
+                    <div class="flex gap-2">
+                        <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm">
+                            <i class="fas fa-trash mr-1"></i>Excluir Selecionados
+                        </button>
+                        <button class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm">
+                            <i class="fas fa-times mr-1"></i>Cancelar
                         </button>
                     </div>
                 </div>
                 
-                <!-- Confirmar Senha -->
-                <div>
-                    <label for="novoUsuarioConfirmarSenha" class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-lock mr-1"></i>Confirmar Senha
-                    </label>
-                    <input type="password" id="novoUsuarioConfirmarSenha" required minlength="6"
-                           class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
-                           placeholder="Digite a senha novamente">
-                </div>
+                <form id="formNovoUsuario" class="mb-8 p-6 border rounded-xl bg-primary-50 shadow-sm">
+                    <h3 class="text-lg font-semibold text-primary-700 mb-4 flex items-center">
+                        <i class="fas fa-user-plus mr-2"></i>Adicionar Novo Usuário
+                    </h3>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label for="novoUsuarioNome" class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-user mr-1"></i>Nome Completo
+                            </label>
+                            <input type="text" id="novoUsuarioNome" required 
+                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                                   placeholder="Nome do Funcionário">
+                        </div>
+                        
+                        <div>
+                            <label for="novoUsuarioEmail" class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-envelope mr-1"></i>Email
+                            </label>
+                            <input type="email" id="novoUsuarioEmail" required 
+                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                                   placeholder="email@exemplo.com">
+                        </div>
+                        
+                        <div>
+                            <label for="novoUsuarioSenha" class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-lock mr-1"></i>Senha
+                            </label>
+                            <div class="relative">
+                                <input type="password" id="novoUsuarioSenha" required minlength="6"
+                                       class="w-full p-3 pr-24 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                                       placeholder="Mínimo 6 caracteres">
+                                <button type="button" id="btnGerarSenha" 
+                                        class="absolute right-1 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm transition-all"
+                                        title="Gerar senha aleatória">
+                                    <i class="fas fa-sync-alt mr-1"></i>Gerar
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label for="novoUsuarioConfirmarSenha" class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-lock mr-1"></i>Confirmar Senha
+                            </label>
+                            <input type="password" id="novoUsuarioConfirmarSenha" required minlength="6"
+                                   class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500" 
+                                   placeholder="Digite a senha novamente">
+                        </div>
+                        
+                        <div>
+                            <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
+                                <i class="fas fa-user-tag mr-1"></i>Função
+                            </label>
+                            <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
+                                <option value="funcionario">Funcionário</option>
+                                <option value="admin">Administrador</option>
+                            </select>
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                            <button type="submit" id="btnAdicionarUsuario" class="w-full md:w-auto flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
+                                <i class="fas fa-user-plus mr-2"></i>
+                                <span class="button-text">Adicionar Usuário</span>
+                                <i class="fas fa-spinner fa-spin hidden" id="addUserSpinner"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
                 
-                <!-- Função -->
                 <div>
-                    <label for="novoUsuarioRole" class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-user-tag mr-1"></i>Função
-                    </label>
-                    <select id="novoUsuarioRole" class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-primary-500 focus:border-primary-500">
-                        <option value="funcionario">Funcionário</option>
-                        <option value="admin">Administrador</option>
-                    </select>
-                </div>
-                
-                <!-- Botão de Adicionar -->
-                <div class="md:col-span-2">
-                    <button type="submit" id="btnAdicionarUsuario" class="w-full md:w-auto flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg shadow-md transition-all duration-300">
-                        <i class="fas fa-user-plus mr-2"></i>
-                        <span class="button-text">Adicionar Usuário</span>
-                        <i class="fas fa-spinner fa-spin hidden" id="addUserSpinner"></i>
-                    </button>
-                </div>
-            </div>
-        </form>
-        
-        <!-- Lista de usuários -->
-        <div>
-            <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center justify-between">
-                <span>
-                    <i class="fas fa-users mr-2"></i>Usuários Existentes
-                </span>
-                <span class="text-sm font-normal text-gray-500">
-                    Total: <span id="totalUsersCount">0</span> usuários
-                </span>
-            </h3>
-            
-            <div id="listaUsuariosContainer" class="space-y-4">
-                <!-- Usuários serão listados aqui pelo JavaScript -->
-                <div class="flex items-center justify-center p-10">
-                    <div class="text-center">
-                        <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
-                        <p class="text-gray-500">Carregando usuários...</p>
+                    <h3 class="text-lg font-semibold text-gray-700 mb-4 flex items-center justify-between">
+                        <span>
+                            <i class="fas fa-users mr-2"></i>Usuários Existentes
+                        </span>
+                        <span class="text-sm font-normal text-gray-500">
+                            Total: <span id="totalUsersCount">0</span> usuários
+                        </span>
+                    </h3>
+                    
+                    <div id="listaUsuariosContainer" class="space-y-4">
+                        <div class="flex items-center justify-center p-10">
+                            <div class="text-center">
+                                <i class="fas fa-spinner fa-spin text-3xl text-gray-400 mb-4"></i>
+                                <p class="text-gray-500">Carregando usuários...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
     </main>
 
-    <!-- Modais -->
     <div id="kpiModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 modal-backdrop">
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-96 overflow-y-auto">
@@ -1027,7 +1066,6 @@
                         </button>
                     </div>
                     <div id="modalContent" class="space-y-4">
-                        <!-- Conteúdo do modal será inserido aqui -->
                     </div>
                 </div>
             </div>
@@ -1045,7 +1083,6 @@
                         </button>
                     </div>
                     <div id="alertModalContent" class="space-y-4">
-                        <!-- Conteúdo do modal de alerta será inserido aqui -->
                     </div>
                     <div class="flex justify-end space-x-3 mt-6">
                         <button id="dismissAlert" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-lg transition-all">
@@ -1060,14 +1097,12 @@
         </div>
     </div>
 
-    <!-- Scripts -->
     <script src="src/js/firebase-config.js"></script>
     <script src="src/js/shared.js"></script>
     <script src="src/js/auth.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', async () => {
             protectRoute(['admin']);
-                // Importar classe UserManager se disponível
                 if (window.UserManager && !window.userManager) {
                     window.userManager = new window.UserManager();
                 }
@@ -1244,18 +1279,15 @@
     try {
         document.getElementById('refreshIcon').classList.add('animate-spin');
         
-        // Obter valores dos filtros
         const filterTurno = document.getElementById('filterTurno').value;
         const filterPagamento = document.getElementById('filterPagamento').value;
         
-        // Se não houver datas, usar últimos 30 dias
         if (!startDate || !endDate) {
             endDate = new Date();
             startDate = new Date();
             startDate.setDate(startDate.getDate() - 30);
         }
         
-        // Normalizar datas para início e fim do dia
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
         
@@ -1266,24 +1298,19 @@
             pagamento: filterPagamento
         });
         
-        // Buscar todos os turnos no período
         const turnosSnapshot = await db.collection('turnos')
             .where('status', '==', 'fechado')
             .get();
         
-        // Filtrar manualmente por data e outros critérios
         const turnos = [];
         turnosSnapshot.forEach(doc => {
             const data = doc.data();
             const turnoId = doc.id;
             
-            // Extrair data do ID do turno (formato: YYYY-MM-DD_Periodo)
             const [dataPart, periodoPart] = turnoId.split('_');
             const turnoDate = new Date(dataPart + 'T12:00:00');
             
-            // Verificar se está no período
             if (turnoDate >= startDate && turnoDate <= endDate) {
-                // Aplicar filtro de turno se selecionado
                 if (!filterTurno || periodoPart === filterTurno) {
                     turnos.push({ 
                         id: turnoId, 
@@ -1295,12 +1322,10 @@
             }
         });
         
-        // Ordenar por data
         turnos.sort((a, b) => a.dataObj - b.dataObj);
         
         console.log(`Encontrados ${turnos.length} turnos após filtros`);
         
-        // Se houver filtro de pagamento, filtrar turnos
         let turnosFiltrados = turnos;
         if (filterPagamento) {
             turnosFiltrados = turnos.filter(turno => {
@@ -1318,14 +1343,12 @@
             });
         }
         
-        // Calcular período anterior para comparação
         const diasPeriodo = Math.ceil((endDate - startDate) / (1000 * 60 * 60 * 24));
         const startDateAnterior = new Date(startDate);
         startDateAnterior.setDate(startDateAnterior.getDate() - diasPeriodo);
         const endDateAnterior = new Date(startDate);
         endDateAnterior.setDate(endDateAnterior.getDate() - 1);
         
-        // Buscar turnos do período anterior
         const turnosAnterioresSnapshot = await db.collection('turnos')
             .where('status', '==', 'fechado')
             .get();
@@ -1359,9 +1382,7 @@
     }
 }
 
-// SUBSTITUIR A FUNÇÃO updateKPIs PARA INCLUIR CÁLCULO DE TENDÊNCIAS
 async function updateKPIs(turnos, turnosAnteriores = []) {
-    // Cálculos do período atual
     let totalVendas = 0;
     let totalPedidos = turnos.length;
     let totalDivergencias = 0;
@@ -1380,7 +1401,6 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         }
     });
     
-    // Cálculos do período anterior
     let totalVendasAnterior = 0;
     let totalPedidosAnterior = turnosAnteriores.length;
     let totalDivergenciasAnterior = 0;
@@ -1406,7 +1426,6 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const lucroEstimado = totalVendas * 0.35;
     const lucroEstimadoAnterior = totalVendasAnterior * 0.35;
     
-    // Calcular tendências
     const calcularTendencia = (atual, anterior) => {
         if (anterior === 0) return atual > 0 ? 100 : 0;
         return ((atual - anterior) / anterior) * 100;
@@ -1419,7 +1438,6 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const tendenciaCaixa = calcularTendencia(totalCaixa, totalCaixaAnterior);
     const tendenciaLucro = calcularTendencia(lucroEstimado, lucroEstimadoAnterior);
     
-    // Atualizar valores
     document.getElementById('kpiVendas').textContent = formatCurrency(totalVendas);
     document.getElementById('kpiTicket').textContent = formatCurrency(ticketMedio);
     document.getElementById('kpiPedidos').textContent = totalPedidos;
@@ -1427,12 +1445,11 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     document.getElementById('kpiCaixa').textContent = formatCurrency(totalCaixa);
     document.getElementById('kpiLucro').textContent = formatCurrency(lucroEstimado);
     
-    // Atualizar tendências
     updateTrendIndicator('kpiVendasTrend', tendenciaVendas);
     updateTrendIndicator('kpiTicketTrend', tendenciaTicket);
     updateTrendIndicator('kpiPedidosTrend', tendenciaPedidos);
-    updateTrendIndicator('kpiDivergenciasTrend', -tendenciaDivergencias); // Negativo porque menos divergências é melhor
-    updateTrendIndicator('kpiCaixaTrend', tendenciaCaixa, true); // true = mostrar como status
+    updateTrendIndicator('kpiDivergenciasTrend', -tendenciaDivergencias);
+    updateTrendIndicator('kpiCaixaTrend', tendenciaCaixa, true);
     updateTrendIndicator('kpiLucroTrend', tendenciaLucro);
     
     currentData = {
@@ -1446,19 +1463,16 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     };
 }
 
-// NOVA FUNÇÃO PARA ATUALIZAR INDICADORES DE TENDÊNCIA
 function updateTrendIndicator(elementId, percentChange, isStatus = false) {
     const element = document.getElementById(elementId);
     if (!element) return;
     
     if (isStatus) {
-        // Para status (como caixa atual)
         element.innerHTML = `
             <i class="fas fa-circle text-success-500 mr-1"></i>
             <span>Atualizado</span>
         `;
     } else {
-        // Para tendências
         const isPositive = percentChange >= 0;
         const icon = isPositive ? 'fa-arrow-up' : 'fa-arrow-down';
         const colorClass = isPositive ? 'text-success-500' : 'text-danger-500';
@@ -1491,7 +1505,7 @@ function updateTrendIndicator(elementId, percentChange, isStatus = false) {
                 
                 const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : 0;
                 const percentualDivergencias = totalPedidos > 0 ? (totalDivergencias / totalPedidos) * 100 : 0;
-                const lucroEstimado = totalVendas * 0.35; // Estimativa de 35% de margem
+                const lucroEstimado = totalVendas * 0.35;
                 
                 document.getElementById('kpiVendas').textContent = formatCurrency(totalVendas);
                 document.getElementById('kpiTicket').textContent = formatCurrency(ticketMedio);
@@ -1874,19 +1888,16 @@ function updateTrendIndicator(elementId, percentChange, isStatus = false) {
                 }).join('');
             }
 
-            // SUBSTITUIR A FUNÇÃO updateTimeline COMPLETA
 async function updateTimeline(startDate = null, endDate = null) {
     try {
         const events = [];
         
-        // Se não houver datas, usar últimas 24 horas
         if (!startDate || !endDate) {
             endDate = new Date();
             startDate = new Date();
             startDate.setHours(startDate.getHours() - 24);
         }
         
-        // Buscar abertura e fechamento de turnos
         const turnosQuery = await db.collection('turnos')
             .orderBy('createdAt', 'desc')
             .limit(20)
@@ -1896,7 +1907,6 @@ async function updateTimeline(startDate = null, endDate = null) {
             const turno = doc.data();
             const turnoId = doc.id;
             
-            // Evento de abertura
             if (turno.abertura && turno.createdAt) {
                 events.push({
                     id: `${turnoId}_abertura`,
@@ -1911,7 +1921,6 @@ async function updateTimeline(startDate = null, endDate = null) {
                 });
             }
             
-            // Evento de fechamento
             if (turno.status === 'fechado' && turno.closedAt) {
                 const totalVendido = turno.totalVendidoCalculadoFinal || 0;
                 events.push({
@@ -1928,7 +1937,6 @@ async function updateTimeline(startDate = null, endDate = null) {
                 });
             }
             
-            // Evento de divergência
             if (turno.diferencaCaixaFinal && Math.abs(turno.diferencaCaixaFinal) > 0.01) {
                 events.push({
                     id: `${turnoId}_divergencia`,
@@ -1944,7 +1952,6 @@ async function updateTimeline(startDate = null, endDate = null) {
             }
         });
         
-        // Buscar logs de auditoria se existirem
         try {
             const auditQuery = await db.collection('audit_logs')
                 .orderBy('timestamp', 'desc')
@@ -1982,31 +1989,26 @@ async function updateTimeline(startDate = null, endDate = null) {
             console.log('Coleção audit_logs não encontrada ou vazia');
         }
         
-        // Ordenar eventos por timestamp (mais recentes primeiro)
         events.sort((a, b) => b.timestamp - a.timestamp);
         
-        // Filtrar por período se especificado
         const eventsFiltrados = events.filter(event => {
             return event.timestamp >= startDate && event.timestamp <= endDate;
         });
         
-        renderTimeline(eventsFiltrados.slice(0, 50)); // Limitar a 50 eventos
+        renderTimeline(eventsFiltrados.slice(0, 50));
         
     } catch (error) {
         console.error('Erro ao carregar timeline:', error);
-        renderTimeline([]); // Renderizar vazio em caso de erro
+        renderTimeline([]);
     }
 }
 
-// IMPLEMENTAR FUNÇÃO DE EXPORTAR TIMELINE
 async function exportTimeline() {
     try {
         showToast('Preparando exportação...', 'info');
         
-        // Buscar todos os eventos da timeline
         const events = [];
         
-        // Buscar turnos dos últimos 30 dias
         const dataLimite = new Date();
         dataLimite.setDate(dataLimite.getDate() - 30);
         
@@ -2039,7 +2041,6 @@ async function exportTimeline() {
             return;
         }
         
-        // Converter para CSV
         const headers = ['Data/Hora', 'Tipo', 'Turno', 'Responsável', 'Total Vendido', 'Diferença', 'Observações'];
         const csvContent = [
             headers.join(','),
@@ -2054,7 +2055,6 @@ async function exportTimeline() {
             ].join(','))
         ].join('\n');
         
-        // Criar blob e download
         const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
@@ -2075,7 +2075,6 @@ async function exportTimeline() {
     }
 }
 
-// IMPLEMENTAR BUSCA NA TIMELINE
 function setupTimelineSearch() {
     const searchInput = document.getElementById('timelineSearch');
     if (!searchInput) return;
@@ -2100,7 +2099,6 @@ function setupTimelineSearch() {
                 }
             });
             
-            // Mostrar mensagem se nenhum resultado
             const visibleItems = document.querySelectorAll('.timeline-item:not([style*="display: none"])');
             const container = document.getElementById('timelineContainer');
             
@@ -2122,7 +2120,6 @@ function setupTimelineSearch() {
     });
 }
 
-// IMPLEMENTAR FILTRO DO GRÁFICO DE VENDAS POR HORA
 function setupSalesHoursFilter() {
     const select = document.getElementById('salesHoursPeriod');
     if (!select) return;
@@ -2152,15 +2149,12 @@ function setupSalesHoursFilter() {
                 startDate.setHours(0, 0, 0, 0);
         }
         
-        // Recarregar apenas o gráfico de vendas por hora
         await updateSalesHoursChartWithPeriod(startDate, endDate);
     });
 }
 
-// FUNÇÃO PARA ATUALIZAR APENAS O GRÁFICO DE VENDAS POR HORA
 async function updateSalesHoursChartWithPeriod(startDate, endDate) {
     try {
-        // Buscar turnos no período
         const turnosQuery = await db.collection('turnos')
             .where('status', '==', 'fechado')
             .get();
@@ -2177,7 +2171,6 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
             }
         });
         
-        // Atualizar apenas o gráfico
         updateSalesHoursChart(turnos);
         
     } catch (error) {
@@ -2379,11 +2372,9 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
                 updateAlertsAndTurnos();
             }
 
-            // Função aprimorada para carregar preços
             async function loadPricesData() {
                 showToast('Carregando dados de preços...', 'info');
                 
-                // Se existir um gerenciador de preços aprimorado, usá-lo
                 if (window.enhancedPriceManager) {
                     try {
                         await window.enhancedPriceManager.load();
@@ -2394,7 +2385,6 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
                         return false;
                     }
                 } 
-                // Se existir o priceManager do admin-controller.js
                 else if (window.priceManager) {
                     try {
                         await window.priceManager.load();
@@ -2405,15 +2395,12 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
                         return false;
                     }
                 }
-                // Sem gerenciador disponível, tentar usar o código de correção
                 else {
                     console.warn("Nenhum gerenciador de preços encontrado, verificando script de correção...");
                     showToast("Inicializando sistema de preços...", "info");
                     
-                    // Esperar 500ms para que o script de correção seja carregado
                     return new Promise(resolve => {
                         setTimeout(async () => {
-                            // Verificar novamente se o enhancedPriceManager foi carregado
                             if (window.enhancedPriceManager) {
                                 try {
                                     await window.enhancedPriceManager.load();
@@ -2433,318 +2420,293 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
             }
 
             async function loadUsersData() {
-    showToast('Carregando dados de usuários...', 'info');
-    
-    // Criar o userManager se não existir
-    if (!window.userManager) {
-        console.log("Criando nova instância do UserManager...");
-        window.userManager = new UserManager();
-    }
-    
-    try {
-        await window.userManager.load();
-        return true;
-    } catch (error) {
-        console.error("Erro ao carregar usuários:", error);
-        showToast("Erro ao carregar usuários: " + error.message, "error");
-        return false;
-    }
-}
+                showToast('Carregando dados de usuários...', 'info');
+                
+                if (!window.userManager) {
+                    console.log("Criando nova instância do UserManager...");
+                    window.userManager = new UserManager();
+                }
+                
+                try {
+                    await window.userManager.load();
+                    return true;
+                } catch (error) {
+                    console.error("Erro ao carregar usuários:", error);
+                    showToast("Erro ao carregar usuários: " + error.message, "error");
+                    return false;
+                }
+            }
 
-            // ATUALIZAR A FUNÇÃO setupEventListeners
-function setupEventListeners() {
-    // Botão de refresh principal
-    document.getElementById('refreshData').addEventListener('click', () => {
-        const activePeriod = document.querySelector('.filter-chip.active');
-        if (activePeriod?.dataset.period === 'custom') {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
-            if (startDate && endDate) {
-                applyCustomRangeFilter(startDate, endDate);
-            } else {
-                loadDashboardData();
-            }
-        } else {
-            loadDashboardData();
-        }
-    });
-    
-    // Filtros de turno e pagamento
-    document.getElementById('filterTurno').addEventListener('change', () => {
-        const activePeriod = document.querySelector('.filter-chip.active');
-        if (activePeriod) {
-            const period = activePeriod.dataset.period;
-            if (period === 'custom') {
-                const startDate = document.getElementById('startDate').value;
-                const endDate = document.getElementById('endDate').value;
-                if (startDate && endDate) {
-                    applyCustomRangeFilter(startDate, endDate);
-                }
-            } else {
-                applyPeriodFilter(period);
-            }
-        } else {
-            loadDashboardData();
-        }
-    });
-    
-    document.getElementById('filterPagamento').addEventListener('change', () => {
-        const activePeriod = document.querySelector('.filter-chip.active');
-        if (activePeriod) {
-            const period = activePeriod.dataset.period;
-            if (period === 'custom') {
-                const startDate = document.getElementById('startDate').value;
-                const endDate = document.getElementById('endDate').value;
-                if (startDate && endDate) {
-                    applyCustomRangeFilter(startDate, endDate);
-                }
-            } else {
-                applyPeriodFilter(period);
-            }
-        } else {
-            loadDashboardData();
-        }
-    });
-    
-    // Limpar alertas
-    document.getElementById('clearAllAlerts').addEventListener('click', async () => {
-        if (confirm('Tem certeza que deseja marcar todos os alertas como resolvidos?')) {
-            try {
-                // Buscar todos os alertas ativos
-                const alertElements = document.querySelectorAll('[data-alert-id]');
-                const alertIds = Array.from(alertElements).map(el => el.dataset.alertId);
+            function setupEventListeners() {
+                document.getElementById('refreshData').addEventListener('click', () => {
+                    const activePeriod = document.querySelector('.filter-chip.active');
+                    if (activePeriod?.dataset.period === 'custom') {
+                        const startDate = document.getElementById('startDate').value;
+                        const endDate = document.getElementById('endDate').value;
+                        if (startDate && endDate) {
+                            applyCustomRangeFilter(startDate, endDate);
+                        } else {
+                            loadDashboardData();
+                        }
+                    } else {
+                        loadDashboardData();
+                    }
+                });
                 
-                // Criar batch para atualizar todos
-                const batch = db.batch();
+                document.getElementById('filterTurno').addEventListener('change', () => {
+                    const activePeriod = document.querySelector('.filter-chip.active');
+                    if (activePeriod) {
+                        const period = activePeriod.dataset.period;
+                        if (period === 'custom') {
+                            const startDate = document.getElementById('startDate').value;
+                            const endDate = document.getElementById('endDate').value;
+                            if (startDate && endDate) {
+                                applyCustomRangeFilter(startDate, endDate);
+                            }
+                        } else {
+                            applyPeriodFilter(period);
+                        }
+                    } else {
+                        loadDashboardData();
+                    }
+                });
                 
-                for (const alertId of alertIds) {
-                    // Criar registro de resolução
-                    const resolucaoRef = db.collection('alertas_resolvidos').doc();
-                    batch.set(resolucaoRef, {
+                document.getElementById('filterPagamento').addEventListener('change', () => {
+                    const activePeriod = document.querySelector('.filter-chip.active');
+                    if (activePeriod) {
+                        const period = activePeriod.dataset.period;
+                        if (period === 'custom') {
+                            const startDate = document.getElementById('startDate').value;
+                            const endDate = document.getElementById('endDate').value;
+                            if (startDate && endDate) {
+                                applyCustomRangeFilter(startDate, endDate);
+                            }
+                        } else {
+                            applyPeriodFilter(period);
+                        }
+                    } else {
+                        loadDashboardData();
+                    }
+                });
+                
+                document.getElementById('clearAllAlerts').addEventListener('click', async () => {
+                    if (confirm('Tem certeza que deseja marcar todos os alertas como resolvidos?')) {
+                        try {
+                            const alertElements = document.querySelectorAll('[data-alert-id]');
+                            const alertIds = Array.from(alertElements).map(el => el.dataset.alertId);
+                            
+                            const batch = db.batch();
+                            
+                            for (const alertId of alertIds) {
+                                const resolucaoRef = db.collection('alertas_resolvidos').doc();
+                                batch.set(resolucaoRef, {
+                                    turnoId: alertId,
+                                    resolvidoPor: auth.currentUser.uid,
+                                    resolvidoEm: firebase.firestore.FieldValue.serverTimestamp(),
+                                    tipo: 'limpeza_em_massa'
+                                });
+                            }
+                            
+                            await batch.commit();
+                            
+                            showToast('Todos os alertas foram marcados como resolvidos', 'success');
+                            updateAlertsAndTurnos();
+                            
+                        } catch (error) {
+                            console.error('Erro ao limpar alertas:', error);
+                            showToast('Erro ao limpar alertas', 'error');
+                        }
+                    }
+                });
+                
+                document.getElementById('refreshTurnos').addEventListener('click', () => {
+                    const icon = document.querySelector('#refreshTurnos i');
+                    icon.classList.add('animate-spin');
+                    
+                    updateTurnos().finally(() => {
+                        icon.classList.remove('animate-spin');
+                    });
+                });
+                
+                document.getElementById('exportTimeline').addEventListener('click', () => {
+                    exportTimeline();
+                });
+                
+                setupTimelineSearch();
+                setupSalesHoursFilter();
+            }
+
+            async function resolveAlert(alertId, justification = '') {
+                try {
+                    await db.collection('alertas_resolvidos').add({
                         turnoId: alertId,
                         resolvidoPor: auth.currentUser.uid,
                         resolvidoEm: firebase.firestore.FieldValue.serverTimestamp(),
-                        tipo: 'limpeza_em_massa'
+                        justificativa: justification,
+                        tipo: 'resolucao_individual'
                     });
+                    
+                    showToast(`Alerta ${alertId} resolvido com sucesso`, 'success');
+                    updateAlertsAndTurnos();
+                    
+                } catch (error) {
+                    console.error('Erro ao resolver alerta:', error);
+                    showToast('Erro ao resolver alerta', 'error');
+                }
+            }
+
+            function renderAlerts(alertas) {
+                const container = document.getElementById('alertsContainer');
+                
+                if (alertas.length === 0) {
+                    container.innerHTML = `
+                        <div class="flex items-center justify-center py-8 text-gray-500">
+                            <div class="text-center">
+                                <i class="fas fa-check-circle text-3xl mb-2 text-success-500"></i>
+                                <p>Nenhum alerta no momento</p>
+                            </div>
+                        </div>
+                    `;
+                    return;
                 }
                 
-                await batch.commit();
+                const alertasCriticos = alertas.filter(a => a.severity === 'critical');
+                const alertasAtencao = alertas.filter(a => a.severity === 'warning');
                 
-                showToast('Todos os alertas foram marcados como resolvidos', 'success');
-                updateAlertsAndTurnos();
+                let html = '';
                 
-            } catch (error) {
-                console.error('Erro ao limpar alertas:', error);
-                showToast('Erro ao limpar alertas', 'error');
+                if (alertasCriticos.length > 0) {
+                    html += '<div class="mb-4"><h5 class="text-xs font-semibold text-danger-600 mb-2">CRÍTICOS</h5>';
+                    html += alertasCriticos.map(alerta => renderAlertItem(alerta)).join('');
+                    html += '</div>';
+                }
+                
+                if (alertasAtencao.length > 0) {
+                    html += '<div><h5 class="text-xs font-semibold text-warning-600 mb-2">ATENÇÃO</h5>';
+                    html += alertasAtencao.map(alerta => renderAlertItem(alerta)).join('');
+                    html += '</div>';
+                }
+                
+                container.innerHTML = html;
+                
+                container.querySelectorAll('[data-alert-id]').forEach(element => {
+                    element.addEventListener('click', (e) => {
+                        if (!e.target.classList.contains('resolve-alert-btn')) {
+                            const alertId = element.dataset.alertId;
+                            const alerta = alertas.find(a => a.id === alertId);
+                            showAlertModal(alerta);
+                        }
+                    });
+                });
+                
+                container.querySelectorAll('.resolve-alert-btn').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const alertId = btn.dataset.alertId;
+                        resolveAlert(alertId);
+                    });
+                });
             }
-        }
-    });
-    
-    // Refresh turnos
-    document.getElementById('refreshTurnos').addEventListener('click', () => {
-        const icon = document.querySelector('#refreshTurnos i');
-        icon.classList.add('animate-spin');
-        
-        updateTurnos().finally(() => {
-            icon.classList.remove('animate-spin');
-        });
-    });
-    
-    // Exportar timeline
-    document.getElementById('exportTimeline').addEventListener('click', () => {
-        exportTimeline();
-    });
-    
-    // Configurar busca na timeline
-    setupTimelineSearch();
-    
-    // Configurar filtro de vendas por hora
-    setupSalesHoursFilter();
-}
 
-// IMPLEMENTAR FUNÇÃO PARA RESOLVER ALERTAS INDIVIDUALMENTE
-async function resolveAlert(alertId, justification = '') {
-    try {
-        // Criar registro de resolução
-        await db.collection('alertas_resolvidos').add({
-            turnoId: alertId,
-            resolvidoPor: auth.currentUser.uid,
-            resolvidoEm: firebase.firestore.FieldValue.serverTimestamp(),
-            justificativa: justification,
-            tipo: 'resolucao_individual'
-        });
-        
-        showToast(`Alerta ${alertId} resolvido com sucesso`, 'success');
-        updateAlertsAndTurnos();
-        
-    } catch (error) {
-        console.error('Erro ao resolver alerta:', error);
-        showToast('Erro ao resolver alerta', 'error');
-    }
-}
-
-// MELHORAR A FUNÇÃO renderAlerts
-function renderAlerts(alertas) {
-    const container = document.getElementById('alertsContainer');
-    
-    if (alertas.length === 0) {
-        container.innerHTML = `
-            <div class="flex items-center justify-center py-8 text-gray-500">
-                <div class="text-center">
-                    <i class="fas fa-check-circle text-3xl mb-2 text-success-500"></i>
-                    <p>Nenhum alerta no momento</p>
-                </div>
-            </div>
-        `;
-        return;
-    }
-    
-    // Agrupar alertas por severidade
-    const alertasCriticos = alertas.filter(a => a.severity === 'critical');
-    const alertasAtencao = alertas.filter(a => a.severity === 'warning');
-    
-    let html = '';
-    
-    // Renderizar alertas críticos primeiro
-    if (alertasCriticos.length > 0) {
-        html += '<div class="mb-4"><h5 class="text-xs font-semibold text-danger-600 mb-2">CRÍTICOS</h5>';
-        html += alertasCriticos.map(alerta => renderAlertItem(alerta)).join('');
-        html += '</div>';
-    }
-    
-    // Depois alertas de atenção
-    if (alertasAtencao.length > 0) {
-        html += '<div><h5 class="text-xs font-semibold text-warning-600 mb-2">ATENÇÃO</h5>';
-        html += alertasAtencao.map(alerta => renderAlertItem(alerta)).join('');
-        html += '</div>';
-    }
-    
-    container.innerHTML = html;
-    
-    // Re-anexar event listeners
-    container.querySelectorAll('[data-alert-id]').forEach(element => {
-        element.addEventListener('click', (e) => {
-            if (!e.target.classList.contains('resolve-alert-btn')) {
-                const alertId = element.dataset.alertId;
-                const alerta = alertas.find(a => a.id === alertId);
-                showAlertModal(alerta);
+            function renderAlertItem(alerta) {
+                const timeDiff = new Date() - alerta.timestamp;
+                const minutesAgo = Math.floor(timeDiff / 60000);
+                const hoursAgo = Math.floor(minutesAgo / 60);
+                
+                let timeText = 'agora';
+                if (hoursAgo > 0) {
+                    timeText = `há ${hoursAgo}h`;
+                } else if (minutesAgo > 0) {
+                    timeText = `há ${minutesAgo}min`;
+                }
+                
+                return `
+                    <div class="severity-${alerta.severity} p-4 rounded-lg table-row-hover cursor-pointer mb-2 transition-all duration-200" data-alert-id="${alerta.id}">
+                        <div class="flex items-center justify-between">
+                            <div class="flex-1">
+                                <div class="flex items-center mb-1">
+                                    <i class="fas fa-exclamation-triangle text-${alerta.severity === 'critical' ? 'danger' : 'warning'}-500 mr-2"></i>
+                                    <h4 class="font-semibold text-gray-800">${alerta.title}</h4>
+                                    <span class="ml-2 px-2 py-1 text-xs font-medium rounded-full ${alerta.severity === 'critical' ? 'bg-danger-100 text-danger-800' : 'bg-warning-100 text-warning-800'}">
+                                        ${alerta.severity === 'critical' ? 'Crítico' : 'Atenção'}
+                                    </span>
+                                </div>
+                                <p class="text-sm text-gray-600">${alerta.message}</p>
+                                <div class="flex items-center space-x-4 mt-1">
+                                    <p class="text-xs text-gray-500">${timeText}</p>
+                                    <p class="text-xs text-gray-500">Diferença: ${formatCurrency(Math.abs(alerta.details.diffVendasPagamentos))}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button class="resolve-alert-btn bg-success-500 hover:bg-success-600 text-white px-3 py-1 rounded text-sm transition-all" data-alert-id="${alerta.id}">
+                                    <i class="fas fa-check mr-1"></i>Resolver
+                                </button>
+                                <i class="fas fa-chevron-right text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
-        });
-    });
-    
-    container.querySelectorAll('.resolve-alert-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const alertId = btn.dataset.alertId;
-            resolveAlert(alertId);
-        });
-    });
-}
 
-// FUNÇÃO AUXILIAR PARA RENDERIZAR UM ITEM DE ALERTA
-function renderAlertItem(alerta) {
-    const timeDiff = new Date() - alerta.timestamp;
-    const minutesAgo = Math.floor(timeDiff / 60000);
-    const hoursAgo = Math.floor(minutesAgo / 60);
-    
-    let timeText = 'agora';
-    if (hoursAgo > 0) {
-        timeText = `há ${hoursAgo}h`;
-    } else if (minutesAgo > 0) {
-        timeText = `há ${minutesAgo}min`;
-    }
-    
-    return `
-        <div class="severity-${alerta.severity} p-4 rounded-lg table-row-hover cursor-pointer mb-2 transition-all duration-200" data-alert-id="${alerta.id}">
-            <div class="flex items-center justify-between">
-                <div class="flex-1">
-                    <div class="flex items-center mb-1">
-                        <i class="fas fa-exclamation-triangle text-${alerta.severity === 'critical' ? 'danger' : 'warning'}-500 mr-2"></i>
-                        <h4 class="font-semibold text-gray-800">${alerta.title}</h4>
-                        <span class="ml-2 px-2 py-1 text-xs font-medium rounded-full ${alerta.severity === 'critical' ? 'bg-danger-100 text-danger-800' : 'bg-warning-100 text-warning-800'}">
-                            ${alerta.severity === 'critical' ? 'Crítico' : 'Atenção'}
-                        </span>
-                    </div>
-                    <p class="text-sm text-gray-600">${alerta.message}</p>
-                    <div class="flex items-center space-x-4 mt-1">
-                        <p class="text-xs text-gray-500">${timeText}</p>
-                        <p class="text-xs text-gray-500">Diferença: ${formatCurrency(Math.abs(alerta.details.diffVendasPagamentos))}</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <button class="resolve-alert-btn bg-success-500 hover:bg-success-600 text-white px-3 py-1 rounded text-sm transition-all" data-alert-id="${alerta.id}">
-                        <i class="fas fa-check mr-1"></i>Resolver
-                    </button>
-                    <i class="fas fa-chevron-right text-gray-400"></i>
-                </div>
-            </div>
-        </div>
-    `;
-}
+            function initializeChartPeriods() {
+                const salesHoursPeriod = document.getElementById('salesHoursPeriod');
+                if (salesHoursPeriod) {
+                    salesHoursPeriod.value = 'today';
+                }
+            }
 
-// ADICIONAR FUNÇÃO PARA ATUALIZAR AUTOMATICAMENTE O PERÍODO DE VENDAS POR HORA
-function initializeChartPeriods() {
-    // Definir período padrão para hoje
-    const salesHoursPeriod = document.getElementById('salesHoursPeriod');
-    if (salesHoursPeriod) {
-        salesHoursPeriod.value = 'today';
-    }
-}
+            function formatPeriodDisplay(startDate, endDate) {
+                const start = new Date(startDate);
+                const end = new Date(endDate);
+                
+                const sameDay = start.toDateString() === end.toDateString();
+                
+                if (sameDay) {
+                    return start.toLocaleDateString('pt-BR');
+                } else {
+                    return `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}`;
+                }
+            }
 
-// FUNÇÃO PARA FORMATAR PERÍODO PARA EXIBIÇÃO
-function formatPeriodDisplay(startDate, endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const sameDay = start.toDateString() === end.toDateString();
-    
-    if (sameDay) {
-        return start.toLocaleDateString('pt-BR');
-    } else {
-        return `${start.toLocaleDateString('pt-BR')} - ${end.toLocaleDateString('pt-BR')}`;
-    }
-}
+            function updatePeriodIndicator(startDate, endDate) {
+                let indicator = document.getElementById('currentPeriodIndicator');
+                
+                if (!indicator) {
+                    indicator = document.createElement('div');
+                    indicator.id = 'currentPeriodIndicator';
+                    indicator.className = 'bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium';
+                    
+                    const filterContainer = document.querySelector('.filter-chip').parentElement;
+                    if (filterContainer) {
+                        filterContainer.appendChild(indicator);
+                    }
+                }
+                
+                indicator.innerHTML = `
+                    <i class="fas fa-calendar-alt mr-1"></i>
+                    ${formatPeriodDisplay(startDate, endDate)}
+                `;
+            }
 
-// ADICIONAR INDICADOR DE PERÍODO ATUAL NO DASHBOARD
-function updatePeriodIndicator(startDate, endDate) {
-    // Criar ou atualizar indicador de período
-    let indicator = document.getElementById('currentPeriodIndicator');
-    
-    if (!indicator) {
-        indicator = document.createElement('div');
-        indicator.id = 'currentPeriodIndicator';
-        indicator.className = 'bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium';
-        
-        // Inserir após os filtros
-        const filterContainer = document.querySelector('.filter-chip').parentElement;
-        if (filterContainer) {
-            filterContainer.appendChild(indicator);
-        }
-    }
-    
-    indicator.innerHTML = `
-        <i class="fas fa-calendar-alt mr-1"></i>
-        ${formatPeriodDisplay(startDate, endDate)}
-    `;
-}
+            function getFormattedDate() {
+                const now = new Date();
+                return now.toISOString().split('T')[0];
+            }
 
-            // Inicialização
             setupTabs();
             setupPeriodFilters();
             setupKPIModals();
             setupEventListeners();
 
-             const btnFechamento = document.getElementById('btnFechamento');
-                if (btnFechamento) {
-                 btnFechamento.addEventListener('click', () => {
-            window.location.pathname = '/fechamento';
-        });
-    }
+            const btnFechamento = document.getElementById('btnFechamento');
+            if (btnFechamento) {
+                btnFechamento.addEventListener('click', () => {
+                    window.location.pathname = '/fechamento';
+                });
+            }
             
-            // Carregar dados iniciais
             loadDashboardData();
             
-            // Auto-refresh a cada 5 minutos
             setInterval(() => {
                 loadDashboardData();
                 showToast('Dashboard atualizado automaticamente', 'info', 3000);
@@ -2752,13 +2714,10 @@ function updatePeriodIndicator(startDate, endDate) {
         });
     </script>
     
-    <!-- Script de correção para exibição de preços -->
     <script>
-        // price-manager-fix.js - Script para corrigir a exibição de preços na interface administrativa
         document.addEventListener('DOMContentLoaded', () => {
             console.log("🔧 Inicializando correção de exibição de preços...");
             
-            // Classe aprimorada para gerenciamento de preços
             class EnhancedPriceManager {
                 constructor() {
                     this.containers = {
@@ -2769,22 +2728,26 @@ function updatePeriodIndicator(startDate, endDate) {
                         precosGeloContainer: document.getElementById('precosGeloContainer')
                     };
                     
-                    // Verificar containers e criar se não existirem
+                    const missingContainers = Object.entries(this.containers)
+                        .filter(([key, element]) => !element)
+                        .map(([key]) => key);
+                        
+                    if (missingContainers.length > 0) {
+                        console.warn(`⚠️ Containers não encontrados: ${missingContainers.join(', ')}`);
+                    }
+
                     Object.entries(this.containers).forEach(([key, container]) => {
                         if (!container) {
                             console.warn(`⚠️ Container ${key} não encontrado, criando elemento...`);
                             
-                            // Encontrar o fieldset pai pelo nome
                             const category = key.replace('precos', '').replace('Container', '');
                             const fieldset = document.querySelector(`fieldset:has(legend:contains('${category}'))`);
                             
                             if (fieldset) {
-                                // Criar container se o fieldset existir
                                 const newContainer = document.createElement('div');
                                 newContainer.id = key;
                                 newContainer.className = 'prices-grid';
                                 
-                                // Encontrar onde inserir (após o texto de contagem)
                                 const countDiv = fieldset.querySelector('.flex.items-center.justify-between');
                                 if (countDiv) {
                                     countDiv.insertAdjacentElement('afterend', newContainer);
@@ -2794,7 +2757,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         }
                     });
                     
-                    // Mapeamento para nomes no Firebase
                     this.firebaseCategoryMap = {
                         pasteis: 'pasteis',
                         casquinhas: 'casquinhas',
@@ -2803,8 +2765,7 @@ function updatePeriodIndicator(startDate, endDate) {
                         gelo: 'gelo'
                     };
                     
-                    // Lista de produtos por categoria
-                    this.produtosPorCategoria = {
+                    this.produtosOriginais = {
                         pasteis: [
                             "carne", "frango", "queijo", "pizza", "bauru", "calabresa", "palmito",
                             "especial_de_carne", "especial_de_frango", "especial_de_calabresa"
@@ -2823,7 +2784,13 @@ function updatePeriodIndicator(startDate, endDate) {
                         gelo: ["gelo_pacote"]
                     };
                     
-                    // Mapeamento de container para categoria
+                    this.produtosPorCategoria = {};
+                    Object.entries(this.produtosOriginais).forEach(([categoria, produtos]) => {
+                        this.produtosPorCategoria[categoria] = produtos.map(produto => 
+                            this.normalizeKey(produto)
+                        );
+                    });
+
                     this.containerToCategoryMap = {
                         precosPasteisContainer: 'pasteis',
                         precosCasquinhasContainer: 'casquinhas',
@@ -2832,8 +2799,27 @@ function updatePeriodIndicator(startDate, endDate) {
                         precosGeloContainer: 'gelo'
                     };
                     
-                    // Armazenar preços atuais
                     this.currentPrices = {};
+                }
+
+                normalizeKey(text) {
+                    let normalized = text.toLowerCase()
+                        .replace(/\s+/g, '_')
+                        .replace(/[ç]/g, 'c')
+                        .replace(/[ãâáàä]/g, 'a')
+                        .replace(/[éêèë]/g, 'e')
+                        .replace(/[íìîï]/g, 'i')
+                        .replace(/[óôõòö]/g, 'o')
+                        .replace(/[úùûü]/g, 'u')
+                        .replace(/\./g, '')
+                        .replace(/\//g, '_')
+                        .replace(/[\(\)]/g, '');
+
+                    if (normalized === 'gelo_pacote') {
+                        return 'gelo_pacote';
+                    }
+                    
+                    return normalized;
                 }
 
                 async load() {
@@ -2841,38 +2827,27 @@ function updatePeriodIndicator(startDate, endDate) {
                     this.showLoadingState();
                     
                     try {
-                        // Verificar se já temos preços armazenados
-                        if (window.appState && window.appState.currentPrices && 
-                            Object.keys(window.appState.currentPrices).length > 0) {
-                            console.log("✅ Usando preços do estado da aplicação");
-                            this.currentPrices = window.appState.currentPrices;
-                        } else {
-                            // Carregar preços do Firebase
-                            console.log("🔍 Buscando preços no Firebase...");
-                            const precos = await this.fetchPrices();
-                            this.currentPrices = precos;
-                            
-                            // Armazenar no estado global
-                            if (window.appState) {
-                                window.appState.currentPrices = precos;
-                            } else {
-                                window.appState = { currentPrices: precos };
-                            }
+                        await this.ensureFirebaseStructure();
+                        
+                        const precos = await this.fetchPrices();
+                        this.currentPrices = precos;
+                        
+                        if (Object.keys(precos).length === 0) {
+                            console.warn("⚠️ Nenhum preço encontrado, usando valores padrão");
+                            this.populateWithDefaults();
+                            return;
                         }
                         
-                        // Preencher formulários
+                        console.log("✅ Preços carregados:", precos);
                         this.populateForms();
                         this.setupFormHandler();
                         this.updateCounters();
                         
-                        // Exibir mensagem de sucesso
                         this.showSuccessMessage("Preços carregados com sucesso!");
                         
                     } catch (error) {
                         console.error("❌ Erro ao carregar preços:", error);
                         this.showErrorMessage(`Erro ao carregar preços: ${error.message}`);
-                        
-                        // Fallback para preços padrão
                         this.populateWithDefaults();
                     }
                 }
@@ -2890,7 +2865,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         window.notifications.showMessage(message, "success");
                     } else {
                         console.log(`✅ ${message}`);
-                        // Criar uma notificação temporária
                         const toast = document.createElement('div');
                         toast.className = 'fixed top-4 right-4 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded shadow-md z-50';
                         toast.innerHTML = `<div class="flex items-center"><i class="fas fa-check-circle mr-2"></i>${message}</div>`;
@@ -2904,7 +2878,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         window.notifications.showMessage(message, "error");
                     } else {
                         console.error(`❌ ${message}`);
-                        // Criar uma notificação de erro
                         const toast = document.createElement('div');
                         toast.className = 'fixed top-4 right-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-md z-50';
                         toast.innerHTML = `<div class="flex items-center"><i class="fas fa-exclamation-circle mr-2"></i>${message}</div>`;
@@ -2916,36 +2889,30 @@ function updatePeriodIndicator(startDate, endDate) {
                 async fetchPrices() {
                     console.log("🔍 Buscando preços no Firebase...");
                     
-                    // Verificar se temos acesso ao Firestore
                     if (!window.db) {
                         throw new Error("Firestore não está disponível. Verifique a conexão com o Firebase.");
                     }
                     
                     const precos = {};
                     
-                    // Criar e usar preços padrão se estiver offline
                     if (!navigator.onLine) {
                         console.warn("⚠️ Dispositivo offline. Usando preços padrão.");
                         return this.getDefaultPrices();
                     }
                     
                     try {
-                        // Para cada categoria, buscar o documento correto no Firebase
                         for (const [categoriaLocal, categoriaFirebase] of Object.entries(this.firebaseCategoryMap)) {
                             console.log(`📂 Buscando produtos da categoria: ${categoriaLocal} -> ${categoriaFirebase}`);
                             precos[categoriaLocal] = {};
                             
                             try {
-                                // Buscar diretamente o documento da categoria
                                 const categoriaDoc = await db.collection('produtos').doc(categoriaFirebase).get();
                                 
                                 if (categoriaDoc.exists) {
                                     const data = categoriaDoc.data();
                                     console.log(`📄 Dados encontrados no documento ${categoriaFirebase}:`, data);
                                     
-                                    // Extrair preços do documento
                                     Object.keys(data).forEach(key => {
-                                        // Os preços estão armazenados como números
                                         if (typeof data[key] === 'number') {
                                             precos[categoriaLocal][key] = { preco: data[key] };
                                             console.log(`  ✓ ${key}: R$ ${data[key]}`);
@@ -2954,28 +2921,28 @@ function updatePeriodIndicator(startDate, endDate) {
                                 } else {
                                     console.warn(`⚠️ Documento '${categoriaFirebase}' não encontrado na coleção 'produtos'`);
                                     
-                                    // Criar documento se não existir
                                     await this.createDefaultCategoryDocument(categoriaFirebase);
                                     
-                                    // Usar preços padrão para esta categoria
                                     const defaultPrices = this.getDefaultPrices();
                                     precos[categoriaLocal] = defaultPrices[categoriaLocal];
                                 }
                             } catch (error) {
                                 console.error(`❌ Erro ao buscar categoria ${categoriaFirebase}:`, error);
-                                // Usar preços padrão para esta categoria em caso de erro
                                 const defaultPrices = this.getDefaultPrices();
                                 precos[categoriaLocal] = defaultPrices[categoriaLocal];
                             }
                         }
                         
-                        // Verificar se encontramos preços
                         let totalProdutos = 0;
+                        let produtosComPreco = 0;
                         Object.values(precos).forEach(categoria => {
-                            totalProdutos += Object.keys(categoria).length;
+                            Object.values(categoria).forEach(item => {
+                                totalProdutos++;
+                                if (item.preco > 0) produtosComPreco++;
+                            });
                         });
                         
-                        console.log(`📊 Total de produtos com preços: ${totalProdutos}`);
+                        console.log(`📊 Total de produtos com preços: ${produtosComPreco}/${totalProdutos}`);
                         
                         if (totalProdutos === 0) {
                             throw new Error("Nenhum produto com preço foi encontrado no banco de dados");
@@ -2986,6 +2953,29 @@ function updatePeriodIndicator(startDate, endDate) {
                     } catch (error) {
                         console.error("❌ Erro ao buscar preços:", error);
                         throw error;
+                    }
+                }
+
+                async ensureFirebaseStructure() {
+                    console.log("🔨 Verificando estrutura do Firebase...");
+                    const categorias = ['pasteis', 'casquinhas', 'caldo_cana', 'refrigerantes', 'gelo'];
+                    
+                    for (const categoria of categorias) {
+                        const docRef = db.collection('produtos').doc(categoria);
+                        const doc = await docRef.get();
+                        
+                        if (!doc.exists) {
+                            console.log(`📝 Criando documento para categoria: ${categoria}`);
+                            const defaultPrices = this.getDefaultPrices();
+                            const categoryData = {};
+                            
+                            Object.entries(defaultPrices[categoria] || {}).forEach(([key, data]) => {
+                                categoryData[key] = data.preco;
+                            });
+                            
+                            await docRef.set(categoryData);
+                            console.log(`✅ Documento criado para ${categoria}`);
+                        }
                     }
                 }
 
@@ -3005,13 +2995,11 @@ function updatePeriodIndicator(startDate, endDate) {
                             return false;
                         }
                         
-                        // Converter de { itemKey: { preco: value } } para { itemKey: value }
                         const defaultPriceData = {};
                         Object.entries(defaultPrices[categoryLocalKey]).forEach(([key, data]) => {
                             defaultPriceData[key] = data.preco;
                         });
                         
-                        // Criar documento no Firebase
                         await db.collection('produtos').doc(categoryKey).set(defaultPriceData);
                         console.log(`✅ Documento criado com sucesso para ${categoryKey}`);
                         return true;
@@ -3024,38 +3012,41 @@ function updatePeriodIndicator(startDate, endDate) {
 
                 populateForms() {
                     Object.entries(this.containers).forEach(([containerId, container]) => {
-                        if (!container) return;
+                        if (!container) {
+                            console.warn(`⚠️ Container ${containerId} não encontrado`);
+                            return;
+                        }
                         
                         const categoryKey = this.containerToCategoryMap[containerId];
-                        if (!categoryKey) return;
+                        if (!categoryKey) {
+                            console.warn(`⚠️ Categoria não mapeada para ${containerId}`);
+                            return;
+                        }
                         
-                        const products = this.produtosPorCategoria[categoryKey] || [];
+                        const productsOriginal = this.produtosOriginais[categoryKey] || [];
+                        const productsKeys = this.produtosPorCategoria[categoryKey] || [];
                         
                         container.innerHTML = '';
                         
-                        if (products.length === 0) {
+                        if (productsKeys.length === 0) {
                             container.innerHTML = '<div class="text-center p-4 text-gray-500">Nenhum produto nesta categoria</div>';
                             return;
                         }
                         
-                        console.log(`📋 Populando ${products.length} produtos na categoria ${categoryKey}`);
+                        console.log(`📋 Populando ${productsKeys.length} produtos na categoria ${categoryKey}`);
                         
-                        products.forEach(product => {
-                            const itemKey = product; // Já está no formato correto
+                        productsKeys.forEach((productKey, index) => {
+                            const itemKey = productKey;
+                            const displayName = productsOriginal[index] || this.formatProductName(productKey);
                             
-                            // Buscar preço no estado da aplicação
                             let currentPrice = 0;
-                            
                             if (this.currentPrices[categoryKey] && 
                                 this.currentPrices[categoryKey][itemKey] && 
                                 this.currentPrices[categoryKey][itemKey].preco !== undefined) {
                                 currentPrice = this.currentPrices[categoryKey][itemKey].preco;
                             }
                             
-                            console.log(`  - Produto: ${product}, Key: ${itemKey}, Preço: ${currentPrice}`);
-                            
-                            // Formatar nome para exibição
-                            const displayName = this.formatProductName(product);
+                            console.log(`  - Produto: ${displayName} (${productKey}): R$ ${currentPrice}`);
                             
                             const priceCard = this.createPriceCard(displayName, categoryKey, itemKey, currentPrice);
                             container.appendChild(priceCard);
@@ -3074,10 +3065,11 @@ function updatePeriodIndicator(startDate, endDate) {
                 }
 
                 updateCounters() {
+                    console.log("🔢 Atualizando contadores...");
+                    
                     Object.entries(this.containerToCategoryMap).forEach(([containerId, categoryKey]) => {
                         const categoryId = containerId.replace('precos', '').replace('Container', '');
                         
-                        // Tentar diferentes possibilidades de ID para o contador
                         const possibleIds = [
                             `${categoryKey}Count`,
                             `${categoryKey.replace('_', '')}Count`,
@@ -3091,6 +3083,7 @@ function updatePeriodIndicator(startDate, endDate) {
                             const element = document.getElementById(id);
                             if (element) {
                                 counterElement = element;
+                                console.log(`✅ Contador encontrado: ${id}`);
                                 break;
                             }
                         }
@@ -3100,7 +3093,7 @@ function updatePeriodIndicator(startDate, endDate) {
                             counterElement.textContent = products.length;
                             console.log(`📊 Contador ${counterElement.id}: ${products.length} produtos`);
                         } else {
-                            console.warn(`⚠️ Contador não encontrado para categoria ${categoryKey}`);
+                            console.warn(`⚠️ Contador não encontrado para categoria ${categoryKey}. IDs tentados:`, possibleIds);
                         }
                     });
                 }
@@ -3189,7 +3182,6 @@ function updatePeriodIndicator(startDate, endDate) {
                     currentValueDiv.appendChild(currentValueSpan);
                     infoDiv.appendChild(currentValueDiv);
                     
-                    // Event listeners
                     input.addEventListener('input', () => {
                         const newValue = parseFloat(input.value) || 0;
                         currentValueSpan.textContent = this.formatCurrency(newValue);
@@ -3283,12 +3275,10 @@ function updatePeriodIndicator(startDate, endDate) {
                         saveButton.disabled = true;
                         saveButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando preços...';
                         
-                        // Verificar conexão
                         if (!navigator.onLine) {
                             throw new Error("Você está offline. Não é possível salvar alterações.");
                         }
                         
-                        // Verificar se Firestore está disponível
                         if (!window.db) {
                             throw new Error("Firestore não está disponível. Verifique a conexão com o Firebase.");
                         }
@@ -3298,7 +3288,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         let hasError = false;
                         let changedCount = 0;
                         
-                        // Coletar todos os preços alterados
                         const updatesByCategory = {};
                         
                         inputs.forEach(input => {
@@ -3320,7 +3309,6 @@ function updatePeriodIndicator(startDate, endDate) {
                             
                             input.classList.remove('border-danger-500', 'bg-danger-50');
                             
-                            // Verificar se o preço mudou
                             const categoryData = this.currentPrices[category] || {};
                             const itemData = categoryData[item] || {};
                             const currentPrice = itemData.preco || 0;
@@ -3328,16 +3316,13 @@ function updatePeriodIndicator(startDate, endDate) {
                             if (Math.abs(price - currentPrice) > 0.01) {
                                 changedCount++;
                                 
-                                // Agrupar por categoria e usar o nome correto do Firebase
                                 const firebaseCategory = this.firebaseCategoryMap[category] || category;
                                 if (!updatesByCategory[firebaseCategory]) {
                                     updatesByCategory[firebaseCategory] = {};
                                 }
-                                // Salvar diretamente como campo, não como objeto
                                 updatesByCategory[firebaseCategory][item] = price;
                             }
                             
-                            // Adicionar à estrutura de dados para salvar
                             if (!newPricesData[category]) {
                                 newPricesData[category] = {};
                             }
@@ -3359,7 +3344,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         console.log('Salvando novos preços:', updatesByCategory);
                         console.log(`${changedCount} itens alterados`);
                         
-                        // Salvar no Firebase na estrutura correta (campos diretos no documento)
                         const batch = db.batch();
                         
                         for (const [category, updates] of Object.entries(updatesByCategory)) {
@@ -3370,7 +3354,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         await batch.commit();
                         console.log("✅ Preços salvos com sucesso no Firebase");
                         
-                        // Atualizar o estado local
                         Object.keys(newPricesData).forEach(categoryKey => {
                             if (!this.currentPrices[categoryKey]) {
                                 this.currentPrices[categoryKey] = {};
@@ -3386,12 +3369,10 @@ function updatePeriodIndicator(startDate, endDate) {
                             });
                         });
                         
-                        // Atualizar o estado global
                         if (window.appState) {
                             window.appState.currentPrices = this.currentPrices;
                         }
                         
-                        // Atualizar valores originais nos inputs
                         inputs.forEach(input => {
                             const category = input.dataset.categoryKey;
                             const item = input.dataset.itemKey;
@@ -3401,7 +3382,6 @@ function updatePeriodIndicator(startDate, endDate) {
                             }
                         });
                         
-                        // Efeito visual de sucesso
                         inputs.forEach(input => {
                             const card = input.closest('.price-card');
                             if (card) {
@@ -3414,7 +3394,6 @@ function updatePeriodIndicator(startDate, endDate) {
                             }
                         });
                         
-                        // Mostrar mensagem de sucesso
                         const mensagemSucesso = document.getElementById('precosSalvosMsg');
                         if (mensagemSucesso) {
                             mensagemSucesso.classList.remove('hidden');
@@ -3428,7 +3407,6 @@ function updatePeriodIndicator(startDate, endDate) {
                     } catch (error) {
                         console.error("❌ Erro ao salvar preços:", error);
                         
-                        // Mostrar mensagem de erro
                         const mensagemErro = document.getElementById('precosErrorMsg');
                         if (mensagemErro) {
                             mensagemErro.classList.remove('hidden');
@@ -3501,7 +3479,6 @@ function updatePeriodIndicator(startDate, endDate) {
                     const defaultPrices = this.getDefaultPrices();
                     this.currentPrices = defaultPrices;
                     
-                    // Atualizar o estado global
                     if (window.appState) {
                         window.appState.currentPrices = defaultPrices;
                     } else {
@@ -3518,7 +3495,6 @@ function updatePeriodIndicator(startDate, endDate) {
                         window.notifications.showMessage(message, "warning");
                     } else {
                         console.warn(`⚠️ ${message}`);
-                        // Criar uma notificação temporária
                         const toast = document.createElement('div');
                         toast.className = 'fixed top-4 right-4 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded shadow-md z-50';
                         toast.innerHTML = `<div class="flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>${message}</div>`;
@@ -3528,25 +3504,20 @@ function updatePeriodIndicator(startDate, endDate) {
                 }
             }
 
-            // Corrigir a função loadPricesData no objeto window
             window.loadPricesData = async function() {
                 console.log("🔄 Iniciando loadPricesData() aprimorado...");
                 
                 try {
-                    // Criar uma instância do gerenciador de preços aprimorado
                     const enhancedPriceManager = new EnhancedPriceManager();
                     
-                    // Armazenar globalmente para acesso futuro
                     window.enhancedPriceManager = enhancedPriceManager;
                     
-                    // Carregar preços
                     await enhancedPriceManager.load();
                     
                     return true;
                 } catch (error) {
                     console.error("❌ Erro ao carregar dados de preços:", error);
                     
-                    // Mostrar notificação de erro
                     if (window.notifications && typeof window.notifications.showMessage === 'function') {
                         window.notifications.showMessage(`Erro ao carregar preços: ${error.message}`, "error");
                     } else {
@@ -3557,12 +3528,9 @@ function updatePeriodIndicator(startDate, endDate) {
                 }
             };
 
-            // Corrigir a ativação da aba de preços
             const btnTabPrecos = document.getElementById('btnTabPrecos');
             if (btnTabPrecos) {
-                // Substituir o event listener existente
                 const newClickHandler = async function() {
-                    // Ativar visualmente a aba
                     document.querySelectorAll('.tab-button').forEach(btn => {
                         btn.classList.remove('active', 'bg-primary-500', 'text-white', 'font-semibold');
                         btn.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
@@ -3580,19 +3548,15 @@ function updatePeriodIndicator(startDate, endDate) {
                         tabContentPrecos.classList.remove('hidden');
                     }
                     
-                    // Carregar os dados de preços
                     await window.loadPricesData();
                 };
                 
-                // Remover listeners existentes (técnica para evitar duplicação)
                 btnTabPrecos.removeEventListener('click', newClickHandler);
                 btnTabPrecos.addEventListener('click', newClickHandler);
             }
 
-            // Verificar se estamos na aba de preços ao carregar a página
             const isTabPrecosActive = document.querySelector('#btnTabPrecos.active');
             if (isTabPrecosActive) {
-                // Se já estamos na aba de preços, carregar os dados
                 window.loadPricesData();
             }
 
@@ -3600,8 +3564,6 @@ function updatePeriodIndicator(startDate, endDate) {
         });
     </script>
     
-    <!-- Script para carregamento de admin-controller.js -->
-
     <script src="src/js/admin-controller.js"></script>
 </body>
 </html>
