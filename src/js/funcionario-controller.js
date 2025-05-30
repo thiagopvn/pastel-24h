@@ -17,7 +17,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tabelaRefrigerantesBody = document.getElementById('tabelaRefrigerantes');
     const tabelaGeloBody = document.getElementById('tabelaGelo'); 
 
-    const caixaInicioInput = document.getElementById('caixaInicio');
+    const caixaInicialDinheiroInput = document.getElementById('caixaInicialDinheiro');
+    const caixaInicialMoedasInput = document.getElementById('caixaInicialMoedas');
+    const caixaFinalDinheiroInput = document.getElementById('caixaFinalDinheiro');
+    const caixaFinalMoedasInput = document.getElementById('caixaFinalMoedas');
     const totalVendidoTurnoCalculadoInput = document.getElementById('totalVendidoTurnoCalculado');
     const pagamentoDinheiroInput = document.getElementById('pagamentoDinheiro');
     const totalRegistradoPagamentosInput = document.getElementById('totalRegistradoPagamentos');
@@ -38,478 +41,462 @@ document.addEventListener('DOMContentLoaded', async () => {
     let listaFuncionariosDisponiveis = [];
 
     const LIMITES_ESTOQUE_MINIMO = {
-    'fardo_de_cana': 4,
-    'copo_300ml': 20,
-    'copo_400ml': 20,
-    'copo_500ml': 20,
-    'garrafa_500ml': 6,
-    'garrafa_1_litro': 6,
-    'coca-cola': 12,
-    'fanta_laranja': 8,
-    'fanta_uva': 8,
-    'guarana': 8,
-    'refri_limao': 8,
-    'refri_zero': 8,
-    'itubaina': 8,
-    'agua': 12,
-    'agua_c_gas': 6,
-    'cerveja_longneck': 6,
-    'cerveja_lata': 6,
-    'gelo_pacote': 10
-};
-function verificarEstoqueBaixo(itemKey, sobra) {
-    const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
-    if (alertaExistente) {
-        alertaExistente.classList.add('removing');
-        setTimeout(() => alertaExistente.remove(), 300);
+        'fardo_de_cana': 4,
+        'copo_300ml': 20,
+        'copo_400ml': 20,
+        'copo_500ml': 20,
+        'garrafa_500ml': 6,
+        'garrafa_1_litro': 6,
+        'coca-cola': 12,
+        'fanta_laranja': 8,
+        'fanta_uva': 8,
+        'guarana': 8,
+        'refri_limao': 8,
+        'refri_zero': 8,
+        'itubaina': 8,
+        'agua': 12,
+        'agua_c_gas': 6,
+        'cerveja_longneck': 6,
+        'cerveja_lata': 6,
+        'gelo_pacote': 10
+    };
+
+    async function getValoresPadraoCaixa() {
+        try {
+            const configDoc = await db.collection('config').doc('cashControl').get();
+            
+            if (configDoc.exists) {
+                const data = configDoc.data();
+                return {
+                    dinheiro: data.dinheiro || 0,
+                    moedas: data.moedas || 0
+                };
+            }
+            
+            const valoresPadrao = { dinheiro: 200, moedas: 50 };
+            await db.collection('config').doc('cashControl').set({
+                ...valoresPadrao,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            
+            return valoresPadrao;
+        } catch (error) {
+            console.error("Erro ao buscar valores padrão de caixa:", error);
+            return { dinheiro: 200, moedas: 50 };
+        }
     }
-    
-    const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
-    if (!limite) return;
-    if (sobra === '' || sobra === null || sobra === undefined) return;
-    const sobraNum = parseFloat(sobra) || 0;
-    if (sobraNum < limite && sobraNum >= 0) {
-        setTimeout(() => {
-            const inputSobra = document.getElementById(`${itemKey}_sobra`);
-            if (!inputSobra) return;
-            
-            const row = inputSobra.closest('tr');
-            if (!row) return;
-            
-            if (document.getElementById(`alerta-estoque-${itemKey}`)) return;
-            const alertaRow = document.createElement('tr');
-            alertaRow.id = `alerta-estoque-${itemKey}`;
-            alertaRow.className = 'alerta-estoque-baixo';
-            alertaRow.innerHTML = `
-                <td colspan="9" class="p-0">
-                    <div class="mx-4 my-2">
-                        <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg p-3 shadow-md">
-                            <div class="flex items-center justify-between">
-                                <div class="flex items-center">
-                                    <div class="flex-shrink-0">
-                                        <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                                            <i class="fas fa-exclamation-triangle text-white"></i>
+
+    function verificarEstoqueBaixo(itemKey, sobra) {
+        const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
+        if (alertaExistente) {
+            alertaExistente.classList.add('removing');
+            setTimeout(() => alertaExistente.remove(), 300);
+        }
+        
+        const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
+        if (!limite) return;
+        if (sobra === '' || sobra === null || sobra === undefined) return;
+        const sobraNum = parseFloat(sobra) || 0;
+        if (sobraNum < limite && sobraNum >= 0) {
+            setTimeout(() => {
+                const inputSobra = document.getElementById(`${itemKey}_sobra`);
+                if (!inputSobra) return;
+                
+                const row = inputSobra.closest('tr');
+                if (!row) return;
+                
+                if (document.getElementById(`alerta-estoque-${itemKey}`)) return;
+                const alertaRow = document.createElement('tr');
+                alertaRow.id = `alerta-estoque-${itemKey}`;
+                alertaRow.className = 'alerta-estoque-baixo';
+                alertaRow.innerHTML = `
+                    <td colspan="9" class="p-0">
+                        <div class="mx-4 my-2">
+                            <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg p-3 shadow-md">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                                                <i class="fas fa-exclamation-triangle text-white"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-3">
+                                            <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide">
+                                                ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO
+                                            </h3>
+                                            <p class="text-xs text-red-600 mt-0.5">
+                                                Quantidade atual: <span class="font-bold">${sobraNum}</span> | 
+                                                Mínimo recomendado: <span class="font-bold">${limite}</span>
+                                            </p>
                                         </div>
                                     </div>
-                                    <div class="ml-3">
-                                        <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide">
-                                            ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO
-                                        </h3>
-                                        <p class="text-xs text-red-600 mt-0.5">
-                                            Quantidade atual: <span class="font-bold">${sobraNum}</span> | 
-                                            Mínimo recomendado: <span class="font-bold">${limite}</span>
-                                        </p>
-                                    </div>
+                                    <button onclick="this.closest('.alerta-estoque-baixo').classList.add('removing'); setTimeout(() => this.closest('.alerta-estoque-baixo').remove(), 300);" 
+                                            class="text-red-400 hover:text-red-600 transition-colors duration-200">
+                                        <i class="fas fa-times-circle text-lg"></i>
+                                    </button>
                                 </div>
-                                <button onclick="this.closest('.alerta-estoque-baixo').classList.add('removing'); setTimeout(() => this.closest('.alerta-estoque-baixo').remove(), 300);" 
-                                        class="text-red-400 hover:text-red-600 transition-colors duration-200">
-                                    <i class="fas fa-times-circle text-lg"></i>
-                                </button>
                             </div>
                         </div>
-                    </div>
-                </td>
-            `;
-            row.insertAdjacentElement('afterend', alertaRow);
-        }, 500);
-    }
-}
-
-function validarConsistenciaItem(itemKey, campoAlterado) {
-    // Coletar valores atuais
-    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
-    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
-    const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
-    const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
-    
-    const disponivel = entrada + chegadas;
-    const errors = [];
-    let campoCorrigido = false;
-    
-    // Validação 1: Sobra não pode ser maior que o disponível
-    if (sobra > disponivel) {
-        errors.push(`Sobra (${sobra}) não pode ser maior que o disponível (${disponivel})`);
-        if (campoAlterado === 'sobra') {
-            document.getElementById(`${itemKey}_sobra`).value = disponivel;
-            campoCorrigido = true;
+                    </td>
+                `;
+                row.insertAdjacentElement('afterend', alertaRow);
+            }, 500);
         }
     }
-    
-    // Validação 2: Total de saídas não pode exceder o disponível
-    const totalSaidas = sobra + descarte + consumo;
-    if (totalSaidas > disponivel) {
-        const excesso = totalSaidas - disponivel;
-        errors.push(`Total de saídas (${totalSaidas}) excede o disponível (${disponivel}) em ${excesso} unidades`);
+
+    function validarConsistenciaItem(itemKey, campoAlterado) {
+        const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+        const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+        const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
+        const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
         
-        // Ajustar automaticamente o campo alterado
-        if (campoAlterado === 'descarte') {
-            const maxDescarte = disponivel - sobra - consumo;
-            document.getElementById(`${itemKey}_descarte`).value = Math.max(0, maxDescarte);
-            campoCorrigido = true;
-        } else if (campoAlterado === 'consumo') {
-            const maxConsumo = disponivel - sobra - descarte;
-            document.getElementById(`${itemKey}_consumo`).value = Math.max(0, maxConsumo);
-            campoCorrigido = true;
+        const disponivel = entrada + chegadas;
+        const errors = [];
+        let campoCorrigido = false;
+        
+        if (sobra > disponivel) {
+            errors.push(`Sobra (${sobra}) não pode ser maior que o disponível (${disponivel})`);
+            if (campoAlterado === 'sobra') {
+                document.getElementById(`${itemKey}_sobra`).value = disponivel;
+                campoCorrigido = true;
+            }
         }
+        
+        const totalSaidas = sobra + descarte + consumo;
+        if (totalSaidas > disponivel) {
+            const excesso = totalSaidas - disponivel;
+            errors.push(`Total de saídas (${totalSaidas}) excede o disponível (${disponivel}) em ${excesso} unidades`);
+            
+            if (campoAlterado === 'descarte') {
+                const maxDescarte = disponivel - sobra - consumo;
+                document.getElementById(`${itemKey}_descarte`).value = Math.max(0, maxDescarte);
+                campoCorrigido = true;
+            } else if (campoAlterado === 'consumo') {
+                const maxConsumo = disponivel - sobra - descarte;
+                document.getElementById(`${itemKey}_consumo`).value = Math.max(0, maxConsumo);
+                campoCorrigido = true;
+            }
+        }
+        
+        ['entrada', 'chegadas', 'sobra', 'descarte', 'consumo'].forEach(campo => {
+            const input = document.getElementById(`${itemKey}_${campo}`);
+            if (input && parseFloat(input.value) < 0) {
+                errors.push(`${campo} não pode ser negativo`);
+                input.value = 0;
+                campoCorrigido = true;
+            }
+        });
+        
+        return { errors, campoCorrigido };
     }
-    
-    // Validação 3: Valores negativos
-    ['entrada', 'chegadas', 'sobra', 'descarte', 'consumo'].forEach(campo => {
-        const input = document.getElementById(`${itemKey}_${campo}`);
-        if (input && parseFloat(input.value) < 0) {
-            errors.push(`${campo} não pode ser negativo`);
-            input.value = 0;
-            campoCorrigido = true;
-        }
-    });
-    
-    return { errors, campoCorrigido };
-}
 
-// Função específica para validar gelo
-function validarConsistenciaGelo(campoAlterado) {
-    const itemKey = 'gelo_pacote';
-    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
-    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
-    const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
-    
-    const disponivel = entrada + chegadas;
-    const errors = [];
-    let campoCorrigido = false;
-    
-    // Validação 1: Sobra não pode ser maior que o disponível
-    if (sobra > disponivel) {
-        errors.push(`Sobra de gelo (${sobra}) não pode ser maior que o disponível (${disponivel})`);
-        if (campoAlterado === 'sobra') {
-            document.getElementById(`${itemKey}_sobra`).value = disponivel;
-            campoCorrigido = true;
+    function validarConsistenciaGelo(campoAlterado) {
+        const itemKey = 'gelo_pacote';
+        const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+        const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+        const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
+        
+        const disponivel = entrada + chegadas;
+        const errors = [];
+        let campoCorrigido = false;
+        
+        if (sobra > disponivel) {
+            errors.push(`Sobra de gelo (${sobra}) não pode ser maior que o disponível (${disponivel})`);
+            if (campoAlterado === 'sobra') {
+                document.getElementById(`${itemKey}_sobra`).value = disponivel;
+                campoCorrigido = true;
+            }
         }
-    }
-    
-    // Validação 2: Vendas não podem exceder (disponível - sobra)
-    const maxVendas = disponivel - sobra;
-    if (vendas > maxVendas) {
-        errors.push(`Vendas de gelo (${vendas}) não podem exceder ${maxVendas} pacotes`);
-        if (campoAlterado === 'vendas') {
-            document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendas);
-            campoCorrigido = true;
+        
+        const maxVendas = disponivel - sobra;
+        if (vendas > maxVendas) {
+            errors.push(`Vendas de gelo (${vendas}) não podem exceder ${maxVendas} pacotes`);
+            if (campoAlterado === 'vendas') {
+                document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendas);
+                campoCorrigido = true;
+            }
         }
-    }
-    
-    // Validação 3: Consumo interno não pode ser negativo
-    const consumoInterno = disponivel - sobra - vendas;
-    if (consumoInterno < 0) {
-        errors.push(`Configuração inválida: consumo interno seria negativo (${consumoInterno})`);
-        // Ajustar vendas se foi o campo alterado
-        if (campoAlterado === 'vendas') {
-            const maxVendasAjustado = disponivel - sobra;
-            document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendasAjustado);
-            campoCorrigido = true;
+        
+        const consumoInterno = disponivel - sobra - vendas;
+        if (consumoInterno < 0) {
+            errors.push(`Configuração inválida: consumo interno seria negativo (${consumoInterno})`);
+            if (campoAlterado === 'vendas') {
+                const maxVendasAjustado = disponivel - sobra;
+                document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendasAjustado);
+                campoCorrigido = true;
+            }
         }
+        
+        return { errors, campoCorrigido };
     }
-    
-    return { errors, campoCorrigido };
-}
 
-// Função para mostrar alerta de validação
-function mostrarAlertaValidacao(itemKey, errors) {
-    // Remover alerta existente
-    const alertaExistente = document.getElementById(`alerta-validacao-${itemKey}`);
-    if (alertaExistente) {
-        alertaExistente.remove();
-    }
-    
-    if (errors.length === 0) return;
-    
-    // Encontrar a linha do item
-    const itemRow = document.querySelector(`tr[data-item-key="${itemKey}"]`);
-    if (!itemRow) return;
-    
-    // Criar alerta
-    const alertaRow = document.createElement('tr');
-    alertaRow.id = `alerta-validacao-${itemKey}`;
-    alertaRow.className = 'alerta-validacao fade-in';
-    alertaRow.innerHTML = `
-        <td colspan="9" class="p-0">
-            <div class="mx-4 my-2">
-                <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-400 rounded-lg p-3 shadow-md">
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
-                                <i class="fas fa-exclamation-triangle text-white"></i>
+    function mostrarAlertaValidacao(itemKey, errors) {
+        const alertaExistente = document.getElementById(`alerta-validacao-${itemKey}`);
+        if (alertaExistente) {
+            alertaExistente.remove();
+        }
+        
+        if (errors.length === 0) return;
+        
+        const itemRow = document.querySelector(`tr[data-item-key="${itemKey}"]`);
+        if (!itemRow) return;
+        
+        const alertaRow = document.createElement('tr');
+        alertaRow.id = `alerta-validacao-${itemKey}`;
+        alertaRow.className = 'alerta-validacao fade-in';
+        alertaRow.innerHTML = `
+            <td colspan="9" class="p-0">
+                <div class="mx-4 my-2">
+                    <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-400 rounded-lg p-3 shadow-md">
+                        <div class="flex items-start">
+                            <div class="flex-shrink-0">
+                                <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                                    <i class="fas fa-exclamation-triangle text-white"></i>
+                                </div>
                             </div>
+                            <div class="ml-3 flex-1">
+                                <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide mb-1">
+                                    ERRO DE VALIDAÇÃO - VALORES INCONSISTENTES
+                                </h3>
+                                <ul class="text-xs text-red-700 space-y-1">
+                                    ${errors.map(error => `<li>• ${error}</li>`).join('')}
+                                </ul>
+                                <p class="text-xs text-red-600 mt-2 font-medium">
+                                    Os valores foram ajustados automaticamente para manter a consistência.
+                                </p>
+                            </div>
+                            <button onclick="this.closest('.alerta-validacao').remove();" 
+                                    class="text-red-400 hover:text-red-600 transition-colors duration-200 ml-2">
+                                <i class="fas fa-times-circle text-lg"></i>
+                            </button>
                         </div>
-                        <div class="ml-3 flex-1">
-                            <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide mb-1">
-                                ERRO DE VALIDAÇÃO - VALORES INCONSISTENTES
-                            </h3>
-                            <ul class="text-xs text-red-700 space-y-1">
-                                ${errors.map(error => `<li>• ${error}</li>`).join('')}
-                            </ul>
-                            <p class="text-xs text-red-600 mt-2 font-medium">
-                                Os valores foram ajustados automaticamente para manter a consistência.
-                            </p>
-                        </div>
-                        <button onclick="this.closest('.alerta-validacao').remove();" 
-                                class="text-red-400 hover:text-red-600 transition-colors duration-200 ml-2">
-                            <i class="fas fa-times-circle text-lg"></i>
-                        </button>
                     </div>
                 </div>
-            </div>
-        </td>
-    `;
-    
-    // Inserir após a linha do item
-    itemRow.insertAdjacentElement('afterend', alertaRow);
-    
-    // Remover automaticamente após 5 segundos
-    setTimeout(() => {
-        alertaRow.classList.add('fade-out');
-        setTimeout(() => alertaRow.remove(), 300);
-    }, 5000);
-}
-
-// Função para validar todos os itens de uma vez (útil antes de fechar o turno)
-function validarTodosItens() {
-    const errors = [];
-    
-    // Validar todos os itens normais
-    document.querySelectorAll('.item-row').forEach(row => {
-        const itemKey = row.dataset.itemKey;
-        if (itemKey === 'gelo_pacote') {
-            const result = validarConsistenciaGelo();
-            if (result.errors.length > 0) {
-                errors.push({ item: 'Gelo', errors: result.errors });
-            }
-        } else {
-            const result = validarConsistenciaItem(itemKey, '');
-            if (result.errors.length > 0) {
-                const itemName = row.querySelector('td:first-child')?.textContent || itemKey;
-                errors.push({ item: itemName, errors: result.errors });
-            }
-        }
-    });
-    
-    return errors;
-}
-
-// Adicionar indicadores visuais de limites máximos
-function adicionarIndicadorLimite(inputElement, limiteMaximo) {
-    if (!inputElement) return;
-    
-    const wrapper = inputElement.parentElement;
-    if (!wrapper) return;
-    
-    // Remover indicador existente
-    const indicadorExistente = wrapper.querySelector('.limite-indicador');
-    if (indicadorExistente) {
-        indicadorExistente.remove();
-    }
-    
-    // Só adicionar indicador se o limite for maior que 0
-    if (limiteMaximo <= 0) return;
-    
-    // Criar novo indicador
-    const indicador = document.createElement('span');
-    indicador.className = 'limite-indicador absolute right-8 top-1/2 transform -translate-y-1/2 text-xs text-gray-500';
-    indicador.innerHTML = `<i class="fas fa-info-circle"></i> Máx: ${limiteMaximo}`;
-    
-    // Garantir que o wrapper tenha posição relativa
-    wrapper.style.position = 'relative';
-    wrapper.appendChild(indicador);
-    
-    // Adicionar classe especial se o valor atual está no limite
-    const valorAtual = parseFloat(inputElement.value) || 0;
-    if (valorAtual >= limiteMaximo) {
-        inputElement.classList.add('at-limit');
-    } else {
-        inputElement.classList.remove('at-limit');
-    }
-}
-
-// Adicionar tooltip de ajuda aos campos
-function adicionarTooltipAjuda() {
-    const tooltips = {
-        'entrada': 'Quantidade inicial do turno (transferida do turno anterior)',
-        'chegadas': 'Quantidade que chegou durante o turno',
-        'sobra': 'Quantidade que sobrou no final do turno (não pode exceder entrada + chegadas)',
-        'descarte': 'Quantidade descartada ou perdida durante o turno',
-        'consumo': 'Quantidade consumida por funcionários',
-        'vendas': 'Quantidade vendida de gelo (apenas para gelo)',
-        'vendido': 'Calculado automaticamente: (entrada + chegadas) - sobra - descarte - consumo',
-        'consumo_interno': 'Consumo interno de gelo (calculado automaticamente)'
-    };
-    
-    // Adicionar tooltips aos inputs
-    document.querySelectorAll('input[type="number"]').forEach(input => {
-        const id = input.id;
-        if (!id) return;
+            </td>
+        `;
         
-        // Encontrar qual tooltip aplicar
-        let tooltipText = '';
-        Object.entries(tooltips).forEach(([key, text]) => {
-            if (id.endsWith(`_${key}`)) {
-                tooltipText = text;
-            }
-        });
+        itemRow.insertAdjacentElement('afterend', alertaRow);
         
-        if (tooltipText) {
-            // Adicionar título ao input
-            input.title = tooltipText;
-            input.setAttribute('data-tooltip', tooltipText);
-            
-            // Tentar adicionar ícone de ajuda no cabeçalho da tabela
-            const th = input.closest('table')?.querySelector(`th:contains("${getColumnNameFromId(id)}")`);
-            if (th && !th.querySelector('.help-icon')) {
-                const helpIcon = document.createElement('span');
-                helpIcon.className = 'help-icon ml-1 text-gray-400 hover:text-gray-600 cursor-help inline-block';
-                helpIcon.innerHTML = '<i class="fas fa-question-circle text-xs"></i>';
-                helpIcon.title = tooltipText;
-                th.appendChild(helpIcon);
-            }
-        }
-    });
-    
-    // Função auxiliar para obter nome da coluna baseado no ID
-    function getColumnNameFromId(id) {
-        if (id.includes('_entrada')) return 'Entrada';
-        if (id.includes('_chegadas')) return 'Chegadas';
-        if (id.includes('_sobra')) return 'Sobra';
-        if (id.includes('_descarte')) return 'Descarte';
-        if (id.includes('_consumo_interno')) return 'Consumo Interno';
-        if (id.includes('_consumo')) return 'Consumo Func.';
-        if (id.includes('_vendas')) return 'Vendas';
-        if (id.includes('_vendido')) return 'Vendido';
-        return '';
+        setTimeout(() => {
+            alertaRow.classList.add('fade-out');
+            setTimeout(() => alertaRow.remove(), 300);
+        }, 5000);
     }
-}
 
-// Atualizar limites dinamicamente quando campos relacionados mudarem
-function atualizarLimitesVisuais(itemKey) {
-    if (!itemKey) return;
-    
-    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
-    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
-    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
-    const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
-    const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
-    
-    const disponivel = entrada + chegadas;
-    
-    // Se não há nada disponível, remover todos os indicadores
-    if (disponivel === 0) {
-        ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
-            const input = document.getElementById(`${itemKey}_${campo}`);
-            if (input) {
-                const wrapper = input.parentElement;
-                const indicador = wrapper?.querySelector('.limite-indicador');
-                if (indicador) indicador.remove();
-            }
-        });
-        return;
-    }
-    
-    // Atualizar limite da sobra
-    const sobraInput = document.getElementById(`${itemKey}_sobra`);
-    if (sobraInput) {
-        adicionarIndicadorLimite(sobraInput, disponivel);
-    }
-    
-    // Atualizar limite do descarte
-    const descarteInput = document.getElementById(`${itemKey}_descarte`);
-    if (descarteInput) {
-        const maxDescarte = Math.max(0, disponivel - sobra - consumo);
-        adicionarIndicadorLimite(descarteInput, maxDescarte);
-    }
-    
-    // Atualizar limite do consumo
-    const consumoInput = document.getElementById(`${itemKey}_consumo`);
-    if (consumoInput) {
-        const maxConsumo = Math.max(0, disponivel - sobra - descarte);
-        adicionarIndicadorLimite(consumoInput, maxConsumo);
-    }
-    
-    // Para gelo, atualizar limite de vendas
-    if (itemKey === 'gelo_pacote') {
-        const vendasInput = document.getElementById(`${itemKey}_vendas`);
-        if (vendasInput) {
-            const maxVendas = Math.max(0, disponivel - sobra);
-            adicionarIndicadorLimite(vendasInput, maxVendas);
-        }
+    function validarTodosItens() {
+        const errors = [];
         
-        // Atualizar visual do consumo interno (readonly)
-        const consumoInternoInput = document.getElementById(`${itemKey}_consumo_interno`);
-        if (consumoInternoInput) {
-            const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
-            const consumoInterno = Math.max(0, disponivel - sobra - vendas);
-            
-            // Adicionar classe visual se consumo interno for alto
-            if (consumoInterno > 10) {
-                consumoInternoInput.classList.add('bg-yellow-100', 'border-yellow-300');
+        document.querySelectorAll('.item-row').forEach(row => {
+            const itemKey = row.dataset.itemKey;
+            if (itemKey === 'gelo_pacote') {
+                const result = validarConsistenciaGelo();
+                if (result.errors.length > 0) {
+                    errors.push({ item: 'Gelo', errors: result.errors });
+                }
             } else {
-                consumoInternoInput.classList.remove('bg-yellow-100', 'border-yellow-300');
+                const result = validarConsistenciaItem(itemKey, '');
+                if (result.errors.length > 0) {
+                    const itemName = row.querySelector('td:first-child')?.textContent || itemKey;
+                    errors.push({ item: itemName, errors: result.errors });
+                }
             }
+        });
+        
+        return errors;
+    }
+
+    function adicionarIndicadorLimite(inputElement, limiteMaximo) {
+        if (!inputElement) return;
+        
+        const wrapper = inputElement.parentElement;
+        if (!wrapper) return;
+        
+        const indicadorExistente = wrapper.querySelector('.limite-indicador');
+        if (indicadorExistente) {
+            indicadorExistente.remove();
+        }
+        
+        if (limiteMaximo <= 0) return;
+        
+        const indicador = document.createElement('span');
+        indicador.className = 'limite-indicador absolute right-8 top-1/2 transform -translate-y-1/2 text-xs text-gray-500';
+        indicador.innerHTML = `<i class="fas fa-info-circle"></i> Máx: ${limiteMaximo}`;
+        
+        wrapper.style.position = 'relative';
+        wrapper.appendChild(indicador);
+        
+        const valorAtual = parseFloat(inputElement.value) || 0;
+        if (valorAtual >= limiteMaximo) {
+            inputElement.classList.add('at-limit');
+        } else {
+            inputElement.classList.remove('at-limit');
         }
     }
-    
-    // Adicionar classe de destaque se algum campo está no limite
-    ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
-        const input = document.getElementById(`${itemKey}_${campo}`);
-        if (input) {
-            const valor = parseFloat(input.value) || 0;
-            const wrapper = input.parentElement;
-            const indicador = wrapper?.querySelector('.limite-indicador');
+
+    function adicionarTooltipAjuda() {
+        const tooltips = {
+            'entrada': 'Quantidade inicial do turno (transferida do turno anterior)',
+            'chegadas': 'Quantidade que chegou durante o turno',
+            'sobra': 'Quantidade que sobrou no final do turno (não pode exceder entrada + chegadas)',
+            'descarte': 'Quantidade descartada ou perdida durante o turno',
+            'consumo': 'Quantidade consumida por funcionários',
+            'vendas': 'Quantidade vendida de gelo (apenas para gelo)',
+            'vendido': 'Calculado automaticamente: (entrada + chegadas) - sobra - descarte - consumo',
+            'consumo_interno': 'Consumo interno de gelo (calculado automaticamente)'
+        };
+        
+        document.querySelectorAll('input[type="number"]').forEach(input => {
+            const id = input.id;
+            if (!id) return;
             
-            if (indicador) {
-                const limiteTexto = indicador.textContent.match(/Máx: (\d+)/);
-                if (limiteTexto) {
-                    const limite = parseInt(limiteTexto[1]);
-                    if (valor >= limite) {
-                        input.classList.add('at-limit');
-                        indicador.classList.add('text-orange-600', 'font-semibold');
-                    } else {
-                        input.classList.remove('at-limit');
-                        indicador.classList.remove('text-orange-600', 'font-semibold');
-                    }
+            let tooltipText = '';
+            Object.entries(tooltips).forEach(([key, text]) => {
+                if (id.endsWith(`_${key}`)) {
+                    tooltipText = text;
+                }
+            });
+            
+            if (tooltipText) {
+                input.title = tooltipText;
+                input.setAttribute('data-tooltip', tooltipText);
+                
+                const th = input.closest('table')?.querySelector(`th:contains("${getColumnNameFromId(id)}")`);
+                if (th && !th.querySelector('.help-icon')) {
+                    const helpIcon = document.createElement('span');
+                    helpIcon.className = 'help-icon ml-1 text-gray-400 hover:text-gray-600 cursor-help inline-block';
+                    helpIcon.innerHTML = '<i class="fas fa-question-circle text-xs"></i>';
+                    helpIcon.title = tooltipText;
+                    th.appendChild(helpIcon);
+                }
+            }
+        });
+        
+        function getColumnNameFromId(id) {
+            if (id.includes('_entrada')) return 'Entrada';
+            if (id.includes('_chegadas')) return 'Chegadas';
+            if (id.includes('_sobra')) return 'Sobra';
+            if (id.includes('_descarte')) return 'Descarte';
+            if (id.includes('_consumo_interno')) return 'Consumo Interno';
+            if (id.includes('_consumo')) return 'Consumo Func.';
+            if (id.includes('_vendas')) return 'Vendas';
+            if (id.includes('_vendido')) return 'Vendido';
+            return '';
+        }
+    }
+
+    function atualizarLimitesVisuais(itemKey) {
+        if (!itemKey) return;
+        
+        const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+        const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+        const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+        const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
+        const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
+        
+        const disponivel = entrada + chegadas;
+        
+        if (disponivel === 0) {
+            ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
+                const input = document.getElementById(`${itemKey}_${campo}`);
+                if (input) {
+                    const wrapper = input.parentElement;
+                    const indicador = wrapper?.querySelector('.limite-indicador');
+                    if (indicador) indicador.remove();
+                }
+            });
+            return;
+        }
+        
+        const sobraInput = document.getElementById(`${itemKey}_sobra`);
+        if (sobraInput) {
+            adicionarIndicadorLimite(sobraInput, disponivel);
+        }
+        
+        const descarteInput = document.getElementById(`${itemKey}_descarte`);
+        if (descarteInput) {
+            const maxDescarte = Math.max(0, disponivel - sobra - consumo);
+            adicionarIndicadorLimite(descarteInput, maxDescarte);
+        }
+        
+        const consumoInput = document.getElementById(`${itemKey}_consumo`);
+        if (consumoInput) {
+            const maxConsumo = Math.max(0, disponivel - sobra - descarte);
+            adicionarIndicadorLimite(consumoInput, maxConsumo);
+        }
+        
+        if (itemKey === 'gelo_pacote') {
+            const vendasInput = document.getElementById(`${itemKey}_vendas`);
+            if (vendasInput) {
+                const maxVendas = Math.max(0, disponivel - sobra);
+                adicionarIndicadorLimite(vendasInput, maxVendas);
+            }
+            
+            const consumoInternoInput = document.getElementById(`${itemKey}_consumo_interno`);
+            if (consumoInternoInput) {
+                const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
+                const consumoInterno = Math.max(0, disponivel - sobra - vendas);
+                
+                if (consumoInterno > 10) {
+                    consumoInternoInput.classList.add('bg-yellow-100', 'border-yellow-300');
+                } else {
+                    consumoInternoInput.classList.remove('bg-yellow-100', 'border-yellow-300');
                 }
             }
         }
-    });
-}
+        
+        ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
+            const input = document.getElementById(`${itemKey}_${campo}`);
+            if (input) {
+                const valor = parseFloat(input.value) || 0;
+                const wrapper = input.parentElement;
+                const indicador = wrapper?.querySelector('.limite-indicador');
+                
+                if (indicador) {
+                    const limiteTexto = indicador.textContent.match(/Máx: (\d+)/);
+                    if (limiteTexto) {
+                        const limite = parseInt(limiteTexto[1]);
+                        if (valor >= limite) {
+                            input.classList.add('at-limit');
+                            indicador.classList.add('text-orange-600', 'font-semibold');
+                        } else {
+                            input.classList.remove('at-limit');
+                            indicador.classList.remove('text-orange-600', 'font-semibold');
+                        }
+                    }
+                }
+            }
+        });
+    }
 
-// Função debounce para evitar múltiplas chamadas
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
             clearTimeout(timeout);
-            func(...args);
+            timeout = setTimeout(later, wait);
         };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
+    }
 
-// Criar a função debounced para validação
-const validarComDebounce = debounce((itemKey, campoAlterado) => {
-    if (!itemKey) return;
-    
-    let validationResult;
-    if (itemKey === 'gelo_pacote') {
-        validationResult = validarConsistenciaGelo(campoAlterado);
-    } else {
-        validationResult = validarConsistenciaItem(itemKey, campoAlterado);
-    }
-    
-    // Mostrar alertas se houver erros
-    if (validationResult && validationResult.errors.length > 0) {
-        mostrarAlertaValidacao(itemKey, validationResult.errors);
-    }
-    atualizarLimitesVisuais(itemKey);
-}, 500);
+    const validarComDebounce = debounce((itemKey, campoAlterado) => {
+        if (!itemKey) return;
+        
+        let validationResult;
+        if (itemKey === 'gelo_pacote') {
+            validationResult = validarConsistenciaGelo(campoAlterado);
+        } else {
+            validationResult = validarConsistenciaItem(itemKey, campoAlterado);
+        }
+        
+        if (validationResult && validationResult.errors.length > 0) {
+            mostrarAlertaValidacao(itemKey, validationResult.errors);
+        }
+        atualizarLimitesVisuais(itemKey);
+    }, 500);
 
     function applyCurrencyMask(input) {
         let value = input.value.replace(/[^\d]/g, '');
@@ -629,56 +616,56 @@ const validarComDebounce = debounce((itemKey, campoAlterado) => {
     }
 
     async function carregarListaFuncionarios() {
-    try {
-        if (!auth.currentUser) {
-            console.error("Usuário não autenticado ao carregar funcionários");
-            showError("Usuário não autenticado. Faça login novamente.");
-            return;
-        }
-
-        console.log("Carregando lista de funcionários...");
-        
-        const snapshot = await db.collection('usuarios')
-            .where('role', '==', 'funcionario')
-            .get();
-        
-        listaFuncionariosDisponiveis = [];
-        const currentUserId = auth.currentUser?.uid;
-        
-        if (snapshot.empty) {
-            console.log("Nenhum funcionário encontrado");
-            return;
-        }
-        
-        snapshot.forEach(doc => {
-            try {
-                const data = doc.data();
-                if (doc.id !== currentUserId && data) {
-                    listaFuncionariosDisponiveis.push({
-                        id: doc.id,
-                        nome: data.nome || data.email || 'Funcionário sem nome',
-                        email: data.email || ''
-                    });
-                }
-            } catch (err) {
-                console.error(`Erro ao processar funcionário ${doc.id}:`, err);
+        try {
+            if (!auth.currentUser) {
+                console.error("Usuário não autenticado ao carregar funcionários");
+                showError("Usuário não autenticado. Faça login novamente.");
+                return;
             }
-        });
-        
-        console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
-        
-    } catch (error) {
-        console.error("Erro ao carregar lista de funcionários:", error);
-        
-        if (error.code === 'permission-denied') {
-            showError("Erro de permissão ao carregar funcionários. Contate o administrador para atualizar as permissões do Firebase.");
-        } else {
-            showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
+
+            console.log("Carregando lista de funcionários...");
+            
+            const snapshot = await db.collection('usuarios')
+                .where('role', '==', 'funcionario')
+                .get();
+            
+            listaFuncionariosDisponiveis = [];
+            const currentUserId = auth.currentUser?.uid;
+            
+            if (snapshot.empty) {
+                console.log("Nenhum funcionário encontrado");
+                return;
+            }
+            
+            snapshot.forEach(doc => {
+                try {
+                    const data = doc.data();
+                    if (doc.id !== currentUserId && data) {
+                        listaFuncionariosDisponiveis.push({
+                            id: doc.id,
+                            nome: data.nome || data.email || 'Funcionário sem nome',
+                            email: data.email || ''
+                        });
+                    }
+                } catch (err) {
+                    console.error(`Erro ao processar funcionário ${doc.id}:`, err);
+                }
+            });
+            
+            console.log(`${listaFuncionariosDisponiveis.length} funcionários disponíveis carregados`);
+            
+        } catch (error) {
+            console.error("Erro ao carregar lista de funcionários:", error);
+            
+            if (error.code === 'permission-denied') {
+                showError("Erro de permissão ao carregar funcionários. Contate o administrador para atualizar as permissões do Firebase.");
+            } else {
+                showError("Erro ao carregar lista de funcionários. Verifique sua conexão.");
+            }
+            
+            listaFuncionariosDisponiveis = [];
         }
-        
-        listaFuncionariosDisponiveis = [];
     }
-}
 
     function adicionarFuncionarioColaborador() {
         const container = document.getElementById('funcionariosColaboradoresContainer');
@@ -775,98 +762,98 @@ const validarComDebounce = debounce((itemKey, campoAlterado) => {
     }
 
     function coletarDadosFuncionariosColaboradores() {
-    const dados = [];
-    if (!funcionariosColaboradores || funcionariosColaboradores.length === 0) {
-        console.log("Nenhum funcionário colaborador para coletar dados");
+        const dados = [];
+        if (!funcionariosColaboradores || funcionariosColaboradores.length === 0) {
+            console.log("Nenhum funcionário colaborador para coletar dados");
+            return dados;
+        }
+        
+        funcionariosColaboradores.forEach(funcionarioId => {
+            try {
+                const selectElement = document.getElementById(`${funcionarioId}_select`);
+                const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
+                const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
+                const horasElement = document.getElementById(`${funcionarioId}_horas`);
+                if (selectElement && selectElement.value) {
+                    const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
+                    
+                    if (!funcionarioSelecionado) {
+                        console.warn(`Funcionário ${selectElement.value} não encontrado na lista`);
+                        return;
+                    }
+                    const dadosFuncionario = {
+                        funcionarioId: selectElement.value,
+                        funcionarioNome: funcionarioSelecionado.nome || 'Nome não disponível',
+                        consumo: consumoElement?.value || '',
+                        transporte: transporteElement?.value || '',
+                        horasTrabalhadas: parseFloat(horasElement?.value) || 0,
+                        registradoPor: {
+                            id: auth.currentUser?.uid || '',
+                            nome: localStorage.getItem('userName') || auth.currentUser?.email || 'Usuário desconhecido'
+                        },
+                        dataRegistro: new Date().toISOString()
+                    };
+                    if (dadosFuncionario.funcionarioId) {
+                        dados.push(dadosFuncionario);
+                        console.log(`Dados coletados para funcionário: ${dadosFuncionario.funcionarioNome}`);
+                    }
+                }
+            } catch (err) {
+                console.error(`Erro ao coletar dados do funcionário ${funcionarioId}:`, err);
+            }
+        });
+        console.log(`Total de ${dados.length} funcionário(s) com dados coletados`);
         return dados;
     }
-    
-    funcionariosColaboradores.forEach(funcionarioId => {
-        try {
-            const selectElement = document.getElementById(`${funcionarioId}_select`);
-            const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
-            const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
-            const horasElement = document.getElementById(`${funcionarioId}_horas`);
-            if (selectElement && selectElement.value) {
-                const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
-                
-                if (!funcionarioSelecionado) {
-                    console.warn(`Funcionário ${selectElement.value} não encontrado na lista`);
-                    return;
-                }
-                const dadosFuncionario = {
-                    funcionarioId: selectElement.value,
-                    funcionarioNome: funcionarioSelecionado.nome || 'Nome não disponível',
-                    consumo: consumoElement?.value || '',
-                    transporte: transporteElement?.value || '',
-                    horasTrabalhadas: parseFloat(horasElement?.value) || 0,
-                    registradoPor: {
-                        id: auth.currentUser?.uid || '',
-                        nome: localStorage.getItem('userName') || auth.currentUser?.email || 'Usuário desconhecido'
-                    },
-                    dataRegistro: new Date().toISOString()
-                };
-                if (dadosFuncionario.funcionarioId) {
-                    dados.push(dadosFuncionario);
-                    console.log(`Dados coletados para funcionário: ${dadosFuncionario.funcionarioNome}`);
-                }
-            }
-        } catch (err) {
-            console.error(`Erro ao coletar dados do funcionário ${funcionarioId}:`, err);
-        }
-    });
-    console.log(`Total de ${dados.length} funcionário(s) com dados coletados`);
-    return dados;
-}
 
     async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
-    if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
-    
-    try {
-        const batch = db.batch();
+        if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
         
-        for (const funcionarioData of dadosFuncionarios) {
-            if (!funcionarioData.funcionarioId) {
-                console.warn("Funcionário sem ID, pulando...");
-                continue;
+        try {
+            const batch = db.batch();
+            
+            for (const funcionarioData of dadosFuncionarios) {
+                if (!funcionarioData.funcionarioId) {
+                    console.warn("Funcionário sem ID, pulando...");
+                    continue;
+                }
+                
+                const turnoRef = db.collection('turnos').doc(turnoId);
+                const turnoDoc = await turnoRef.get();
+                
+                if (!turnoDoc.exists) {
+                    throw new Error("Turno não encontrado");
+                }
+                
+                const turnoData = turnoDoc.data();
+                if (!turnoData.funcionariosColaboradores) {
+                    turnoData.funcionariosColaboradores = [];
+                }
+                
+                turnoData.funcionariosColaboradores.push({
+                    funcionarioId: funcionarioData.funcionarioId,
+                    funcionarioNome: funcionarioData.funcionarioNome,
+                    consumo: funcionarioData.consumo,
+                    transporte: funcionarioData.transporte,
+                    horasTrabalhadas: funcionarioData.horasTrabalhadas,
+                    registradoPor: funcionarioData.registradoPor,
+                    dataRegistro: funcionarioData.dataRegistro
+                });
+                
+                batch.update(turnoRef, {
+                    funcionariosColaboradores: turnoData.funcionariosColaboradores,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
             }
             
-            const turnoRef = db.collection('turnos').doc(turnoId);
-            const turnoDoc = await turnoRef.get();
+            await batch.commit();
+            console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
             
-            if (!turnoDoc.exists) {
-                throw new Error("Turno não encontrado");
-            }
-            
-            const turnoData = turnoDoc.data();
-            if (!turnoData.funcionariosColaboradores) {
-                turnoData.funcionariosColaboradores = [];
-            }
-            
-            turnoData.funcionariosColaboradores.push({
-                funcionarioId: funcionarioData.funcionarioId,
-                funcionarioNome: funcionarioData.funcionarioNome,
-                consumo: funcionarioData.consumo,
-                transporte: funcionarioData.transporte,
-                horasTrabalhadas: funcionarioData.horasTrabalhadas,
-                registradoPor: funcionarioData.registradoPor,
-                dataRegistro: funcionarioData.dataRegistro
-            });
-            
-            batch.update(turnoRef, {
-                funcionariosColaboradores: turnoData.funcionariosColaboradores,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
+        } catch (error) {
+            console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
+            throw error;
         }
-        
-        await batch.commit();
-        console.log(`Dados de ${dadosFuncionarios.length} funcionário(s) colaborador(es) salvos com sucesso`);
-        
-    } catch (error) {
-        console.error("Erro ao salvar dados dos funcionários colaboradores:", error);
-        throw error;
     }
-}
 
     async function carregarDadosTurnoAnterior() {
         showLoadingState(true, "Verificando turnos anteriores...");
@@ -1334,11 +1321,11 @@ const validarComDebounce = debounce((itemKey, campoAlterado) => {
         const tdVendasGelo = createInputCell('number', `${geloKey}_vendas`, '0', '', true, "w-full p-1 border rounded text-sm");
         tdVendasGelo.querySelector('input').dataset.isGeloVenda = "true";
         trGelo.appendChild(tdVendasGelo);
-const tdConsumoGelo = createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm bg-gray-200 cursor-not-allowed");
-const consumoInput = tdConsumoGelo.querySelector('input');
-consumoInput.readOnly = true;
-consumoInput.title = "Calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas";
-trGelo.appendChild(tdConsumoGelo);
+        const tdConsumoGelo = createInputCell('number', `${geloKey}_consumo_interno`, '0', '', true, "w-full p-1 border rounded text-sm bg-gray-200 cursor-not-allowed");
+        const consumoInput = tdConsumoGelo.querySelector('input');
+        consumoInput.readOnly = true;
+        consumoInput.title = "Calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas";
+        trGelo.appendChild(tdConsumoGelo);
         
         const tdPrecoGelo = document.createElement('td');
         tdPrecoGelo.className = 'px-2 py-2 text-sm text-gray-600 text-center';
@@ -1528,8 +1515,14 @@ trGelo.appendChild(tdConsumoGelo);
             }
         });
         if (turnoAbertoLocalmente || currentTurnoId) {
-            if(caixaInicioInput) caixaInicioInput.readOnly = true;
-            if(caixaInicioInput) caixaInicioInput.classList.add('bg-gray-100');
+            if(caixaInicialDinheiroInput) {
+                caixaInicialDinheiroInput.readOnly = true;
+                caixaInicialDinheiroInput.classList.add('bg-gray-100');
+            }
+            if(caixaInicialMoedasInput) {
+                caixaInicialMoedasInput.readOnly = true;
+                caixaInicialMoedasInput.classList.add('bg-gray-100');
+            }
             
             document.querySelectorAll('input[id$="_entrada"]').forEach(inp => {
                 inp.readOnly = true;
@@ -1544,8 +1537,14 @@ trGelo.appendChild(tdConsumoGelo);
                 }
             });
         } else {
-            if(caixaInicioInput) caixaInicioInput.readOnly = false;
-            if(caixaInicioInput) caixaInicioInput.classList.remove('bg-gray-100');
+            if(caixaInicialDinheiroInput) {
+                caixaInicialDinheiroInput.readOnly = false;
+                caixaInicialDinheiroInput.classList.remove('bg-gray-100');
+            }
+            if(caixaInicialMoedasInput) {
+                caixaInicialMoedasInput.readOnly = false;
+                caixaInicialMoedasInput.classList.remove('bg-gray-100');
+            }
             document.querySelectorAll('input[id$="_entrada"], input[id$="_chegadas"]').forEach(inp => {
                 if (!inp.dataset.transferidoDoTurno) {
                     inp.readOnly = false;
@@ -1556,69 +1555,69 @@ trGelo.appendChild(tdConsumoGelo);
     }
     
     function resetFormAndState(statusMessage = 'Nenhum turno aberto.') {
-    formTurno.reset();
-    setInitialPeriodo();
-    turnoMesInput.value = '';
-    turnoDataInput.value = '';
-    turnoResponsavelInput.value = '';
-    turnoHoraInput.value = '';
-    
-    btnAbrirTurno.disabled = false;
-    btnFecharTurno.disabled = true;
-    removeTurnoLocal();
-    turnoAbertoLocalmente = false;
-    
-    turnoStatusP.textContent = statusMessage;
-    if (statusMessage.toLowerCase().includes("erro")) {
-        turnoStatusP.className = 'text-center text-red-600 font-semibold mb-4';
-    } else {
-        turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
-    }
+        formTurno.reset();
+        setInitialPeriodo();
+        turnoMesInput.value = '';
+        turnoDataInput.value = '';
+        turnoResponsavelInput.value = '';
+        turnoHoraInput.value = '';
+        
+        btnAbrirTurno.disabled = false;
+        btnFecharTurno.disabled = true;
+        removeTurnoLocal();
+        turnoAbertoLocalmente = false;
+        
+        turnoStatusP.textContent = statusMessage;
+        if (statusMessage.toLowerCase().includes("erro")) {
+            turnoStatusP.className = 'text-center text-red-600 font-semibold mb-4';
+        } else {
+            turnoStatusP.className = 'text-center text-gray-600 font-semibold mb-4';
+        }
 
-    clearError();
-    toggleFormInputs(false); 
-    
-    document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
-    document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0');
-    document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
-    if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
-    if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
-    if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
-    if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md";
+        clearError();
+        toggleFormInputs(false); 
+        
+        document.querySelectorAll('input[id$="_vendido"]').forEach(el => el.value = '0');
+        document.querySelectorAll('input[id$="_chegadas"]').forEach(el => el.value = '0');
+        document.querySelectorAll('td[id$="_total_item"]').forEach(el => el.textContent = formatToBRL(0));
+        if(totalVendidoTurnoCalculadoInput) totalVendidoTurnoCalculadoInput.value = formatToBRL(0);
+        if(totalRegistradoPagamentosInput) totalRegistradoPagamentosInput.value = formatToBRL(0);
+        if(caixaDiferencaInput) caixaDiferencaInput.value = formatToBRL(0);
+        if(caixaDiferencaContainer) caixaDiferencaContainer.className = "p-3 rounded-md";
 
-    document.querySelectorAll('td[id^="total"]').forEach(el => {
-        if (el.id.includes('Vendido')) el.textContent = '0';
-        else if (el.id.includes('Valor')) el.textContent = formatToBRL(0);
-    });
-    if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
-    if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
-    if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
-    
-    const geloKey = 'gelo_pacote';
-    const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
-    if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
-    const totalFooterGelo = document.getElementById('totalGeloValor');
-    if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
-    
-    document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
-    document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
-        el.removeAttribute('data-transferido-do-turno');
-        el.removeAttribute('data-valor-original');
-        el.classList.remove('bg-blue-50', 'border-blue-300');
-    });
-    camposTransferidosAnterior = {};
-    funcionariosColaboradores = [];
-    const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
-    if (containerFuncionarios) {
-        containerFuncionarios.innerHTML = '';
+        document.querySelectorAll('td[id^="total"]').forEach(el => {
+            if (el.id.includes('Vendido')) el.textContent = '0';
+            else if (el.id.includes('Valor')) el.textContent = formatToBRL(0);
+        });
+        if (divergenciaCaixaAlertaP) divergenciaCaixaAlertaP.textContent = '';
+        if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
+        if (fechamentoDivergenciaAlertaGeralDiv) fechamentoDivergenciaAlertaGeralDiv.textContent = '';
+        
+        const geloKey = 'gelo_pacote';
+        const totalGeloDisplay = document.getElementById(`${geloKey}_total_item`);
+        if (totalGeloDisplay) totalGeloDisplay.textContent = formatToBRL(0);
+        const totalFooterGelo = document.getElementById('totalGeloValor');
+        if (totalFooterGelo) totalFooterGelo.textContent = formatToBRL(0);
+        
+        document.querySelectorAll('.indicador-transferido').forEach(el => el.remove());
+        document.querySelectorAll('[data-transferido-do-turno]').forEach(el => {
+            el.removeAttribute('data-transferido-do-turno');
+            el.removeAttribute('data-valor-original');
+            el.classList.remove('bg-blue-50', 'border-blue-300');
+        });
+        camposTransferidosAnterior = {};
+        funcionariosColaboradores = [];
+        const containerFuncionarios = document.getElementById('funcionariosColaboradoresContainer');
+        if (containerFuncionarios) {
+            containerFuncionarios.innerHTML = '';
+        }
+        
+        document.querySelectorAll('.alerta-estoque-baixo').forEach(alerta => {
+            alerta.remove();
+        });
+        
+        calculateAll();
     }
-    
-    document.querySelectorAll('.alerta-estoque-baixo').forEach(alerta => {
-        alerta.remove();
-    });
-    
-    calculateAll();
-}
     
     function populateTurnoDetails(aberturaData) {
         turnoMesInput.value = aberturaData.mes;
@@ -1703,195 +1702,179 @@ trGelo.appendChild(tdConsumoGelo);
                 </div>
             `;
         } else if (divergencia > 0) {
-    // Falta nos pagamentos - problema
-    alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
-    alertContainer.innerHTML = `
-        <div class="text-red-700">
-            <div class="flex items-center mb-2">
-                <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
-                <strong>🚨QUEBRA DE CAIXA. DIVERGÊNCIA DETECTADA! FAVOR REVISAR AS CONTAGENS</strong>
-            </div>
-            <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
-                <div class="grid grid-cols-2 gap-2">
-                    <div>📈 <strong>Total Vendido:</strong></div>
-                    <div>${formatToBRL(totalVendido)}</div>
-                    <div>💳 <strong>Total Pagamentos:</strong></div>
-                    <div>${formatToBRL(totalRegistrado)}</div>
-                    <div>⚖️ <strong>Diferença:</strong></div>
-                    <div class="font-bold text-red-600">${formatToBRL(Math.abs(divergencia))} (faltam nos pagamentos)</div>
+            alertContainer.className = 'mt-4 p-4 rounded-lg border bg-red-50 border-red-300';
+            alertContainer.innerHTML = `
+                <div class="text-red-700">
+                    <div class="flex items-center mb-2">
+                        <i class="fas fa-exclamation-triangle mr-2 text-lg"></i>
+                        <strong>🚨QUEBRA DE CAIXA. DIVERGÊNCIA DETECTADA! FAVOR REVISAR AS CONTAGENS</strong>
+                    </div>
+                    <div class="text-sm bg-white bg-opacity-50 p-3 rounded">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>📈 <strong>Total Vendido:</strong></div>
+                            <div>${formatToBRL(totalVendido)}</div>
+                            <div>💳 <strong>Total Pagamentos:</strong></div>
+                            <div>${formatToBRL(totalRegistrado)}</div>
+                            <div>⚖️ <strong>Diferença:</strong></div>
+                            <div class="font-bold text-red-600">${formatToBRL(Math.abs(divergencia))} (faltam nos pagamentos)</div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    `;
-} else {
-    // Sobra nos pagamentos - OK
-    alertContainer.className = 'mt-4 p-4 rounded-lg border bg-green-50 border-green-300';
-    alertContainer.innerHTML = `
-        <div class="flex items-center text-green-700">
-            <i class="fas fa-check-circle mr-2 text-lg"></i>
-            <div>
-                <strong>✅ Valores conferem perfeitamente</strong>
-                <div class="text-sm mt-1">
-                    Vendas: ${formatToBRL(totalVendido)} | Pagamentos: ${formatToBRL(totalRegistrado)}
-                </div>
-            </div>
-        </div>
-    `;
-}
-    }
-
-function updatePhysicalCashDifference() {
-    console.log("🏦 Atualizando diferença de caixa físico...");
-    
-    // Obter valores iniciais separados
-    const caixaInicialDinheiro = parseCurrencyToNumber(document.getElementById('caixaInicialDinheiro')?.value || '0');
-    const caixaInicialMoedas = parseCurrencyToNumber(document.getElementById('caixaInicialMoedas')?.value || '0');
-    const caixaInicial = caixaInicialDinheiro + caixaInicialMoedas;
-    
-    // Obter valor do pagamento em dinheiro
-    const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
-    
-    // Obter valores finais contados separados
-    const caixaFinalDinheiro = parseCurrencyToNumber(document.getElementById('caixaFinalDinheiro')?.value || '0');
-    const caixaFinalMoedas = parseCurrencyToNumber(document.getElementById('caixaFinalMoedas')?.value || '0');
-    const caixaFinalContado = caixaFinalDinheiro + caixaFinalMoedas;
-    const caixaEsperado = caixaInicial + pagamentoDinheiro;
-    const diferencaCaixa = caixaFinalContado - caixaEsperado;
-    
-    console.log(`💰 Caixa Inicial: Dinheiro ${formatToBRL(caixaInicialDinheiro)} + Moedas ${formatToBRL(caixaInicialMoedas)} = ${formatToBRL(caixaInicial)}`);
-    console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
-    console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
-    console.log(`🔢 Caixa Contado: Dinheiro ${formatToBRL(caixaFinalDinheiro)} + Moedas ${formatToBRL(caixaFinalMoedas)} = ${formatToBRL(caixaFinalContado)}`);
-    console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
-    if (caixaDiferencaInput) {
-        caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
-    }
-    checkForLowCashValues(caixaFinalDinheiro, caixaFinalMoedas);
-    
-    // Atualizar a visualização da diferença
-    if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
-        if (Math.abs(diferencaCaixa) < 0.01) {
-            // Caixa exato - perfeito
-            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
-            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
-            divergenciaCaixaAlertaP.innerHTML = `
-                <i class="fas fa-check-circle mr-1"></i>
-                ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
-            `;
-        } else if (diferencaCaixa < 0) {
-            // Falta no caixa - PROBLEMA
-            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-red-50 border border-red-300';
-            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-red-700 font-medium';
-            divergenciaCaixaAlertaP.innerHTML = `
-                <i class="fas fa-exclamation-triangle mr-1"></i>
-                🚨 Falta de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico. Favor revisar a contagem.
-                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
             `;
         } else {
-            // Sobra no caixa - OK
-            caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
-            divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
-            divergenciaCaixaAlertaP.innerHTML = `
-                <i class="fas fa-check-circle mr-1"></i>
-                ✅ Sobra de ${formatToBRL(diferencaCaixa)} no caixa. 
-                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+            alertContainer.className = 'mt-4 p-4 rounded-lg border bg-green-50 border-green-300';
+            alertContainer.innerHTML = `
+                <div class="flex items-center text-green-700">
+                    <i class="fas fa-check-circle mr-2 text-lg"></i>
+                    <div>
+                        <strong>✅ Valores conferem perfeitamente</strong>
+                        <div class="text-sm mt-1">
+                            Vendas: ${formatToBRL(totalVendido)} | Pagamentos: ${formatToBRL(totalRegistrado)}
+                        </div>
+                    </div>
+                </div>
             `;
         }
     }
-    return {
-        caixaInicial,
-        caixaInicialDinheiro,
-        caixaInicialMoedas,
-        pagamentoDinheiro,
-        caixaEsperado,
-        caixaFinalContado,
-        caixaFinalDinheiro,
-        caixaFinalMoedas,
-        diferencaCaixa,
-        isValid: diferencaCaixa >= -0.01
-    };
-}
 
-function checkForLowCashValues(dinheiro, moedas) {
-    const dinheiroInput = document.getElementById('caixaFinalDinheiro');
-    const moedasInput = document.getElementById('caixaFinalMoedas');
-    
-    // Remover alertas existentes
-    removeExistingCashAlerts();
-    
-    // Verificar valores baixos
-    if (dinheiro < 200) {
-        showLowCashAlert(dinheiroInput, 'dinheiro', dinheiro);
+    function updatePhysicalCashDifference() {
+        console.log("🏦 Atualizando diferença de caixa físico...");
+        
+        const caixaInicialDinheiro = parseCurrencyToNumber(caixaInicialDinheiroInput?.value || '0');
+        const caixaInicialMoedas = parseCurrencyToNumber(caixaInicialMoedasInput?.value || '0');
+        const caixaInicial = caixaInicialDinheiro + caixaInicialMoedas;
+        
+        const pagamentoDinheiro = parseCurrencyToNumber(pagamentoDinheiroInput?.value || '0');
+        
+        const caixaFinalDinheiro = parseCurrencyToNumber(caixaFinalDinheiroInput?.value || '0');
+        const caixaFinalMoedas = parseCurrencyToNumber(caixaFinalMoedasInput?.value || '0');
+        const caixaFinalContado = caixaFinalDinheiro + caixaFinalMoedas;
+        const caixaEsperado = caixaInicial + pagamentoDinheiro;
+        const diferencaCaixa = caixaFinalContado - caixaEsperado;
+        
+        console.log(`💰 Caixa Inicial: Dinheiro ${formatToBRL(caixaInicialDinheiro)} + Moedas ${formatToBRL(caixaInicialMoedas)} = ${formatToBRL(caixaInicial)}`);
+        console.log(`💵 Pagamento Dinheiro: ${formatToBRL(pagamentoDinheiro)}`);
+        console.log(`🎯 Caixa Esperado: ${formatToBRL(caixaEsperado)}`);
+        console.log(`🔢 Caixa Contado: Dinheiro ${formatToBRL(caixaFinalDinheiro)} + Moedas ${formatToBRL(caixaFinalMoedas)} = ${formatToBRL(caixaFinalContado)}`);
+        console.log(`⚖️ Diferença: ${formatToBRL(diferencaCaixa)}`);
+        if (caixaDiferencaInput) {
+            caixaDiferencaInput.value = formatToBRL(diferencaCaixa);
+        }
+        checkForLowCashValues(caixaFinalDinheiro, caixaFinalMoedas);
+        
+        if (caixaDiferencaContainer && divergenciaCaixaAlertaP) {
+            if (Math.abs(diferencaCaixa) < 0.01) {
+                caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
+                divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
+                divergenciaCaixaAlertaP.innerHTML = `
+                    <i class="fas fa-check-circle mr-1"></i>
+                    ✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})
+                `;
+            } else if (diferencaCaixa < 0) {
+                caixaDiferencaContainer.className = 'p-4 rounded-lg bg-red-50 border border-red-300';
+                divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-red-700 font-medium';
+                divergenciaCaixaAlertaP.innerHTML = `
+                    <i class="fas fa-exclamation-triangle mr-1"></i>
+                    🚨 Falta de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico. Favor revisar a contagem.
+                    <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+                `;
+            } else {
+                caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
+                divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
+                divergenciaCaixaAlertaP.innerHTML = `
+                    <i class="fas fa-check-circle mr-1"></i>
+                    ✅ Sobra de ${formatToBRL(diferencaCaixa)} no caixa. 
+                    <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+                `;
+            }
+        }
+        return {
+            caixaInicial,
+            caixaInicialDinheiro,
+            caixaInicialMoedas,
+            pagamentoDinheiro,
+            caixaEsperado,
+            caixaFinalContado,
+            caixaFinalDinheiro,
+            caixaFinalMoedas,
+            diferencaCaixa,
+            isValid: diferencaCaixa >= -0.01
+        };
     }
-    
-    if (moedas < 20) {
-        showLowCashAlert(moedasInput, 'moedas', moedas);
-    }
-}
 
-function removeExistingCashAlerts() {
-    // Remover todos os alertas existentes
-    document.querySelectorAll('.cash-alert').forEach(alert => {
-        alert.remove();
-    });
-    
-    // Remover classes de alerta dos inputs
-    const dinheiroInput = document.getElementById('caixaFinalDinheiro');
-    const moedasInput = document.getElementById('caixaFinalMoedas');
-    
-    if (dinheiroInput) {
-        dinheiroInput.classList.remove('border-red-500', 'bg-red-50');
+    function checkForLowCashValues(dinheiro, moedas) {
+        const dinheiroInput = document.getElementById('caixaFinalDinheiro');
+        const moedasInput = document.getElementById('caixaFinalMoedas');
+        
+        removeExistingCashAlerts();
+        
+        if (dinheiro < 200) {
+            showLowCashAlert(dinheiroInput, 'dinheiro', dinheiro);
+        }
+        
+        if (moedas < 20) {
+            showLowCashAlert(moedasInput, 'moedas', moedas);
+        }
     }
-    
-    if (moedasInput) {
-        moedasInput.classList.remove('border-red-500', 'bg-red-50');
-    }
-}
 
-function showLowCashAlert(inputElement, type, value) {
-    if (!inputElement) return;
-    
-    // Adicionar borda vermelha ao input
-    inputElement.classList.add('border-red-500', 'bg-red-50');
-    
-    // Criar mensagem de alerta
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'cash-alert mt-2 p-2 bg-red-100 text-red-800 text-xs rounded flex items-start';
-    alertDiv.dataset.alertType = type;
-    
-    const icon = type === 'dinheiro' ? 'fa-money-bill-wave' : 'fa-coins';
-    const typeName = type === 'dinheiro' ? 'Dinheiro' : 'Moedas';
-    const threshold = type === 'dinheiro' ? 'R$ 200,00' : 'R$ 20,00';
-    
-    alertDiv.innerHTML = `
-        <i class="fas fa-exclamation-triangle mt-0.5 mr-1"></i>
-        <div>
-            <strong>Alerta: ${typeName} abaixo do recomendado!</strong><br>
-            Valor atual: ${formatToBRL(value)}<br>
-            Valor mínimo recomendado: ${threshold}
-        </div>
-    `;
-    
-    // Adicionar o alerta após o input
-    const parent = inputElement.parentElement;
-    if (parent) {
-        parent.appendChild(alertDiv);
+    function removeExistingCashAlerts() {
+        document.querySelectorAll('.cash-alert').forEach(alert => {
+            alert.remove();
+        });
+        
+        const dinheiroInput = document.getElementById('caixaFinalDinheiro');
+        const moedasInput = document.getElementById('caixaFinalMoedas');
+        
+        if (dinheiroInput) {
+            dinheiroInput.classList.remove('border-red-500', 'bg-red-50');
+        }
+        
+        if (moedasInput) {
+            moedasInput.classList.remove('border-red-500', 'bg-red-50');
+        }
     }
-}
+
+    function showLowCashAlert(inputElement, type, value) {
+        if (!inputElement) return;
+        
+        inputElement.classList.add('border-red-500', 'bg-red-50');
+        
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'cash-alert mt-2 p-2 bg-red-100 text-red-800 text-xs rounded flex items-start';
+        alertDiv.dataset.alertType = type;
+        
+        const icon = type === 'dinheiro' ? 'fa-money-bill-wave' : 'fa-coins';
+        const typeName = type === 'dinheiro' ? 'Dinheiro' : 'Moedas';
+        const threshold = type === 'dinheiro' ? 'R$ 200,00' : 'R$ 20,00';
+        
+        alertDiv.innerHTML = `
+            <i class="fas fa-exclamation-triangle mt-0.5 mr-1"></i>
+            <div>
+                <strong>Alerta: ${typeName} abaixo do recomendado!</strong><br>
+                Valor atual: ${formatToBRL(value)}<br>
+                Valor mínimo recomendado: ${threshold}
+            </div>
+        `;
+        
+        const parent = inputElement.parentElement;
+        if (parent) {
+            parent.appendChild(alertDiv);
+        }
+    }
 
     function setupAllCurrencyMasks() {
         
          const currencyFields = [
-        'caixaInicialDinheiro',
-        'caixaInicialMoedas',
-        'pagamentoDinheiro',
-        'pagamentoPixManual', 
-        'pagamentoStoneDCV',
-        'pagamentoStoneVoucher',
-        'pagamentoPagBankDCV',
-        'caixaFinalDinheiro',
-        'caixaFinalMoedas'
-    ];
+            'caixaInicialDinheiro',
+            'caixaInicialMoedas',
+            'pagamentoDinheiro',
+            'pagamentoPixManual', 
+            'pagamentoStoneDCV',
+            'pagamentoStoneVoucher',
+            'pagamentoPagBankDCV',
+            'caixaFinalDinheiro',
+            'caixaFinalMoedas'
+        ];
         
         currencyFields.forEach(fieldId => {
             const field = document.getElementById(fieldId);
@@ -1905,14 +1888,26 @@ function showLowCashAlert(inputElement, type, value) {
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
             clearError();
-            const caixaInicialVal = parseCurrencyToNumber(caixaInicioInput.value);
-            if (isNaN(caixaInicialVal) || caixaInicialVal < 0) {
-                showError("Caixa Inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
-                caixaInicioInput.focus();
-                caixaInicioInput.classList.add('border-red-500');
+            
+            const caixaInicialDinheiro = parseCurrencyToNumber(caixaInicialDinheiroInput?.value || '0');
+            const caixaInicialMoedas = parseCurrencyToNumber(caixaInicialMoedasInput?.value || '0');
+            
+            if (isNaN(caixaInicialDinheiro) || caixaInicialDinheiro < 0) {
+                showError("Valor de dinheiro inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
+                caixaInicialDinheiroInput?.focus();
+                caixaInicialDinheiroInput?.classList.add('border-red-500');
                 return;
             }
-            caixaInicioInput.classList.remove('border-red-500');
+            
+            if (isNaN(caixaInicialMoedas) || caixaInicialMoedas < 0) {
+                showError("Valor de moedas inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
+                caixaInicialMoedasInput?.focus();
+                caixaInicialMoedasInput?.classList.add('border-red-500');
+                return;
+            }
+            
+            caixaInicialDinheiroInput?.classList.remove('border-red-500');
+            caixaInicialMoedasInput?.classList.remove('border-red-500');
 
             const dataAtual = getFormattedDate();
             const periodoSelecionado = turnoPeriodoSelect.value;
@@ -1968,6 +1963,27 @@ function showLowCashAlert(inputElement, type, value) {
 
                 const estoqueAnterior = await getEstoqueInicial(dataAtual, periodoSelecionado);
                 
+                let valorInicialDinheiro = caixaInicialDinheiro;
+                let valorInicialMoedas = caixaInicialMoedas;
+                
+                if (estoqueAnterior.caixaFinalDinheiro !== null && estoqueAnterior.caixaFinalMoedas !== null) {
+                    valorInicialDinheiro = estoqueAnterior.caixaFinalDinheiro;
+                    valorInicialMoedas = estoqueAnterior.caixaFinalMoedas;
+                    
+                    caixaInicialDinheiroInput.value = formatToBRL(valorInicialDinheiro);
+                    caixaInicialMoedasInput.value = formatToBRL(valorInicialMoedas);
+                    
+                    adicionarIndicadorCampoTransferido(caixaInicialDinheiroInput, estoqueAnterior.turnoId);
+                    adicionarIndicadorCampoTransferido(caixaInicialMoedasInput, estoqueAnterior.turnoId);
+                } else if (valorInicialDinheiro === 0 && valorInicialMoedas === 0) {
+                    const valoresPadrao = await getValoresPadraoCaixa();
+                    valorInicialDinheiro = valoresPadrao.dinheiro;
+                    valorInicialMoedas = valoresPadrao.moedas;
+                    
+                    caixaInicialDinheiroInput.value = formatToBRL(valorInicialDinheiro);
+                    caixaInicialMoedasInput.value = formatToBRL(valorInicialMoedas);
+                }
+                
                 let itensTransferidosCount = 0;
                 
                 Object.keys(estoqueAnterior.itens || {}).forEach(categoryKey => {
@@ -1990,12 +2006,6 @@ function showLowCashAlert(inputElement, type, value) {
                     adicionarIndicadorCampoTransferido(inputEntradaGelo, estoqueAnterior.turnoId);
                     itensTransferidosCount++;
                 }
-                        
-                if (estoqueAnterior.caixaFinal !== undefined && caixaInicioInput) {
-                    caixaInicioInput.value = formatToBRL(estoqueAnterior.caixaFinal);
-                            
-                    adicionarIndicadorCampoTransferido(caixaInicioInput, estoqueAnterior.turnoId);
-                }
 
                 if (estoqueAnterior.turnoId) {
                     adicionarResumoTurnoAnterior(estoqueAnterior.turnoId, estoqueAnterior);
@@ -2006,7 +2016,9 @@ function showLowCashAlert(inputElement, type, value) {
                 const turnoDataToSave = {
                     abertura: aberturaDataObj,
                     status: 'aberto',
-                    caixaInicial: parseCurrencyToNumber(caixaInicioInput.value) || 0,
+                    caixaInicial: valorInicialDinheiro + valorInicialMoedas,
+                    caixaInicialDinheiro: valorInicialDinheiro,
+                    caixaInicialMoedas: valorInicialMoedas,
                     itens: initialItensData.itens,
                     gelo: initialItensData.gelo,
                     turnoAnteriorId: estoqueAnterior.turnoId,
@@ -2035,7 +2047,7 @@ function showLowCashAlert(inputElement, type, value) {
                 if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
                     statusMsg += ` Dados transferidos: ${itensTransferidosCount} item(ns)`;
                     if (estoqueAnterior.caixaFinal !== undefined) {
-                        statusMsg += ` e caixa inicial (${formatToBRL(estoqueAnterior.caixaFinal)})`;
+                        statusMsg += ` e caixa inicial (Dinheiro: ${formatToBRL(valorInicialDinheiro)} + Moedas: ${formatToBRL(valorInicialMoedas)})`;
                     }
                 }
                 turnoStatusP.textContent = statusMsg;
@@ -2090,6 +2102,8 @@ function showLowCashAlert(inputElement, type, value) {
                     gelo: {}, 
                     turnoId: turnoDoc.id,
                     caixaFinal: null,
+                    caixaFinalDinheiro: null,
+                    caixaFinalMoedas: null,
                     formasPagamento: dados.formasPagamento || {},
                     trocaGas: dados.trocaGas || 'nao',
                     totalVendidoCalculado: dados.totalVendidoCalculadoFinal,
@@ -2124,9 +2138,16 @@ function showLowCashAlert(inputElement, type, value) {
                     };
                 }
                 
-                if (dados.caixaFinalContado !== undefined) {
+                if (dados.caixaFinalDinheiro !== undefined && dados.caixaFinalMoedas !== undefined) {
+                    estoqueFinal.caixaFinalDinheiro = dados.caixaFinalDinheiro;
+                    estoqueFinal.caixaFinalMoedas = dados.caixaFinalMoedas;
+                    estoqueFinal.caixaFinal = dados.caixaFinalDinheiro + dados.caixaFinalMoedas;
+                    console.log(`💰 Transferindo caixa: Dinheiro ${formatToBRL(dados.caixaFinalDinheiro)} + Moedas ${formatToBRL(dados.caixaFinalMoedas)}`);
+                } else if (dados.caixaFinalContado !== undefined) {
                     estoqueFinal.caixaFinal = dados.caixaFinalContado;
-                    console.log(`💰 Transferindo caixa: ${formatToBRL(dados.caixaFinalContado)} do turno ${turnoDoc.id}`);
+                    estoqueFinal.caixaFinalDinheiro = dados.caixaFinalContado * 0.9;
+                    estoqueFinal.caixaFinalMoedas = dados.caixaFinalContado * 0.1;
+                    console.log(`💰 Transferindo caixa (formato antigo): ${formatToBRL(dados.caixaFinalContado)}`);
                 }
                 
                 return estoqueFinal;
@@ -2148,6 +2169,8 @@ function showLowCashAlert(inputElement, type, value) {
             gelo: {}, 
             turnoId: null, 
             caixaFinal: null,
+            caixaFinalDinheiro: null,
+            caixaFinalMoedas: null,
             formasPagamento: {},
             trocaGas: 'nao',
             totalVendidoCalculado: 0,
@@ -2308,29 +2331,28 @@ function showLowCashAlert(inputElement, type, value) {
             const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
             const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
 
-            // Apenas detecta divergência se faltar dinheiro
-let divergenciaValorDetected = false;
-if ((totalVendidoCalc - totalPagamentos) > 0.015) { // Falta pagamento
-    divergenciaValorDetected = true;
-}
+            let divergenciaValorDetected = false;
+            if ((totalVendidoCalc - totalPagamentos) > 0.015) {
+                divergenciaValorDetected = true;
+            }
 
-const { diferencaCaixa } = updatePhysicalCashDifference();
-const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
+            const { diferencaCaixa } = updatePhysicalCashDifference();
+            const caixaComProblema = diferencaCaixa < -0.015;
             
             fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
             fechamentoDivergenciaAlertaGeralDiv.textContent = '';
             
             let confirmMsg = "Você está prestes a fechar o turno.";
             if (divergenciaValorDetected || caixaComProblema) {
-    let alertText = "ATENÇÃO: Divergências encontradas!\n";
-    if (divergenciaValorDetected) {
-        alertText += `- Faltam ${formatToBRL(totalVendidoCalc - totalPagamentos)} nos pagamentos\n`;
-    }
-    if (caixaComProblema) {
-        alertText += `- Falta ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico\n`;
-    }
-    alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
-                
+                let alertText = "ATENÇÃO: Divergências encontradas!\n";
+                if (divergenciaValorDetected) {
+                    alertText += `- Faltam ${formatToBRL(totalVendidoCalc - totalPagamentos)} nos pagamentos\n`;
+                }
+                if (caixaComProblema) {
+                    alertText += `- Falta ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico\n`;
+                }
+                alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
+                    
                 fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>');
                 fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
                 
@@ -2368,7 +2390,10 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
                 stoneVoucher: parseCurrencyToNumber(document.getElementById('pagamentoStoneVoucher').value),
                 pagbankDCV: parseCurrencyToNumber(document.getElementById('pagamentoPagBankDCV').value),
             };
-            const caixaFinalContadoVal = parseCurrencyToNumber(caixaFinalContadoInput.value);
+            
+            const caixaFinalDinheiro = parseCurrencyToNumber(caixaFinalDinheiroInput?.value || '0');
+            const caixaFinalMoedas = parseCurrencyToNumber(caixaFinalMoedasInput?.value || '0');
+            const caixaFinalContadoVal = caixaFinalDinheiro + caixaFinalMoedas;
             const caixaDiferencaVal = Math.abs(diferencaCaixa);
 
             const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
@@ -2998,37 +3023,53 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
     }
     
     function loadTurnoDataToForm(turnoData) {
-        if (!turnoData) return;
-        
-        if (caixaInicioInput) {
-            caixaInicioInput.value = formatToBRL(turnoData.caixaInicial || 0);
+    if (!turnoData) return;
+    
+    // Carregar valores de caixa inicial
+    if (turnoData.caixaInicialDinheiro !== undefined && turnoData.caixaInicialMoedas !== undefined) {
+        // Novo formato com separação
+        if (caixaInicialDinheiroInput) {
+            caixaInicialDinheiroInput.value = formatToBRL(turnoData.caixaInicialDinheiro);
         }
+        if (caixaInicialMoedasInput) {
+            caixaInicialMoedasInput.value = formatToBRL(turnoData.caixaInicialMoedas);
+        }
+    } else if (turnoData.caixaInicial !== undefined) {
+        // Formato antigo - dividir proporcionalmente
+        const valorTotal = turnoData.caixaInicial || 0;
+        if (caixaInicialDinheiroInput) {
+            caixaInicialDinheiroInput.value = formatToBRL(valorTotal * 0.9);
+        }
+        if (caixaInicialMoedasInput) {
+            caixaInicialMoedasInput.value = formatToBRL(valorTotal * 0.1);
+        }
+    }
     
         if (turnoData.itens) {
-            Object.keys(turnoData.itens).forEach(categoryKey => {
-                if(turnoData.itens[categoryKey]) {
-                    Object.keys(turnoData.itens[categoryKey]).forEach(itemKey => {
-                        const item = turnoData.itens[categoryKey][itemKey];
-                        if (item) {
-                            const entradaInput = document.getElementById(`${itemKey}_entrada`);
-                            if (entradaInput) entradaInput.value = item.entrada || 0;
-                            
-                            const chegadasInput = document.getElementById(`${itemKey}_chegadas`);
-                            if (chegadasInput) chegadasInput.value = item.chegadas || 0;
-        
-                            if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
-                                 const sobraInput = document.getElementById(`${itemKey}_sobra`);
-                                 if (sobraInput) sobraInput.value = item.sobra || 0;
-                                 const descarteInput = document.getElementById(`${itemKey}_descarte`);
-                                 if (descarteInput) descarteInput.value = item.descarte || 0;
-                                 const consumoInput = document.getElementById(`${itemKey}_consumo`);
-                                 if (consumoInput) consumoInput.value = item.consumo || 0;
-                                 
-                                 const vendidoInput = document.getElementById(`${itemKey}_vendido`);
-                                 if (vendidoInput && item.precoUnitario && !vendidoInput.dataset.price) {
-                                     vendidoInput.dataset.price = item.precoUnitario;
-                                     const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
-                                     if(precoDisplay) precoDisplay.textContent = formatToBRL(parseFloat(item.precoUnitario));
+        Object.keys(turnoData.itens).forEach(categoryKey => {
+            if(turnoData.itens[categoryKey]) {
+                Object.keys(turnoData.itens[categoryKey]).forEach(itemKey => {
+                    const item = turnoData.itens[categoryKey][itemKey];
+                    if (item) {
+                        const entradaInput = document.getElementById(`${itemKey}_entrada`);
+                        if (entradaInput) entradaInput.value = item.entrada || 0;
+                        
+                        const chegadasInput = document.getElementById(`${itemKey}_chegadas`);
+                        if (chegadasInput) chegadasInput.value = item.chegadas || 0;
+    
+                        if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
+                             const sobraInput = document.getElementById(`${itemKey}_sobra`);
+                             if (sobraInput) sobraInput.value = item.sobra || 0;
+                             const descarteInput = document.getElementById(`${itemKey}_descarte`);
+                             if (descarteInput) descarteInput.value = item.descarte || 0;
+                             const consumoInput = document.getElementById(`${itemKey}_consumo`);
+                             if (consumoInput) consumoInput.value = item.consumo || 0;
+                             
+                             const vendidoInput = document.getElementById(`${itemKey}_vendido`);
+                             if (vendidoInput && item.precoUnitario && !vendidoInput.dataset.price) {
+                                 vendidoInput.dataset.price = item.precoUnitario;
+                                 const precoDisplay = document.getElementById(`${itemKey}_preco_display`);
+                                 if(precoDisplay) precoDisplay.textContent = formatToBRL(parseFloat(item.precoUnitario));
                                  }
                             }
                         }
@@ -3037,42 +3078,59 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
             });
         }
         
-        if (turnoData.gelo && turnoData.gelo.gelo_pacote) {
-            const geloItem = turnoData.gelo.gelo_pacote;
-            const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
-            if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
-            
-            const geloChegadasInput = document.getElementById(`gelo_pacote_chegadas`);
-            if (geloChegadasInput) geloChegadasInput.value = geloItem.chegadas || 0;
+         if (turnoData.gelo && turnoData.gelo.gelo_pacote) {
+        const geloItem = turnoData.gelo.gelo_pacote;
+        const geloEntradaInput = document.getElementById(`gelo_pacote_entrada`);
+        if (geloEntradaInput) geloEntradaInput.value = geloItem.entrada || 0;
+        
+        const geloChegadasInput = document.getElementById(`gelo_pacote_chegadas`);
+        if (geloChegadasInput) geloChegadasInput.value = geloItem.chegadas || 0;
 
-            if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
-                const geloSobraInput = document.getElementById(`gelo_pacote_sobra`);
-                if (geloSobraInput) geloSobraInput.value = geloItem.sobra || 0;
-                const geloVendasInput = document.getElementById(`gelo_pacote_vendas`);
-                if (geloVendasInput) geloVendasInput.value = geloItem.vendas || 0;
-                const geloConsumoInput = document.getElementById(`gelo_pacote_consumo_interno`);
-                if (geloConsumoInput) geloConsumoInput.value = geloItem.consumoInterno || 0;
-                 const precoGeloInputVendido = document.getElementById(`gelo_pacote_total_item`);
-                 const precoGeloDisplay = document.getElementById(`gelo_pacote_preco_display`);
-                 if (geloItem.precoUnitario && precoGeloDisplay) {
-                     precoGeloDisplay.textContent = formatToBRL(parseFloat(geloItem.precoUnitario));
-                 }
-            }
+        if (turnoData.status === 'fechado' || turnoAbertoLocalmente) {
+            const geloSobraInput = document.getElementById(`gelo_pacote_sobra`);
+            if (geloSobraInput) geloSobraInput.value = geloItem.sobra || 0;
+            const geloVendasInput = document.getElementById(`gelo_pacote_vendas`);
+            if (geloVendasInput) geloVendasInput.value = geloItem.vendas || 0;
+            const geloConsumoInput = document.getElementById(`gelo_pacote_consumo_interno`);
+            if (geloConsumoInput) geloConsumoInput.value = geloItem.consumoInterno || 0;
+             const precoGeloDisplay = document.getElementById(`gelo_pacote_preco_display`);
+             if (geloItem.precoUnitario && precoGeloDisplay) {
+                 precoGeloDisplay.textContent = formatToBRL(parseFloat(geloItem.precoUnitario));
+             }
         }
-
-        if (turnoData.status === 'fechado') {
-            document.getElementById('trocaGas').value = turnoData.trocaGas || 'nao';
-            if (turnoData.formasPagamento) {
-                Object.keys(turnoData.formasPagamento).forEach(key => {
-                    const inputId = 'pagamento' + key.charAt(0).toUpperCase() + key.slice(1);
-                    const inputEl = document.getElementById(inputId);
-                    if (inputEl) inputEl.value = formatToBRL(turnoData.formasPagamento[key] || 0);
-                });
-            }
-            if(caixaFinalContadoInput) caixaFinalContadoInput.value = formatToBRL(turnoData.caixaFinalContado || 0);
-        }
-        calculateAll(); 
     }
+
+         if (turnoData.status === 'fechado') {
+        document.getElementById('trocaGas').value = turnoData.trocaGas || 'nao';
+        if (turnoData.formasPagamento) {
+            Object.keys(turnoData.formasPagamento).forEach(key => {
+                const inputId = 'pagamento' + key.charAt(0).toUpperCase() + key.slice(1);
+                const inputEl = document.getElementById(inputId);
+                if (inputEl) inputEl.value = formatToBRL(turnoData.formasPagamento[key] || 0);
+            });
+        }
+            if (turnoData.caixaFinalDinheiro !== undefined && turnoData.caixaFinalMoedas !== undefined) {
+            // Novo formato
+            if (caixaFinalDinheiroInput) {
+                caixaFinalDinheiroInput.value = formatToBRL(turnoData.caixaFinalDinheiro);
+            }
+            if (caixaFinalMoedasInput) {
+                caixaFinalMoedasInput.value = formatToBRL(turnoData.caixaFinalMoedas);
+            }
+        } else if (caixaFinalContadoInput && turnoData.caixaFinalContado !== undefined) {
+            // Formato antigo - dividir proporcionalmente
+            const valorTotal = turnoData.caixaFinalContado || 0;
+            if (caixaFinalDinheiroInput) {
+                caixaFinalDinheiroInput.value = formatToBRL(valorTotal * 0.9);
+            }
+            if (caixaFinalMoedasInput) {
+                caixaFinalMoedasInput.value = formatToBRL(valorTotal * 0.1);
+            }
+        }
+    }
+    
+    calculateAll();
+}
 
     function showError(message) {
         errorMessagesP.textContent = message;

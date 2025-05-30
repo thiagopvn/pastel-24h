@@ -1885,31 +1885,37 @@ window.UserManager = UserManager;
         }
 
         async loadTabData(tabName) {
-            console.log(`📂 Carregando dados da aba: ${tabName}`);
-            
-            try {
-                switch(tabName) {
-                    case 'precos':
-                        const priceManager = new PriceManager();
-                        await priceManager.load();
-                        window.priceManager = priceManager;
-                        break;
-                        
-                    case 'usuarios':
-                        const userManager = new UserManager();
-                        await userManager.load();
-                        window.userManager = userManager;
-                        break;
-                        
-                    case 'dashboard':
-                        notifications.showMessage("Dashboard carregado", "success");
-                        break;
-                }
-            } catch (error) {
-                console.error(`❌ Erro ao carregar dados da aba ${tabName}:`, error);
-                notifications.showMessage(`Erro ao carregar aba ${tabName}: ${error.message}`, "error");
-            }
+    console.log(`📂 Carregando dados da aba: ${tabName}`);
+    
+    try {
+        switch(tabName) {
+            case 'precos':
+                const priceManager = new PriceManager();
+                await priceManager.load();
+                window.priceManager = priceManager;
+                break;
+                
+            case 'usuarios':
+                const userManager = new UserManager();
+                await userManager.load();
+                window.userManager = userManager;
+                break;
+                
+            case 'caixaControle':
+                const cashControlManager = new CashControlManager();
+                await cashControlManager.load();
+                window.cashControlManager = cashControlManager;
+                break;
+                
+            case 'dashboard':
+                notifications.showMessage("Dashboard carregado", "success");
+                break;
         }
+    } catch (error) {
+        console.error(`❌ Erro ao carregar dados da aba ${tabName}:`, error);
+        notifications.showMessage(`Erro ao carregar aba ${tabName}: ${error.message}`, "error");
+    }
+}
     }
 
     class CashControlManager {
