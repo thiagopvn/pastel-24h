@@ -1298,7 +1298,7 @@ function updatePhysicalCashDifference() {
             divergenciaCaixaAlertaP.innerHTML = `
                 <i class="fas fa-check-circle mr-1"></i>
                 ✅ Caixa físico confere perfeitamente! 
-                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
+                <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaEsperado)}</small>
             `;
         }
     }
