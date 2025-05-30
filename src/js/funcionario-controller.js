@@ -1288,7 +1288,7 @@ function updatePhysicalCashDifference() {
             divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-red-700 font-medium';
             divergenciaCaixaAlertaP.innerHTML = `
                 <i class="fas fa-exclamation-triangle mr-1"></i>
-                🚨 Falta de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico
+                🚨 Falta de ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico. Favor revisar a contagem.
                 <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>
             `;
         } else {
