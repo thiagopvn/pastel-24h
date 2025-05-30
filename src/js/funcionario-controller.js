@@ -115,6 +115,402 @@ function verificarEstoqueBaixo(itemKey, sobra) {
     }
 }
 
+function validarConsistenciaItem(itemKey, campoAlterado) {
+    // Coletar valores atuais
+    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
+    const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
+    
+    const disponivel = entrada + chegadas;
+    const errors = [];
+    let campoCorrigido = false;
+    
+    // Validação 1: Sobra não pode ser maior que o disponível
+    if (sobra > disponivel) {
+        errors.push(`Sobra (${sobra}) não pode ser maior que o disponível (${disponivel})`);
+        if (campoAlterado === 'sobra') {
+            document.getElementById(`${itemKey}_sobra`).value = disponivel;
+            campoCorrigido = true;
+        }
+    }
+    
+    // Validação 2: Total de saídas não pode exceder o disponível
+    const totalSaidas = sobra + descarte + consumo;
+    if (totalSaidas > disponivel) {
+        const excesso = totalSaidas - disponivel;
+        errors.push(`Total de saídas (${totalSaidas}) excede o disponível (${disponivel}) em ${excesso} unidades`);
+        
+        // Ajustar automaticamente o campo alterado
+        if (campoAlterado === 'descarte') {
+            const maxDescarte = disponivel - sobra - consumo;
+            document.getElementById(`${itemKey}_descarte`).value = Math.max(0, maxDescarte);
+            campoCorrigido = true;
+        } else if (campoAlterado === 'consumo') {
+            const maxConsumo = disponivel - sobra - descarte;
+            document.getElementById(`${itemKey}_consumo`).value = Math.max(0, maxConsumo);
+            campoCorrigido = true;
+        }
+    }
+    
+    // Validação 3: Valores negativos
+    ['entrada', 'chegadas', 'sobra', 'descarte', 'consumo'].forEach(campo => {
+        const input = document.getElementById(`${itemKey}_${campo}`);
+        if (input && parseFloat(input.value) < 0) {
+            errors.push(`${campo} não pode ser negativo`);
+            input.value = 0;
+            campoCorrigido = true;
+        }
+    });
+    
+    return { errors, campoCorrigido };
+}
+
+// Função específica para validar gelo
+function validarConsistenciaGelo(campoAlterado) {
+    const itemKey = 'gelo_pacote';
+    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
+    
+    const disponivel = entrada + chegadas;
+    const errors = [];
+    let campoCorrigido = false;
+    
+    // Validação 1: Sobra não pode ser maior que o disponível
+    if (sobra > disponivel) {
+        errors.push(`Sobra de gelo (${sobra}) não pode ser maior que o disponível (${disponivel})`);
+        if (campoAlterado === 'sobra') {
+            document.getElementById(`${itemKey}_sobra`).value = disponivel;
+            campoCorrigido = true;
+        }
+    }
+    
+    // Validação 2: Vendas não podem exceder (disponível - sobra)
+    const maxVendas = disponivel - sobra;
+    if (vendas > maxVendas) {
+        errors.push(`Vendas de gelo (${vendas}) não podem exceder ${maxVendas} pacotes`);
+        if (campoAlterado === 'vendas') {
+            document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendas);
+            campoCorrigido = true;
+        }
+    }
+    
+    // Validação 3: Consumo interno não pode ser negativo
+    const consumoInterno = disponivel - sobra - vendas;
+    if (consumoInterno < 0) {
+        errors.push(`Configuração inválida: consumo interno seria negativo (${consumoInterno})`);
+        // Ajustar vendas se foi o campo alterado
+        if (campoAlterado === 'vendas') {
+            const maxVendasAjustado = disponivel - sobra;
+            document.getElementById(`${itemKey}_vendas`).value = Math.max(0, maxVendasAjustado);
+            campoCorrigido = true;
+        }
+    }
+    
+    return { errors, campoCorrigido };
+}
+
+// Função para mostrar alerta de validação
+function mostrarAlertaValidacao(itemKey, errors) {
+    // Remover alerta existente
+    const alertaExistente = document.getElementById(`alerta-validacao-${itemKey}`);
+    if (alertaExistente) {
+        alertaExistente.remove();
+    }
+    
+    if (errors.length === 0) return;
+    
+    // Encontrar a linha do item
+    const itemRow = document.querySelector(`tr[data-item-key="${itemKey}"]`);
+    if (!itemRow) return;
+    
+    // Criar alerta
+    const alertaRow = document.createElement('tr');
+    alertaRow.id = `alerta-validacao-${itemKey}`;
+    alertaRow.className = 'alerta-validacao fade-in';
+    alertaRow.innerHTML = `
+        <td colspan="9" class="p-0">
+            <div class="mx-4 my-2">
+                <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-400 rounded-lg p-3 shadow-md">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-exclamation-triangle text-white"></i>
+                            </div>
+                        </div>
+                        <div class="ml-3 flex-1">
+                            <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide mb-1">
+                                ERRO DE VALIDAÇÃO - VALORES INCONSISTENTES
+                            </h3>
+                            <ul class="text-xs text-red-700 space-y-1">
+                                ${errors.map(error => `<li>• ${error}</li>`).join('')}
+                            </ul>
+                            <p class="text-xs text-red-600 mt-2 font-medium">
+                                Os valores foram ajustados automaticamente para manter a consistência.
+                            </p>
+                        </div>
+                        <button onclick="this.closest('.alerta-validacao').remove();" 
+                                class="text-red-400 hover:text-red-600 transition-colors duration-200 ml-2">
+                            <i class="fas fa-times-circle text-lg"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </td>
+    `;
+    
+    // Inserir após a linha do item
+    itemRow.insertAdjacentElement('afterend', alertaRow);
+    
+    // Remover automaticamente após 5 segundos
+    setTimeout(() => {
+        alertaRow.classList.add('fade-out');
+        setTimeout(() => alertaRow.remove(), 300);
+    }, 5000);
+}
+
+// Função para validar todos os itens de uma vez (útil antes de fechar o turno)
+function validarTodosItens() {
+    const errors = [];
+    
+    // Validar todos os itens normais
+    document.querySelectorAll('.item-row').forEach(row => {
+        const itemKey = row.dataset.itemKey;
+        if (itemKey === 'gelo_pacote') {
+            const result = validarConsistenciaGelo();
+            if (result.errors.length > 0) {
+                errors.push({ item: 'Gelo', errors: result.errors });
+            }
+        } else {
+            const result = validarConsistenciaItem(itemKey, '');
+            if (result.errors.length > 0) {
+                const itemName = row.querySelector('td:first-child')?.textContent || itemKey;
+                errors.push({ item: itemName, errors: result.errors });
+            }
+        }
+    });
+    
+    return errors;
+}
+
+// Adicionar indicadores visuais de limites máximos
+function adicionarIndicadorLimite(inputElement, limiteMaximo) {
+    if (!inputElement) return;
+    
+    const wrapper = inputElement.parentElement;
+    if (!wrapper) return;
+    
+    // Remover indicador existente
+    const indicadorExistente = wrapper.querySelector('.limite-indicador');
+    if (indicadorExistente) {
+        indicadorExistente.remove();
+    }
+    
+    // Só adicionar indicador se o limite for maior que 0
+    if (limiteMaximo <= 0) return;
+    
+    // Criar novo indicador
+    const indicador = document.createElement('span');
+    indicador.className = 'limite-indicador absolute right-8 top-1/2 transform -translate-y-1/2 text-xs text-gray-500';
+    indicador.innerHTML = `<i class="fas fa-info-circle"></i> Máx: ${limiteMaximo}`;
+    
+    // Garantir que o wrapper tenha posição relativa
+    wrapper.style.position = 'relative';
+    wrapper.appendChild(indicador);
+    
+    // Adicionar classe especial se o valor atual está no limite
+    const valorAtual = parseFloat(inputElement.value) || 0;
+    if (valorAtual >= limiteMaximo) {
+        inputElement.classList.add('at-limit');
+    } else {
+        inputElement.classList.remove('at-limit');
+    }
+}
+
+// Adicionar tooltip de ajuda aos campos
+function adicionarTooltipAjuda() {
+    const tooltips = {
+        'entrada': 'Quantidade inicial do turno (transferida do turno anterior)',
+        'chegadas': 'Quantidade que chegou durante o turno',
+        'sobra': 'Quantidade que sobrou no final do turno (não pode exceder entrada + chegadas)',
+        'descarte': 'Quantidade descartada ou perdida durante o turno',
+        'consumo': 'Quantidade consumida por funcionários',
+        'vendas': 'Quantidade vendida de gelo (apenas para gelo)',
+        'vendido': 'Calculado automaticamente: (entrada + chegadas) - sobra - descarte - consumo',
+        'consumo_interno': 'Consumo interno de gelo (calculado automaticamente)'
+    };
+    
+    // Adicionar tooltips aos inputs
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+        const id = input.id;
+        if (!id) return;
+        
+        // Encontrar qual tooltip aplicar
+        let tooltipText = '';
+        Object.entries(tooltips).forEach(([key, text]) => {
+            if (id.endsWith(`_${key}`)) {
+                tooltipText = text;
+            }
+        });
+        
+        if (tooltipText) {
+            // Adicionar título ao input
+            input.title = tooltipText;
+            input.setAttribute('data-tooltip', tooltipText);
+            
+            // Tentar adicionar ícone de ajuda no cabeçalho da tabela
+            const th = input.closest('table')?.querySelector(`th:contains("${getColumnNameFromId(id)}")`);
+            if (th && !th.querySelector('.help-icon')) {
+                const helpIcon = document.createElement('span');
+                helpIcon.className = 'help-icon ml-1 text-gray-400 hover:text-gray-600 cursor-help inline-block';
+                helpIcon.innerHTML = '<i class="fas fa-question-circle text-xs"></i>';
+                helpIcon.title = tooltipText;
+                th.appendChild(helpIcon);
+            }
+        }
+    });
+    
+    // Função auxiliar para obter nome da coluna baseado no ID
+    function getColumnNameFromId(id) {
+        if (id.includes('_entrada')) return 'Entrada';
+        if (id.includes('_chegadas')) return 'Chegadas';
+        if (id.includes('_sobra')) return 'Sobra';
+        if (id.includes('_descarte')) return 'Descarte';
+        if (id.includes('_consumo_interno')) return 'Consumo Interno';
+        if (id.includes('_consumo')) return 'Consumo Func.';
+        if (id.includes('_vendas')) return 'Vendas';
+        if (id.includes('_vendido')) return 'Vendido';
+        return '';
+    }
+}
+
+// Atualizar limites dinamicamente quando campos relacionados mudarem
+function atualizarLimitesVisuais(itemKey) {
+    if (!itemKey) return;
+    
+    const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
+    const chegadas = parseFloat(document.getElementById(`${itemKey}_chegadas`)?.value) || 0;
+    const sobra = parseFloat(document.getElementById(`${itemKey}_sobra`)?.value) || 0;
+    const descarte = parseFloat(document.getElementById(`${itemKey}_descarte`)?.value) || 0;
+    const consumo = parseFloat(document.getElementById(`${itemKey}_consumo`)?.value) || 0;
+    
+    const disponivel = entrada + chegadas;
+    
+    // Se não há nada disponível, remover todos os indicadores
+    if (disponivel === 0) {
+        ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
+            const input = document.getElementById(`${itemKey}_${campo}`);
+            if (input) {
+                const wrapper = input.parentElement;
+                const indicador = wrapper?.querySelector('.limite-indicador');
+                if (indicador) indicador.remove();
+            }
+        });
+        return;
+    }
+    
+    // Atualizar limite da sobra
+    const sobraInput = document.getElementById(`${itemKey}_sobra`);
+    if (sobraInput) {
+        adicionarIndicadorLimite(sobraInput, disponivel);
+    }
+    
+    // Atualizar limite do descarte
+    const descarteInput = document.getElementById(`${itemKey}_descarte`);
+    if (descarteInput) {
+        const maxDescarte = Math.max(0, disponivel - sobra - consumo);
+        adicionarIndicadorLimite(descarteInput, maxDescarte);
+    }
+    
+    // Atualizar limite do consumo
+    const consumoInput = document.getElementById(`${itemKey}_consumo`);
+    if (consumoInput) {
+        const maxConsumo = Math.max(0, disponivel - sobra - descarte);
+        adicionarIndicadorLimite(consumoInput, maxConsumo);
+    }
+    
+    // Para gelo, atualizar limite de vendas
+    if (itemKey === 'gelo_pacote') {
+        const vendasInput = document.getElementById(`${itemKey}_vendas`);
+        if (vendasInput) {
+            const maxVendas = Math.max(0, disponivel - sobra);
+            adicionarIndicadorLimite(vendasInput, maxVendas);
+        }
+        
+        // Atualizar visual do consumo interno (readonly)
+        const consumoInternoInput = document.getElementById(`${itemKey}_consumo_interno`);
+        if (consumoInternoInput) {
+            const vendas = parseFloat(document.getElementById(`${itemKey}_vendas`)?.value) || 0;
+            const consumoInterno = Math.max(0, disponivel - sobra - vendas);
+            
+            // Adicionar classe visual se consumo interno for alto
+            if (consumoInterno > 10) {
+                consumoInternoInput.classList.add('bg-yellow-100', 'border-yellow-300');
+            } else {
+                consumoInternoInput.classList.remove('bg-yellow-100', 'border-yellow-300');
+            }
+        }
+    }
+    
+    // Adicionar classe de destaque se algum campo está no limite
+    ['sobra', 'descarte', 'consumo', 'vendas'].forEach(campo => {
+        const input = document.getElementById(`${itemKey}_${campo}`);
+        if (input) {
+            const valor = parseFloat(input.value) || 0;
+            const wrapper = input.parentElement;
+            const indicador = wrapper?.querySelector('.limite-indicador');
+            
+            if (indicador) {
+                const limiteTexto = indicador.textContent.match(/Máx: (\d+)/);
+                if (limiteTexto) {
+                    const limite = parseInt(limiteTexto[1]);
+                    if (valor >= limite) {
+                        input.classList.add('at-limit');
+                        indicador.classList.add('text-orange-600', 'font-semibold');
+                    } else {
+                        input.classList.remove('at-limit');
+                        indicador.classList.remove('text-orange-600', 'font-semibold');
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Função debounce para evitar múltiplas chamadas
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Criar a função debounced para validação
+const validarComDebounce = debounce((itemKey, campoAlterado) => {
+    if (!itemKey) return;
+    
+    let validationResult;
+    if (itemKey === 'gelo_pacote') {
+        validationResult = validarConsistenciaGelo(campoAlterado);
+    } else {
+        validationResult = validarConsistenciaItem(itemKey, campoAlterado);
+    }
+    
+    // Mostrar alertas se houver erros
+    if (validationResult && validationResult.errors.length > 0) {
+        mostrarAlertaValidacao(itemKey, validationResult.errors);
+    }
+    atualizarLimitesVisuais(itemKey);
+}, 500);
+
     function applyCurrencyMask(input) {
         let value = input.value.replace(/[^\d]/g, '');
         if (value === '') {
@@ -217,6 +613,7 @@ function verificarEstoqueBaixo(itemKey, sobra) {
             
             setupTurnoListener();
             setupEventListeners();
+            adicionarTooltipAjuda();
             setInitialPeriodo();
             
             if (!turnoAbertoLocalmente && !currentTurnoId) {
@@ -2174,7 +2571,38 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
         if (target.closest('.item-row') && target.type === 'number') {
             const row = target.closest('.item-row');
             const itemKey = row.dataset.itemKey;
-
+            
+            // Identificar qual campo foi alterado
+            let campoAlterado = '';
+            if (target.id.endsWith('_entrada')) campoAlterado = 'entrada';
+            else if (target.id.endsWith('_chegadas')) campoAlterado = 'chegadas';
+            else if (target.id.endsWith('_sobra')) campoAlterado = 'sobra';
+            else if (target.id.endsWith('_descarte')) campoAlterado = 'descarte';
+            else if (target.id.endsWith('_consumo')) campoAlterado = 'consumo';
+            else if (target.id.endsWith('_vendas')) campoAlterado = 'vendas';
+            
+            // Aplicar validação apropriada
+            let validationResult;
+            if (itemKey === 'gelo_pacote') {
+                validationResult = validarConsistenciaGelo(campoAlterado);
+            } else if (campoAlterado) {
+                validationResult = validarConsistenciaItem(itemKey, campoAlterado);
+            }
+            
+            // Mostrar alertas se houver erros
+            if (validationResult && validationResult.errors.length > 0) {
+                mostrarAlertaValidacao(itemKey, validationResult.errors);
+                
+                // Vibrar o campo se foi corrigido
+                if (validationResult.campoCorrigido) {
+                    target.classList.add('shake-animation', 'border-red-500', 'bg-red-50');
+                    setTimeout(() => {
+                        target.classList.remove('shake-animation', 'border-red-500', 'bg-red-50');
+                    }, 1000);
+                }
+            }
+            
+            // Continuar com o cálculo normal
             if (target.id.startsWith(itemKey)) {
                 target.classList.remove('border-red-500');
                 if (target.dataset.isGeloVenda === "true") {
@@ -2240,6 +2668,7 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
         const totalItemValor = vendidoCalculado * precoUnitario;
         totalItemDisplay.textContent = formatToBRL(totalItemValor);
     }
+    atualizarLimitesVisuais(itemKey);
 }
     
    function calculateGeloTotal(rowElement) {
@@ -2275,6 +2704,7 @@ const caixaComProblema = diferencaCaixa < -0.015; // Falta no caixa
         console.log(`📊 Gelo: ${vendasGelo} pacotes x ${formatToBRL(precoUnitarioGelo)} = ${formatToBRL(totalGeloValor)}`);
         console.log(`❄️ Consumo interno calculado: ${Math.max(0, consumoInternoCalculado)} pacotes`);
     }
+    atualizarLimitesVisuais(itemKey);
 }
     
     function calculateTotals() {
