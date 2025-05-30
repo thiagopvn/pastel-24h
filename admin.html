@@ -1101,11 +1101,27 @@
     <script src="src/js/shared.js"></script>
     <script src="src/js/auth.js"></script>
     <script>
+        function switchTab(activeButton, activeContent) {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabButtons.forEach(btn => {
+                btn.classList.remove('active', 'bg-primary-500', 'text-white', 'font-semibold');
+                btn.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
+            });
+            
+            tabContents.forEach(content => content.classList.add('hidden'));
+            
+            activeButton.classList.remove('bg-gray-200', 'text-gray-700', 'font-medium');
+            activeButton.classList.add('active', 'bg-primary-500', 'text-white', 'font-semibold');
+            activeContent.classList.remove('hidden');
+        }
+
         document.addEventListener('DOMContentLoaded', async () => {
             protectRoute(['admin']);
-                if (window.UserManager && !window.userManager) {
-                    window.userManager = new window.UserManager();
-                }
+            if (window.UserManager && !window.userManager) {
+                window.userManager = new window.UserManager();
+            }
             const formatCurrency = (value) => {
                 return new Intl.NumberFormat('pt-BR', {
                     style: 'currency',
@@ -1181,19 +1197,6 @@
                 const tabButtons = document.querySelectorAll('.tab-button');
                 const tabContents = document.querySelectorAll('.tab-content');
                 
-                function switchTab(activeButton, activeContent) {
-                    tabButtons.forEach(btn => {
-                        btn.classList.remove('active', 'bg-primary-500', 'text-white', 'font-semibold');
-                        btn.classList.add('bg-gray-200', 'text-gray-700', 'font-medium');
-                    });
-                    
-                    tabContents.forEach(content => content.classList.add('hidden'));
-                    
-                    activeButton.classList.remove('bg-gray-200', 'text-gray-700', 'font-medium');
-                    activeButton.classList.add('active', 'bg-primary-500', 'text-white', 'font-semibold');
-                    activeContent.classList.remove('hidden');
-                }
-                
                 document.getElementById('btnTabDashboard').addEventListener('click', () => {
                     switchTab(document.getElementById('btnTabDashboard'), document.getElementById('tabContentDashboard'));
                     loadDashboardData();
@@ -1210,20 +1213,15 @@
                 });
             }
 
-            // Adicione este código no admin.html após a função setupTabs()
-
-// Adicione o event listener para o botão Controle de Caixa
 document.getElementById('btnTabCaixaControle').addEventListener('click', () => {
     switchTab(document.getElementById('btnTabCaixaControle'), document.getElementById('tabContentCaixaControle'));
     loadCashControlData();
 });
 
-// Função para carregar dados do controle de caixa
 async function loadCashControlData() {
     showToast('Carregando dados do controle de caixa...', 'info');
     
     try {
-        // Buscar turnos ativos
         const turnosAtivos = await db.collection('turnos')
             .where('status', '==', 'aberto')
             .orderBy('createdAt', 'desc')
@@ -1300,10 +1298,8 @@ async function loadCashControlData() {
         
         turnosContainer.innerHTML = turnosHtml;
         
-        // Armazenar turnos ativos globalmente para uso posterior
         window.turnosAtivos = turnosList;
         
-        // Carregar histórico de ajustes
         await carregarHistoricoAjustes();
         
     } catch (error) {
@@ -1312,7 +1308,6 @@ async function loadCashControlData() {
     }
 }
 
-// Função para preparar ajuste de caixa
 window.prepararAjusteCaixa = function(turnoId) {
     const turno = window.turnosAtivos.find(t => t.id === turnoId);
     if (!turno) {
@@ -1320,10 +1315,8 @@ window.prepararAjusteCaixa = function(turnoId) {
         return;
     }
     
-    // Mostrar formulário de ajuste
     document.getElementById('caixaAjusteContainer').classList.remove('hidden');
     
-    // Preencher informações do turno
     const [data, periodo] = turnoId.split('_');
     const dataFormatada = data.split('-').reverse().join('/');
     
@@ -1343,7 +1336,6 @@ window.prepararAjusteCaixa = function(turnoId) {
         </div>
     `;
     
-    // Preencher valores atuais
     const dinheiroAtual = turno.caixaInicialDinheiro || 0;
     const moedasAtual = turno.caixaInicialMoedas || 0;
     const totalAtual = dinheiroAtual + moedasAtual;
@@ -1352,17 +1344,14 @@ window.prepararAjusteCaixa = function(turnoId) {
     document.getElementById('currentCaixaMoedas').value = formatCurrency(moedasAtual);
     document.getElementById('currentCaixaTotal').value = formatCurrency(totalAtual);
     
-    // Resetar campos de novo valor
     document.getElementById('newCaixaDinheiro').value = formatCurrency(dinheiroAtual);
     document.getElementById('newCaixaMoedas').value = formatCurrency(moedasAtual);
     document.getElementById('newCaixaTotal').value = formatCurrency(totalAtual);
     document.getElementById('motivoAjuste').value = '';
     
-    // Rolar até o formulário
     document.getElementById('caixaAjusteContainer').scrollIntoView({ behavior: 'smooth' });
 };
 
-// Setup de máscaras de moeda para os campos
 function setupCashControlCurrencyMasks() {
     const currencyInputs = ['newCaixaDinheiro', 'newCaixaMoedas'];
     
@@ -1393,7 +1382,6 @@ function setupCashControlCurrencyMasks() {
     });
 }
 
-// Atualizar total dos novos valores
 function updateNewTotal() {
     const newDinheiro = parseCurrency(document.getElementById('newCaixaDinheiro').value);
     const newMoedas = parseCurrency(document.getElementById('newCaixaMoedas').value);
@@ -1402,7 +1390,6 @@ function updateNewTotal() {
     document.getElementById('newCaixaTotal').value = formatCurrency(newTotal);
 }
 
-// Atualizar display da diferença
 function updateDifferenceDisplay() {
     const currentDinheiro = parseCurrency(document.getElementById('currentCaixaDinheiro').value);
     const currentMoedas = parseCurrency(document.getElementById('currentCaixaMoedas').value);
@@ -1438,13 +1425,11 @@ function updateDifferenceDisplay() {
     }
 }
 
-// Parse currency string to number
 function parseCurrency(value) {
     if (!value) return 0;
     return parseFloat(value.replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
 }
 
-// Configurar formulário de ajuste
 document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -1467,7 +1452,6 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
         return;
     }
     
-    // Confirmar ajuste
     const confirmMsg = `Confirma o ajuste do caixa?\n\n` +
         `Dinheiro: ${formatCurrency(currentDinheiro)} → ${formatCurrency(newDinheiro)}\n` +
         `Moedas: ${formatCurrency(currentMoedas)} → ${formatCurrency(newMoedas)}\n` +
@@ -1481,7 +1465,6 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
     try {
         showToast('Salvando ajuste...', 'info');
         
-        // Criar registro do ajuste
         const ajuste = {
             turnoId: turnoId,
             valorAnterior: {
@@ -1507,9 +1490,7 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
             dataHora: firebase.firestore.FieldValue.serverTimestamp()
         };
         
-        // Usar transação para garantir consistência
         await db.runTransaction(async (transaction) => {
-            // Verificar se o turno ainda está aberto
             const turnoRef = db.collection('turnos').doc(turnoId);
             const turnoDoc = await transaction.get(turnoRef);
             
@@ -1521,7 +1502,6 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
                 throw new Error('Este turno já foi fechado');
             }
             
-            // Atualizar valores do turno
             transaction.update(turnoRef, {
                 caixaInicialDinheiro: newDinheiro,
                 caixaInicialMoedas: newMoedas,
@@ -1533,18 +1513,15 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
                 }
             });
             
-            // Salvar histórico do ajuste
             const ajusteRef = db.collection('ajustes_caixa').doc();
             transaction.set(ajusteRef, ajuste);
         });
         
         showToast('Ajuste realizado com sucesso!', 'success');
         
-        // Resetar formulário
         document.getElementById('caixaAjusteContainer').classList.add('hidden');
         document.getElementById('formAjusteCaixa').reset();
         
-        // Recarregar dados
         await loadCashControlData();
         
     } catch (error) {
@@ -1553,7 +1530,6 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
     }
 });
 
-// Botão cancelar ajuste
 document.getElementById('btnCancelarAjuste').addEventListener('click', () => {
     if (confirm('Cancelar o ajuste? As alterações não salvas serão perdidas.')) {
         document.getElementById('caixaAjusteContainer').classList.add('hidden');
@@ -1561,7 +1537,6 @@ document.getElementById('btnCancelarAjuste').addEventListener('click', () => {
     }
 });
 
-// Carregar histórico de ajustes
 async function carregarHistoricoAjustes() {
     try {
         const ajustes = await db.collection('ajustes_caixa')
@@ -1664,7 +1639,6 @@ async function carregarHistoricoAjustes() {
     }
 }
 
-// Adicionar alerta para valores muito altos
 document.getElementById('newCaixaDinheiro').addEventListener('blur', function() {
     const valor = parseCurrency(this.value);
     const alertContainer = document.getElementById('cashControlAlerts');
@@ -1686,7 +1660,6 @@ document.getElementById('newCaixaDinheiro').addEventListener('blur', function() 
     }
 });
 
-// Inicializar máscaras quando a aba for carregada
 document.addEventListener('DOMContentLoaded', () => {
     setupCashControlCurrencyMasks();
 });
@@ -1964,46 +1937,6 @@ function updateTrendIndicator(elementId, percentChange, isStatus = false) {
         `;
     }
 }
-
-            async function updateKPIs(turnos) {
-                let totalVendas = 0;
-                let totalPedidos = turnos.length;
-                let totalDivergencias = 0;
-                let totalCaixa = 0;
-                
-                turnos.forEach(turno => {
-                    totalVendas += turno.totalVendidoCalculadoFinal || 0;
-                    totalCaixa += turno.caixaFinalContado || 0;
-                    
-                    const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
-                    const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
-                    const diffCaixa = turno.diferencaCaixaFinal || 0;
-                    
-                    if (Math.abs(vendidoCalc - pagamentosReg) > 0.01 || Math.abs(diffCaixa) > 0.01) {
-                        totalDivergencias++;
-                    }
-                });
-                
-                const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : 0;
-                const percentualDivergencias = totalPedidos > 0 ? (totalDivergencias / totalPedidos) * 100 : 0;
-                const lucroEstimado = totalVendas * 0.35;
-                
-                document.getElementById('kpiVendas').textContent = formatCurrency(totalVendas);
-                document.getElementById('kpiTicket').textContent = formatCurrency(ticketMedio);
-                document.getElementById('kpiPedidos').textContent = totalPedidos;
-                document.getElementById('kpiDivergencias').textContent = formatPercent(percentualDivergencias);
-                document.getElementById('kpiCaixa').textContent = formatCurrency(totalCaixa);
-                document.getElementById('kpiLucro').textContent = formatCurrency(lucroEstimado);
-                
-                currentData = {
-                    vendas: totalVendas,
-                    ticket: ticketMedio,
-                    pedidos: totalPedidos,
-                    divergencias: percentualDivergencias,
-                    caixa: totalCaixa,
-                    lucro: lucroEstimado
-                };
-            }
 
             async function updateCharts(turnos) {
                 updatePaymentChart(turnos);
