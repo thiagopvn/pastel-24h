@@ -1502,8 +1502,13 @@ function parseCurrency(value) {
 document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const turnoId = document.getElementById('turnoIdAjuste').value;
+    const turnoId = document.getElementById('turnoIdAjuste')?.value;
     const motivo = document.getElementById('motivoAjuste').value.trim();
+    
+    if (!turnoId) {
+        showToast('Erro: Turno não identificado', 'error');
+        return;
+    }
     
     if (!motivo) {
         showToast('Por favor, informe o motivo do ajuste', 'warning');
@@ -1531,8 +1536,13 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
         return;
     }
     
+    const submitButton = e.target.querySelector('button[type="submit"]');
+    const originalText = submitButton.innerHTML;
+    
     try {
         showToast('Salvando ajuste...', 'info');
+        submitButton.disabled = true;
+        submitButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Salvando...';
         
         const ajuste = {
             turnoId: turnoId,
@@ -1571,6 +1581,7 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
                 throw new Error('Este turno já foi fechado');
             }
             
+            // Atualizar o turno
             transaction.update(turnoRef, {
                 caixaInicialDinheiro: newDinheiro,
                 caixaInicialMoedas: newMoedas,
@@ -1582,20 +1593,30 @@ document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) 
                 }
             });
             
+            // Salvar o ajuste no histórico
             const ajusteRef = db.collection('ajustes_caixa').doc();
             transaction.set(ajusteRef, ajuste);
         });
         
         showToast('Ajuste realizado com sucesso!', 'success');
         
+        // Ocultar formulário e recarregar dados
         document.getElementById('caixaAjusteContainer').classList.add('hidden');
         document.getElementById('formAjusteCaixa').reset();
         
-        await loadCashControlData();
+        // Recarregar a lista de turnos e histórico
+        if (window.cashControlManager) {
+            await window.cashControlManager.load();
+        } else {
+            await loadCashControlData();
+        }
         
     } catch (error) {
         console.error('Erro ao salvar ajuste:', error);
         showToast('Erro ao salvar ajuste: ' + error.message, 'error');
+    } finally {
+        submitButton.disabled = false;
+        submitButton.innerHTML = originalText;
     }
 });
 
@@ -4045,6 +4066,10 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
 
             console.log("✅ Correção de exibição de preços inicializada com sucesso!");
         });
+
+        window.parseCurrency = parseCurrency;
+        window.formatCurrency = formatCurrency;
+
     </script>
     
     <script src="src/js/admin-controller.js"></script>

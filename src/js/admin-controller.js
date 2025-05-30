@@ -1902,10 +1902,21 @@ window.UserManager = UserManager;
                 break;
                 
             case 'caixaControle':
-                const cashControlManager = new CashControlManager();
-                await cashControlManager.load();
-                window.cashControlManager = cashControlManager;
-                break;
+    console.log("🔄 Carregando controle de caixa...");
+    
+    // Verificar se existe a função global loadCashControlData (definida no HTML)
+    if (typeof window.loadCashControlData === 'function') {
+        await window.loadCashControlData();
+    } else if (window.cashControlManager) {
+        // Se já existe uma instância, usar ela
+        await window.cashControlManager.load();
+    } else {
+        // Criar nova instância do CashControlManager
+        const cashControlManager = new CashControlManager();
+        window.cashControlManager = cashControlManager;
+        await cashControlManager.load();
+    }
+    break;
                 
             case 'dashboard':
                 notifications.showMessage("Dashboard carregado", "success");
@@ -2417,6 +2428,377 @@ window.UserManager = UserManager;
         }, 5000);
     }
 }
+
+CashControlManager.prototype.load = async function() {
+    console.log("🔄 Iniciando carregamento do controle de caixa...");
+    
+    try {
+        // Mostrar loading
+        if (this.turnosAtivosContainer) {
+            this.turnosAtivosContainer.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                    <p>Carregando turnos ativos...</p>
+                </div>
+            `;
+        }
+        
+        // Buscar turnos com status 'aberto'
+        let turnosAtivos = await db.collection('turnos')
+            .where('status', '==', 'aberto')
+            .get();
+        
+        // Se não encontrar, buscar turnos sem campo de fechamento (alternativa)
+        if (turnosAtivos.empty) {
+            console.log("Nenhum turno com status 'aberto'. Buscando turnos sem fechamento...");
+            
+            const turnosSemFechamento = await db.collection('turnos')
+                .orderBy('createdAt', 'desc')
+                .limit(10)
+                .get();
+            
+            const turnosAbertos = [];
+            turnosSemFechamento.forEach(doc => {
+                const data = doc.data();
+                if (!data.fechamento && (!data.status || data.status === 'aberto')) {
+                    turnosAbertos.push(doc);
+                }
+            });
+            
+            turnosAtivos = {
+                empty: turnosAbertos.length === 0,
+                size: turnosAbertos.length,
+                forEach: (callback) => turnosAbertos.forEach(callback)
+            };
+        }
+        
+        if (turnosAtivos.empty) {
+            this.turnosAtivosContainer.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-info-circle text-3xl mb-2"></i>
+                    <p>Nenhum turno ativo no momento</p>
+                    <p class="text-sm mt-2">Os turnos devem estar com status "aberto" para aparecer aqui</p>
+                </div>
+            `;
+            this.caixaAjusteContainer?.classList.add('hidden');
+            return;
+        }
+        
+        let turnosHtml = '';
+        const turnosList = [];
+        
+        turnosAtivos.forEach(async (doc) => {
+            const turno = { id: doc.id, ...doc.data() };
+            
+            // Se o turno não tem status, atualizar para 'aberto'
+            if (!turno.status) {
+                console.log(`⚠️ Turno ${doc.id} sem status. Atualizando para 'aberto'...`);
+                await doc.ref.update({ status: 'aberto' });
+                turno.status = 'aberto';
+            }
+            
+            turnosList.push(turno);
+            
+            const [data, periodo] = doc.id.split('_');
+            const dataFormatada = data ? data.split('-').reverse().join('/') : 'Data inválida';
+            
+            const caixaDinheiro = turno.caixaInicialDinheiro !== undefined ? turno.caixaInicialDinheiro : 0;
+            const caixaMoedas = turno.caixaInicialMoedas !== undefined ? turno.caixaInicialMoedas : 0;
+            const caixaAtual = caixaDinheiro + caixaMoedas;
+            
+            const responsavelNome = turno.abertura?.responsavelNome || 'Não identificado';
+            const horaAbertura = turno.abertura?.hora || 'Não registrada';
+            
+            turnosHtml += `
+                <div class="bg-white p-4 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">
+                                <i class="fas fa-clock text-blue-500 mr-2"></i>
+                                Turno ${periodo || 'Sem período'} - ${dataFormatada}
+                            </h4>
+                            <p class="text-sm text-gray-600 mt-1">
+                                <i class="fas fa-user mr-1"></i>
+                                Responsável: ${responsavelNome}
+                            </p>
+                            <p class="text-xs text-gray-500">
+                                <i class="fas fa-clock mr-1"></i>
+                                Aberto às: ${horaAbertura}
+                            </p>
+                            <div class="mt-3 grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-xs text-gray-500">Dinheiro</p>
+                                    <p class="text-lg font-semibold text-green-600">
+                                        ${this.formatCurrency(caixaDinheiro)}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-500">Moedas</p>
+                                    <p class="text-lg font-semibold text-green-600">
+                                        ${this.formatCurrency(caixaMoedas)}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="mt-2 pt-2 border-t">
+                                <p class="text-sm font-medium text-gray-700">
+                                    Total em Caixa: 
+                                    <span class="text-primary-600 font-bold">
+                                        ${this.formatCurrency(caixaAtual)}
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                        <button onclick="window.cashControlManager.prepararAjusteCaixa('${doc.id}')" 
+                                class="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-all flex items-center">
+                            <i class="fas fa-edit mr-2"></i>
+                            Ajustar
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+        
+        this.turnosAtivosContainer.innerHTML = turnosHtml;
+        window.turnosAtivos = turnosList;
+        
+        await this.carregarHistoricoAjustes();
+        
+        notifications.showMessage(`${turnosList.length} turno(s) ativo(s) carregado(s)`, 'success');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados do controle de caixa:', error);
+        notifications.showMessage('Erro ao carregar dados do controle de caixa: ' + error.message, 'error');
+        
+        if (this.turnosAtivosContainer) {
+            this.turnosAtivosContainer.innerHTML = `
+                <div class="text-center py-8 text-red-500">
+                    <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
+                    <p>Erro ao carregar turnos ativos</p>
+                    <p class="text-sm mt-2">${error.message}</p>
+                    <button onclick="window.cashControlManager.load()" class="mt-4 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
+                        <i class="fas fa-redo mr-2"></i>Tentar Novamente
+                    </button>
+                </div>
+            `;
+        }
+    }
+};
+
+// Adicionar o método prepararAjusteCaixa
+CashControlManager.prototype.prepararAjusteCaixa = function(turnoId) {
+    const turno = window.turnosAtivos.find(t => t.id === turnoId);
+    if (!turno) {
+        notifications.showMessage('Turno não encontrado', 'error');
+        return;
+    }
+    
+    this.caixaAjusteContainer.classList.remove('hidden');
+    
+    const [data, periodo] = turnoId.split('_');
+    const dataFormatada = data.split('-').reverse().join('/');
+    
+    document.getElementById('turnoInfoDisplay').innerHTML = `
+        <div class="flex items-center justify-between">
+            <div>
+                <h4 class="font-semibold text-blue-700">
+                    <i class="fas fa-calendar-day mr-2"></i>
+                    Turno: ${periodo} - ${dataFormatada}
+                </h4>
+                <p class="text-sm text-blue-600 mt-1">
+                    <i class="fas fa-user mr-1"></i>
+                    Responsável: ${turno.abertura?.responsavelNome || 'N/A'}
+                </p>
+            </div>
+            <input type="hidden" id="turnoIdAjuste" value="${turnoId}">
+        </div>
+    `;
+    
+    const dinheiroAtual = turno.caixaInicialDinheiro || 0;
+    const moedasAtual = turno.caixaInicialMoedas || 0;
+    const totalAtual = dinheiroAtual + moedasAtual;
+    
+    document.getElementById('currentCaixaDinheiro').value = this.formatCurrency(dinheiroAtual);
+    document.getElementById('currentCaixaMoedas').value = this.formatCurrency(moedasAtual);
+    document.getElementById('currentCaixaTotal').value = this.formatCurrency(totalAtual);
+    
+    document.getElementById('newCaixaDinheiro').value = this.formatCurrency(dinheiroAtual);
+    document.getElementById('newCaixaMoedas').value = this.formatCurrency(moedasAtual);
+    document.getElementById('newCaixaTotal').value = this.formatCurrency(totalAtual);
+    document.getElementById('motivoAjuste').value = '';
+    
+    // Atualizar o turno atual
+    this.currentTurno = turno;
+    
+    // Configurar eventos de atualização
+    this.setupCurrencyUpdateEvents();
+    
+    this.caixaAjusteContainer.scrollIntoView({ behavior: 'smooth' });
+};
+
+// Adicionar método para carregar histórico
+CashControlManager.prototype.carregarHistoricoAjustes = async function() {
+    try {
+        const ajustes = await db.collection('ajustes_caixa')
+            .orderBy('dataHora', 'desc')
+            .limit(50)
+            .get();
+            
+        const container = document.getElementById('historicoAjustesContainer');
+        if (!container) return;
+        
+        if (ajustes.empty) {
+            container.innerHTML = `
+                <div class="text-center py-6 text-gray-500">
+                    <i class="fas fa-history text-2xl mb-2"></i>
+                    <p>Nenhum ajuste realizado ainda</p>
+                </div>
+            `;
+            return;
+        }
+        
+        let html = '';
+        
+        ajustes.forEach(doc => {
+            const ajuste = doc.data();
+            const [data, periodo] = ajuste.turnoId.split('_');
+            const dataFormatada = data.split('-').reverse().join('/');
+            const dataHora = ajuste.dataHora?.toDate ? ajuste.dataHora.toDate() : new Date();
+            
+            const isDiminuicao = ajuste.diferenca.total < 0;
+            
+            html += `
+                <div class="border rounded-lg p-4 hover:shadow-md transition-shadow ${isDiminuicao ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <div class="flex items-center mb-2">
+                                <i class="fas ${isDiminuicao ? 'fa-arrow-down text-red-500' : 'fa-arrow-up text-green-500'} mr-2"></i>
+                                <span class="font-semibold">Turno ${periodo} - ${dataFormatada}</span>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                                <div>
+                                    <span class="text-gray-600">Dinheiro:</span>
+                                    <div class="font-medium">
+                                        ${this.formatCurrency(ajuste.valorAnterior.dinheiro)} → ${this.formatCurrency(ajuste.valorNovo.dinheiro)}
+                                        <span class="${ajuste.diferenca.dinheiro < 0 ? 'text-red-600' : 'text-green-600'}">
+                                            (${ajuste.diferenca.dinheiro > 0 ? '+' : ''}${this.formatCurrency(ajuste.diferenca.dinheiro)})
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <span class="text-gray-600">Moedas:</span>
+                                    <div class="font-medium">
+                                        ${this.formatCurrency(ajuste.valorAnterior.moedas)} → ${this.formatCurrency(ajuste.valorNovo.moedas)}
+                                        <span class="${ajuste.diferenca.moedas < 0 ? 'text-red-600' : 'text-green-600'}">
+                                            (${ajuste.diferenca.moedas > 0 ? '+' : ''}${this.formatCurrency(ajuste.diferenca.moedas)})
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <span class="text-gray-600">Total:</span>
+                                    <div class="font-bold">
+                                        ${this.formatCurrency(ajuste.valorAnterior.total)} → ${this.formatCurrency(ajuste.valorNovo.total)}
+                                        <span class="${ajuste.diferenca.total < 0 ? 'text-red-600' : 'text-green-600'}">
+                                            (${ajuste.diferenca.total > 0 ? '+' : ''}${this.formatCurrency(ajuste.diferenca.total)})
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3 p-2 bg-white rounded">
+                                <p class="text-sm text-gray-700">
+                                    <i class="fas fa-comment mr-1"></i>
+                                    <strong>Motivo:</strong> ${ajuste.motivo}
+                                </p>
+                            </div>
+                            
+                            <div class="mt-2 text-xs text-gray-500">
+                                <i class="fas fa-user mr-1"></i>
+                                Por: ${ajuste.realizadoPor?.nome || 'N/A'} • 
+                                <i class="fas fa-clock mr-1"></i>
+                                ${dataHora.toLocaleString('pt-BR')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Erro ao carregar histórico:', error);
+        const container = document.getElementById('historicoAjustesContainer');
+        if (container) {
+            container.innerHTML = `
+                <div class="text-center py-6 text-red-500">
+                    <i class="fas fa-exclamation-triangle text-2xl mb-2"></i>
+                    <p>Erro ao carregar histórico</p>
+                </div>
+            `;
+        }
+    }
+};
+
+// Adicionar método para configurar eventos de atualização de moeda
+CashControlManager.prototype.setupCurrencyUpdateEvents = function() {
+    const newDinheiro = document.getElementById('newCaixaDinheiro');
+    const newMoedas = document.getElementById('newCaixaMoedas');
+    
+    if (newDinheiro) {
+        newDinheiro.removeEventListener('input', this.updateNewTotal);
+        newDinheiro.addEventListener('input', () => this.updateNewTotal());
+    }
+    
+    if (newMoedas) {
+        newMoedas.removeEventListener('input', this.updateNewTotal);
+        newMoedas.addEventListener('input', () => this.updateNewTotal());
+    }
+};
+
+// Sobrescrever o método updateNewTotal
+CashControlManager.prototype.updateNewTotal = function() {
+    const newDinheiro = this.parseCurrency(document.getElementById('newCaixaDinheiro')?.value || '0');
+    const newMoedas = this.parseCurrency(document.getElementById('newCaixaMoedas')?.value || '0');
+    const newTotal = newDinheiro + newMoedas;
+    
+    document.getElementById('newCaixaTotal').value = this.formatCurrency(newTotal);
+    
+    // Calcular e mostrar diferença
+    const currentDinheiro = this.parseCurrency(document.getElementById('currentCaixaDinheiro')?.value || '0');
+    const currentMoedas = this.parseCurrency(document.getElementById('currentCaixaMoedas')?.value || '0');
+    const currentTotal = currentDinheiro + currentMoedas;
+    
+    const difDinheiro = newDinheiro - currentDinheiro;
+    const difMoedas = newMoedas - currentMoedas;
+    const difTotal = newTotal - currentTotal;
+    
+    const diferencaDisplay = document.getElementById('diferencaDisplay');
+    const diferencaInfo = document.getElementById('diferencaInfo');
+    
+    if (Math.abs(difTotal) > 0.01) {
+        diferencaDisplay.classList.remove('hidden');
+        
+        let html = '<ul class="space-y-1">';
+        
+        if (Math.abs(difDinheiro) > 0.01) {
+            html += `<li>• Dinheiro: ${difDinheiro > 0 ? '+' : ''}${this.formatCurrency(difDinheiro)}</li>`;
+        }
+        
+        if (Math.abs(difMoedas) > 0.01) {
+            html += `<li>• Moedas: ${difMoedas > 0 ? '+' : ''}${this.formatCurrency(difMoedas)}</li>`;
+        }
+        
+        html += `<li class="font-bold pt-2 border-t">• Total: ${difTotal > 0 ? '+' : ''}${this.formatCurrency(difTotal)}</li>`;
+        html += '</ul>';
+        
+        diferencaInfo.innerHTML = html;
+    } else {
+        diferencaDisplay.classList.add('hidden');
+    }
+};
 
 async function migrateExistingTurnos() {
     try {
