@@ -1809,7 +1809,7 @@ if (toggleInactive) {
 }
 
 window.UserManager = UserManager;
-window.CashControlManager = CashControlManager;
+
 
     // Gerenciador de Abas
     class TabManager {
@@ -2427,6 +2427,7 @@ window.CashControlManager = CashControlManager;
         setTimeout(() => {
             alert.remove();
         }, 5000);
+        window.CashControlManager = CashControlManager;
     }
 }
 
