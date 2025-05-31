@@ -1469,3 +1469,65 @@ fieldset.border-red-300::before {
         10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
         20%, 40%, 60%, 80% { transform: translateX(5px); }
     }
+
+    /* Melhorias específicas para a seção de funcionários em mobile */
+@media (max-width: 640px) {
+    /* Reduz tamanho dos selects em mobile para melhor visualização */
+    #funcionariosColaboradoresContainer select,
+    #funcionariosColaboradoresContainer input,
+    #funcionariosColaboradoresContainer textarea {
+        font-size: 14px;
+        padding: 8px;
+    }
+    
+    /* Ajusta labels para economizar espaço */
+    #funcionariosColaboradoresContainer label {
+        font-size: 12px;
+        margin-bottom: 2px;
+    }
+    
+    /* Melhora o espaçamento entre cards de funcionários */
+    #funcionariosColaboradoresContainer > div {
+        margin-bottom: 12px;
+    }
+    
+    /* Ajusta ícones para tamanho menor */
+    #funcionariosColaboradoresContainer i {
+        font-size: 12px;
+    }
+    
+    /* Melhora visualização do título do card */
+    #funcionariosColaboradoresContainer h4 {
+        font-size: 14px;
+        line-height: 1.2;
+    }
+}
+
+/* Garante que o container principal não ultrapasse a tela */
+#secaoFuncionariosColaboradores {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+/* Melhora scroll em mobile se houver muitos funcionários */
+#funcionariosColaboradoresContainer {
+    max-height: 600px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll no iOS */
+}
+
+/* Adiciona indicador visual quando há scroll disponível */
+@media (max-width: 640px) {
+    #funcionariosColaboradoresContainer::-webkit-scrollbar {
+        width: 4px;
+    }
+    
+    #funcionariosColaboradoresContainer::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    #funcionariosColaboradoresContainer::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 2px;
+    }
+}

@@ -680,75 +680,87 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function adicionarFuncionarioColaborador() {
-        const container = document.getElementById('funcionariosColaboradoresContainer');
-        if (!container) return;
+    const container = document.getElementById('funcionariosColaboradoresContainer');
+    if (!container) return;
+    
+    const funcionarioId = `funcionario_${Date.now()}`;
+    
+    const funcionarioDiv = document.createElement('div');
+    funcionarioDiv.className = 'bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm';
+    funcionarioDiv.id = funcionarioId;
+    
+    const optionsHtml = listaFuncionariosDisponiveis.map(f => 
+        `<option value="${f.id}">${f.nome}</option>` // Removido email para economizar espaço
+    ).join('');
+    
+    funcionarioDiv.innerHTML = `
+        <div class="flex justify-between items-start mb-3 gap-2">
+            <h4 class="text-sm sm:text-md font-semibold text-gray-700 flex items-center flex-1">
+                <i class="fas fa-user mr-1 sm:mr-2 text-xs sm:text-base"></i>
+                <span class="truncate">Funcionário Colaborador</span>
+            </h4>
+            <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
+                    class="text-red-500 hover:text-red-700 transition-colors p-1 flex-shrink-0">
+                <i class="fas fa-times-circle text-lg"></i>
+            </button>
+        </div>
         
-        const funcionarioId = `funcionario_${Date.now()}`;
-        
-        const funcionarioDiv = document.createElement('div');
-        funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
-        funcionarioDiv.id = funcionarioId;
-        
-        const optionsHtml = listaFuncionariosDisponiveis.map(f => 
-            `<option value="${f.id}">${f.nome} (${f.email})</option>`
-        ).join('');
-        
-        funcionarioDiv.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <h4 class="text-md font-semibold text-gray-700 flex items-center">
-                    <i class="fas fa-user mr-2"></i>
-                    Funcionário Colaborador
-                </h4>
-                <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
-                        class="text-red-500 hover:text-red-700 transition-colors">
-                    <i class="fas fa-times-circle"></i>
-                </button>
+        <div class="space-y-3">
+            <!-- Select de Funcionário -->
+            <div>
+                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-user-circle mr-1 text-xs"></i>
+                    <span class="sm:hidden">Funcionário</span>
+                    <span class="hidden sm:inline">Selecione o Funcionário</span>
+                </label>
+                <select id="${funcionarioId}_select" 
+                        class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                    <option value="">-- Selecione --</option>
+                    ${optionsHtml}
+                </select>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
-                    </label>
-                    <select id="${funcionarioId}_select" 
-                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                        <option value="">-- Selecione um funcionário --</option>
-                        ${optionsHtml}
-                    </select>
-                </div>
-                
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
-                    </label>
-                    <textarea id="${funcionarioId}_consumo" 
-                              rows="2"
-                              placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
-                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
-                </div>
-                
+            <!-- Textarea de Consumo -->
+            <div>
+                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-utensils mr-1 text-xs"></i>
+                    <span class="sm:hidden">Consumo</span>
+                    <span class="hidden sm:inline">O que consumiu? (Detalhe os itens)</span>
+                </label>
+                <textarea id="${funcionarioId}_consumo" 
+                          rows="2"
+                          placeholder="Ex: 1 Pastel, 1 Caldo"
+                          class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
+            </div>
+            
+            <!-- Grid de Transporte e Horas -->
+            <div class="grid grid-cols-2 gap-2 sm:gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-bus mr-1"></i>Meio de Transporte
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-bus mr-1 text-xs"></i>
+                        <span class="sm:hidden">Transporte</span>
+                        <span class="hidden sm:inline">Meio de Transporte</span>
                     </label>
                     <select id="${funcionarioId}_transporte" 
-                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                            class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
                         <option value="">-- Selecione --</option>
                         <option value="onibus">Ônibus</option>
                         <option value="metro">Metrô</option>
                         <option value="trem">Trem</option>
-                        <option value="carro">Carro Próprio</option>
+                        <option value="carro">Carro</option>
                         <option value="moto">Moto</option>
                         <option value="bicicleta">Bicicleta</option>
                         <option value="ape">A pé</option>
                         <option value="carona">Carona</option>
-                        <option value="uber">Uber/99/Táxi</option>
+                        <option value="uber">Uber/99</option>
                     </select>
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
+                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-clock mr-1 text-xs"></i>
+                        <span class="sm:hidden">Horas</span>
+                        <span class="hidden sm:inline">Horas Trabalhadas</span>
                     </label>
                     <input type="number" 
                            id="${funcionarioId}_horas" 
@@ -756,14 +768,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                            max="24" 
                            step="0.5"
                            placeholder="Ex: 8"
-                           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                           class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
                 </div>
             </div>
-        `;
-        
-        container.appendChild(funcionarioDiv);
-        funcionariosColaboradores.push(funcionarioId);
-    }
+        </div>
+    `;
+    
+    container.appendChild(funcionarioDiv);
+    funcionariosColaboradores.push(funcionarioId);
+}
 
     window.removerFuncionarioColaborador = function(funcionarioId) {
         const elemento = document.getElementById(funcionarioId);
