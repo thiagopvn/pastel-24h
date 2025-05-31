@@ -1117,17 +1117,31 @@
             activeContent.classList.remove('hidden');
         }
 
+
+function parseCurrency(value) {
+    if (!value) return 0;
+    return parseFloat(value.replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
+}
+
+function formatCurrency(value) {
+    return new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL'
+    }).format(value || 0);
+}
+
+// Função para formatar data
+function getFormattedDate() {
+    const now = new Date();
+    return now.toISOString().split('T')[0];
+}
+
         document.addEventListener('DOMContentLoaded', async () => {
             protectRoute(['admin']);
             if (window.UserManager && !window.userManager) {
                 window.userManager = new window.UserManager();
             }
-            const formatCurrency = (value) => {
-                return new Intl.NumberFormat('pt-BR', {
-                    style: 'currency',
-                    currency: 'BRL'
-                }).format(value || 0);
-            };
+            
 
             const formatPercent = (value) => {
                 return new Intl.NumberFormat('pt-BR', {
@@ -1494,10 +1508,7 @@ function updateDifferenceDisplay() {
     }
 }
 
-function parseCurrency(value) {
-    if (!value) return 0;
-    return parseFloat(value.replace(/[R$\s.]/g, '').replace(',', '.')) || 0;
-}
+
 
 document.getElementById('formAjusteCaixa').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -3192,10 +3203,7 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
                 `;
             }
 
-            function getFormattedDate() {
-                const now = new Date();
-                return now.toISOString().split('T')[0];
-            }
+            
 
             setupTabs();
             setupPeriodFilters();
@@ -4067,8 +4075,6 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
             console.log("✅ Correção de exibição de preços inicializada com sucesso!");
         });
 
-        window.parseCurrency = parseCurrency;
-        window.formatCurrency = formatCurrency;
 
     </script>
     
