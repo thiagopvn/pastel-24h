@@ -671,6 +671,8 @@ function setupTableScrollIndicators() {
     });
 }
 
+
+
 // Chame esta função após carregar as tabelas
 // Adicione no final da função initializePage():
 setupTableScrollIndicators();

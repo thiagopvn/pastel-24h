@@ -1698,3 +1698,147 @@ fieldset.border-red-300::before {
         transform: translateX(5px);
     }
 }
+
+@media (max-width: 768px) {
+    #funcionariosColaboradoresContainer {
+        max-height: none; /* Remove altura máxima anterior */
+        overflow-y: visible; /* Remove scroll vertical */
+        overflow-x: auto; /* Adiciona scroll horizontal */
+        -webkit-overflow-scrolling: touch;
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    /* Transforma cards em estrutura horizontal em mobile */
+    #funcionariosColaboradoresContainer > div {
+        min-width: 320px; /* Largura mínima do card */
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
+    /* Layout horizontal para os cards */
+    #funcionariosColaboradoresContainer {
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        padding-bottom: 1rem;
+    }
+    
+    /* Indicador visual de scroll */
+    #funcionariosColaboradoresContainer::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 30px;
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.8));
+        pointer-events: none;
+        z-index: 1;
+    }
+    
+    /* Remove o gradiente quando scrollado até o final */
+    #funcionariosColaboradoresContainer.scrolled-end::after {
+        display: none;
+    }
+    
+    /* Scrollbar customizada */
+    #funcionariosColaboradoresContainer::-webkit-scrollbar {
+        height: 6px;
+    }
+    
+    #funcionariosColaboradoresContainer::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    #funcionariosColaboradoresContainer::-webkit-scrollbar-thumb {
+        background: #F97316;
+        border-radius: 3px;
+    }
+}
+
+/* Alternativa: Layout de tabela responsiva para funcionários */
+@media (max-width: 640px) {
+    /* Wrapper com scroll */
+    .funcionarios-table-wrapper {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -1rem;
+        padding: 0 1rem;
+    }
+    
+    /* Tabela de funcionários */
+    .funcionarios-table {
+        min-width: 700px;
+        width: 100%;
+    }
+    
+    /* Ajuste dos campos dentro da tabela */
+    .funcionarios-table input,
+    .funcionarios-table select,
+    .funcionarios-table textarea {
+        min-width: 100px;
+        font-size: 14px;
+    }
+}
+
+/* Indicador de scroll para a seção */
+.funcionarios-scroll-hint {
+    display: none;
+    text-align: center;
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 0.5rem;
+    animation: pulse 2s infinite;
+}
+
+@media (max-width: 768px) {
+    .funcionarios-scroll-hint {
+        display: block;
+    }
+}
+
+/* Melhoria na estrutura de campos */
+@media (max-width: 640px) {
+    /* Ajusta o grid para uma coluna em telas muito pequenas */
+    #funcionariosColaboradoresContainer .grid-cols-2 {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+    
+    /* Ajusta tamanhos de fonte e padding */
+    #funcionariosColaboradoresContainer label {
+        font-size: 11px;
+    }
+    
+    #funcionariosColaboradoresContainer input,
+    #funcionariosColaboradoresContainer select,
+    #funcionariosColaboradoresContainer textarea {
+        font-size: 13px;
+        padding: 6px;
+    }
+    
+    /* Botão de remover mais acessível */
+    #funcionariosColaboradoresContainer button[onclick*="removerFuncionarioColaborador"] {
+        padding: 0.5rem;
+        min-width: 44px;
+        min-height: 44px;
+    }
+}
+
+/* Container principal com overflow hidden */
+#secaoFuncionariosColaboradores {
+    overflow: hidden;
+    position: relative;
+}
+
+/* Adiciona padding inferior para evitar corte de conteúdo */
+@media (max-width: 768px) {
+    #secaoFuncionariosColaboradores {
+        padding-bottom: 2rem;
+    }
+}
