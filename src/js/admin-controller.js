@@ -2871,17 +2871,10 @@ async function migrateExistingTurnos() {
 }
 
 // Função de inicialização
-// Função de inicialização
 function initialize() {
     console.log("🚀 Inicializando o sistema administrativo...");
     
     try {
-        // ADICIONE ESTA VERIFICAÇÃO AQUI:
-        // Exportar CashControlManager para o escopo global após a inicialização
-        if (typeof CashControlManager !== 'undefined') {
-            window.CashControlManager = CashControlManager;
-        }
-        
         // Executar migração de dados se necessário (apenas para administradores)
         migrateExistingTurnos()
             .then(count => {
@@ -2940,3 +2933,11 @@ function initialize() {
     }
     initialize();
 });
+
+// No final do arquivo, após o último });
+setTimeout(() => {
+    if (typeof CashControlManager !== 'undefined' && !window.CashControlManager) {
+        window.CashControlManager = CashControlManager;
+        console.log("✅ CashControlManager exportado para o escopo global");
+    }
+}, 100);
