@@ -1914,6 +1914,7 @@ window.CashControlManager = CashControlManager;
     } else {
         // Criar nova instância do CashControlManager
         const cashControlManager = new CashControlManager();
+        window.cashControlManager = cashControlManager;
         await cashControlManager.load();
     }
     break;
