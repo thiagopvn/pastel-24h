@@ -672,9 +672,6 @@ function setupTableScrollIndicators() {
 }
 
 
-
-// Chame esta função após carregar as tabelas
-// Adicione no final da função initializePage():
 setupTableScrollIndicators();
 
     async function carregarListaFuncionarios() {
@@ -729,71 +726,113 @@ setupTableScrollIndicators();
         }
     }
 
-    function adicionarFuncionarioColaborador() {
+    function setupFuncionariosScrollIndicator() {
+    const container = document.getElementById('funcionariosColaboradoresContainer');
+    if (!container) return;
+    
+    // Adiciona classe ao container pai para styling
+    container.parentElement.classList.add('funcionarios-scroll-container');
+    
+    // Adiciona hint de scroll se necessário
+    const hint = document.createElement('div');
+    hint.className = 'funcionarios-scroll-hint';
+    hint.innerHTML = '<i class="fas fa-arrows-alt-h mr-1"></i> Arraste para ver mais funcionários';
+    container.parentElement.insertAdjacentElement('afterend', hint);
+    
+    // Monitora o scroll para remover gradiente quando chegar ao final
+    container.addEventListener('scroll', function() {
+        const maxScroll = this.scrollWidth - this.clientWidth;
+        const currentScroll = this.scrollLeft;
+        
+        if (currentScroll >= maxScroll - 5) {
+            this.classList.add('scrolled-end');
+        } else {
+            this.classList.remove('scrolled-end');
+        }
+        
+        // Esconde o hint após o primeiro scroll
+        if (currentScroll > 10) {
+            hint.style.display = 'none';
+        }
+    });
+    
+    // Verifica se precisa de scroll no resize
+    const checkScroll = () => {
+        if (window.innerWidth <= 768) {
+            // Em mobile, verifica se há múltiplos funcionários
+            const funcionarios = container.children.length;
+            if (funcionarios > 1) {
+                hint.style.display = 'block';
+            } else {
+                hint.style.display = 'none';
+            }
+        } else {
+            hint.style.display = 'none';
+        }
+    };
+    
+    // Verifica no carregamento e no resize
+    checkScroll();
+    window.addEventListener('resize', checkScroll);
+    
+    // Observer para detectar quando funcionários são adicionados/removidos
+    const observer = new MutationObserver(checkScroll);
+    observer.observe(container, { childList: true });
+}
+
+// Modifique a função adicionarFuncionarioColaborador para melhor layout mobile
+function adicionarFuncionarioColaboradorMobile() {
     const container = document.getElementById('funcionariosColaboradoresContainer');
     if (!container) return;
     
     const funcionarioId = `funcionario_${Date.now()}`;
     
     const funcionarioDiv = document.createElement('div');
-    funcionarioDiv.className = 'bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm';
+    funcionarioDiv.className = 'funcionario-card bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm';
     funcionarioDiv.id = funcionarioId;
     
     const optionsHtml = listaFuncionariosDisponiveis.map(f => 
-        `<option value="${f.id}">${f.nome}</option>` // Removido email para economizar espaço
+        `<option value="${f.id}">${f.nome}</option>`
     ).join('');
     
+    // Estrutura otimizada para mobile com campos em linha quando possível
     funcionarioDiv.innerHTML = `
         <div class="flex justify-between items-start mb-3 gap-2">
             <h4 class="text-sm sm:text-md font-semibold text-gray-700 flex items-center flex-1">
                 <i class="fas fa-user mr-1 sm:mr-2 text-xs sm:text-base"></i>
-                <span class="truncate">Funcionário Colaborador</span>
+                <span class="truncate">Funcionário ${container.children.length + 1}</span>
             </h4>
-            <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
-                    class="text-red-500 hover:text-red-700 transition-colors p-1 flex-shrink-0">
+            <button type="button" onclick="removerFuncionarioColaboradorEAtualizar('${funcionarioId}')" 
+                    class="text-red-500 hover:text-red-700 transition-colors p-1 flex-shrink-0 touch-target">
                 <i class="fas fa-times-circle text-lg"></i>
             </button>
         </div>
         
-        <div class="space-y-3">
+        <div class="funcionario-fields space-y-3">
             <!-- Select de Funcionário -->
-            <div>
-                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+            <div class="field-group">
+                <label class="field-label">
                     <i class="fas fa-user-circle mr-1 text-xs"></i>
-                    <span class="sm:hidden">Funcionário</span>
-                    <span class="hidden sm:inline">Selecione o Funcionário</span>
+                    Funcionário
                 </label>
                 <select id="${funcionarioId}_select" 
-                        class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                        class="field-input w-full">
                     <option value="">-- Selecione --</option>
                     ${optionsHtml}
                 </select>
             </div>
             
-            <!-- Textarea de Consumo -->
-            <div>
-                <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-utensils mr-1 text-xs"></i>
-                    <span class="sm:hidden">Consumo</span>
-                    <span class="hidden sm:inline">O que consumiu? (Detalhe os itens)</span>
-                </label>
-                <textarea id="${funcionarioId}_consumo" 
-                          rows="2"
-                          placeholder="Ex: 1 Pastel, 1 Caldo"
-                          class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
-            </div>
-            
-            <!-- Grid de Transporte e Horas -->
-            <div class="grid grid-cols-2 gap-2 sm:gap-4">
-                <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+            <!-- Grid responsivo para campos menores -->
+            <div class="fields-grid">
+                <!-- Transporte -->
+                <div class="field-group">
+                    <label class="field-label">
                         <i class="fas fa-bus mr-1 text-xs"></i>
-                        <span class="sm:hidden">Transporte</span>
-                        <span class="hidden sm:inline">Meio de Transporte</span>
+                        Transporte
                     </label>
                     <select id="${funcionarioId}_transporte" 
-                            class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                        <option value="">-- Selecione --</option>
+                            class="field-input w-full">
+                        <option value="">Selecione</option>
                         <option value="onibus">Ônibus</option>
                         <option value="metro">Metrô</option>
                         <option value="trem">Trem</option>
@@ -801,16 +840,15 @@ setupTableScrollIndicators();
                         <option value="moto">Moto</option>
                         <option value="bicicleta">Bicicleta</option>
                         <option value="ape">A pé</option>
-                        <option value="carona">Carona</option>
                         <option value="uber">Uber/99</option>
                     </select>
                 </div>
                 
-                <div>
-                    <label class="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                <!-- Horas -->
+                <div class="field-group">
+                    <label class="field-label">
                         <i class="fas fa-clock mr-1 text-xs"></i>
-                        <span class="sm:hidden">Horas</span>
-                        <span class="hidden sm:inline">Horas Trabalhadas</span>
+                        Horas
                     </label>
                     <input type="number" 
                            id="${funcionarioId}_horas" 
@@ -818,14 +856,51 @@ setupTableScrollIndicators();
                            max="24" 
                            step="0.5"
                            placeholder="Ex: 8"
-                           class="w-full p-2 text-sm border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                           class="field-input w-full">
                 </div>
+            </div>
+            
+            <!-- Consumo em linha separada para melhor visualização -->
+            <div class="field-group">
+                <label class="field-label">
+                    <i class="fas fa-utensils mr-1 text-xs"></i>
+                    Consumo
+                </label>
+                <textarea id="${funcionarioId}_consumo" 
+                          rows="2"
+                          placeholder="Ex: 1 Pastel de carne, 1 Caldo 300ml"
+                          class="field-input w-full resize-none"></textarea>
             </div>
         </div>
     `;
     
     container.appendChild(funcionarioDiv);
     funcionariosColaboradores.push(funcionarioId);
+    
+    // Atualiza indicadores de scroll
+    setupFuncionariosScrollIndicator();
+    
+    // Em mobile, scrolla para mostrar o novo funcionário
+    if (window.innerWidth <= 768) {
+        setTimeout(() => {
+            funcionarioDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+        }, 100);
+    }
+}
+function removerFuncionarioColaboradorEAtualizar(funcionarioId) {
+    removerFuncionarioColaborador(funcionarioId);
+    
+    // Atualiza numeração dos funcionários restantes
+    const container = document.getElementById('funcionariosColaboradoresContainer');
+    if (container) {
+        const cards = container.querySelectorAll('.funcionario-card');
+        cards.forEach((card, index) => {
+            const titulo = card.querySelector('h4 span');
+            if (titulo) {
+                titulo.textContent = `Funcionário ${index + 1}`;
+            }
+        });
+    }
 }
 
     window.removerFuncionarioColaborador = function(funcionarioId) {
