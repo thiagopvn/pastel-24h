@@ -1809,6 +1809,7 @@ if (toggleInactive) {
 }
 
 window.UserManager = UserManager;
+window.CashControlManager = CashControlManager;
 
     // Gerenciador de Abas
     class TabManager {
