@@ -1809,6 +1809,7 @@ if (toggleInactive) {
 }
 
 window.UserManager = UserManager;
+window.CashControlManager = CashControlManager;
 
     // Gerenciador de Abas
     class TabManager {
@@ -2933,11 +2934,3 @@ function initialize() {
     }
     initialize();
 });
-
-// No final do arquivo, após o último });
-setTimeout(() => {
-    if (typeof CashControlManager !== 'undefined' && !window.CashControlManager) {
-        window.CashControlManager = CashControlManager;
-        console.log("✅ CashControlManager exportado para o escopo global");
-    }
-}, 100);
