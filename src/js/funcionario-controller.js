@@ -627,6 +627,54 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Função para adicionar indicadores de scroll nas tabelas
+function setupTableScrollIndicators() {
+    const scrollContainers = document.querySelectorAll('.table-scroll-container');
+    
+    scrollContainers.forEach(container => {
+        // Adiciona hint de scroll
+        const hint = document.createElement('div');
+        hint.className = 'scroll-hint';
+        hint.innerHTML = '<i class="fas fa-arrows-alt-h mr-1"></i> Arraste para ver mais colunas';
+        container.insertAdjacentElement('afterend', hint);
+        
+        // Monitora o scroll para remover gradiente quando chegar ao final
+        container.addEventListener('scroll', function() {
+            const maxScroll = this.scrollWidth - this.clientWidth;
+            const currentScroll = this.scrollLeft;
+            
+            if (currentScroll >= maxScroll - 5) {
+                this.classList.add('scrolled-end');
+            } else {
+                this.classList.remove('scrolled-end');
+            }
+            
+            // Esconde o hint após o primeiro scroll
+            if (currentScroll > 10) {
+                hint.style.display = 'none';
+            }
+        });
+        
+        // Verifica se precisa de scroll
+        const checkScroll = () => {
+            if (container.scrollWidth > container.clientWidth) {
+                container.classList.add('has-scroll');
+            } else {
+                container.classList.remove('has-scroll');
+                hint.style.display = 'none';
+            }
+        };
+        
+        // Verifica no carregamento e no resize
+        checkScroll();
+        window.addEventListener('resize', checkScroll);
+    });
+}
+
+// Chame esta função após carregar as tabelas
+// Adicione no final da função initializePage():
+setupTableScrollIndicators();
+
     async function carregarListaFuncionarios() {
         try {
             if (!auth.currentUser) {

@@ -1531,3 +1531,170 @@ fieldset.border-red-300::before {
         border-radius: 2px;
     }
 }
+
+/* ========== SCROLL HORIZONTAL PARA TABELAS NO MOBILE ========== */
+.table-scroll-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scroll no iOS */
+    margin-top: 0.5rem;
+    border-radius: 0.5rem;
+    box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.1); /* Sombra indicando scroll */
+}
+
+/* Estilo da tabela mobile */
+.table-mobile {
+    min-width: 800px; /* Largura mínima para forçar scroll */
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+/* Indicador visual de scroll disponível */
+@media (max-width: 768px) {
+    .table-scroll-container {
+        position: relative;
+        margin-left: -1rem;
+        margin-right: -1rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    
+    /* Gradiente indicando mais conteúdo à direita */
+    .table-scroll-container::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 30px;
+        background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.8));
+        pointer-events: none;
+        z-index: 1;
+    }
+    
+    /* Remove o gradiente quando scrollado até o final */
+    .table-scroll-container.scrolled-end::after {
+        display: none;
+    }
+    
+    /* Primeira coluna fixa (opcional - nome do produto) */
+    .table-mobile th:first-child,
+    .table-mobile td:first-child {
+        position: sticky;
+        left: 0;
+        background-color: white;
+        z-index: 2;
+        box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
+        min-width: 120px;
+        max-width: 150px;
+    }
+    
+    /* Ajusta padding das células em mobile */
+    .table-mobile th,
+    .table-mobile td {
+        padding: 0.5rem;
+        white-space: nowrap;
+    }
+    
+    /* Inputs menores em mobile */
+    .table-mobile input {
+        width: 60px !important;
+        font-size: 14px !important;
+        padding: 0.25rem !important;
+    }
+    
+    /* Headers da tabela */
+    .table-mobile th {
+        font-size: 11px;
+        text-transform: uppercase;
+        background-color: #FEF3C7;
+    }
+}
+
+/* Scrollbar customizada para mobile */
+@media (max-width: 768px) {
+    .table-scroll-container::-webkit-scrollbar {
+        height: 6px;
+    }
+    
+    .table-scroll-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+    
+    .table-scroll-container::-webkit-scrollbar-thumb {
+        background: #F97316;
+        border-radius: 3px;
+    }
+}
+
+/* Indicador de "arraste para ver mais" */
+.scroll-hint {
+    display: none;
+    text-align: center;
+    font-size: 12px;
+    color: #6B7280;
+    margin-top: 0.5rem;
+    animation: pulse 2s infinite;
+}
+
+@media (max-width: 768px) {
+    .scroll-hint {
+        display: block;
+    }
+}
+
+/* Melhora a visibilidade da coluna de chegadas */
+.col-chegadas {
+    background-color: #FEF3C7 !important;
+    border-left: 2px solid #F59E0B;
+    border-right: 2px solid #F59E0B;
+    position: relative;
+}
+
+/* Destaque especial para a coluna de chegadas no mobile */
+@media (max-width: 768px) {
+    .col-chegadas input {
+        background-color: #FFFBEB !important;
+        border: 2px solid #F59E0B !important;
+        font-weight: 500;
+    }
+}
+
+/* Destaque visual quando arrastar */
+@media (max-width: 768px) {
+    .table-scroll-container:active {
+        cursor: grabbing;
+    }
+    
+    /* Melhora o toque em dispositivos móveis */
+    .table-mobile input {
+        -webkit-tap-highlight-color: rgba(249, 115, 22, 0.2);
+        touch-action: manipulation;
+    }
+    
+    /* Aumenta a área de toque dos inputs */
+    .table-mobile td {
+        position: relative;
+        padding: 0.25rem;
+    }
+    
+    .table-mobile input {
+        position: relative;
+        z-index: 1;
+        min-height: 36px;
+    }
+}
+
+/* Animação do hint */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 0.7;
+        transform: translateX(0);
+    }
+    50% {
+        opacity: 1;
+        transform: translateX(5px);
+    }
+}
