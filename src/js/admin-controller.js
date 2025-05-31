@@ -2429,8 +2429,6 @@ window.UserManager = UserManager;
     }
 }
 
-window.CashControlManager = CashControlManager;
-
 CashControlManager.prototype.load = async function() {
     console.log("🔄 Iniciando carregamento do controle de caixa...");
     
@@ -2873,10 +2871,17 @@ async function migrateExistingTurnos() {
 }
 
 // Função de inicialização
+// Função de inicialização
 function initialize() {
     console.log("🚀 Inicializando o sistema administrativo...");
     
     try {
+        // ADICIONE ESTA VERIFICAÇÃO AQUI:
+        // Exportar CashControlManager para o escopo global após a inicialização
+        if (typeof CashControlManager !== 'undefined') {
+            window.CashControlManager = CashControlManager;
+        }
+        
         // Executar migração de dados se necessário (apenas para administradores)
         migrateExistingTurnos()
             .then(count => {
