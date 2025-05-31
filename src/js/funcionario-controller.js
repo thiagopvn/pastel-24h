@@ -627,53 +627,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Função para adicionar indicadores de scroll nas tabelas
-function setupTableScrollIndicators() {
-    const scrollContainers = document.querySelectorAll('.table-scroll-container');
-    
-    scrollContainers.forEach(container => {
-        // Adiciona hint de scroll
-        const hint = document.createElement('div');
-        hint.className = 'scroll-hint';
-        hint.innerHTML = '<i class="fas fa-arrows-alt-h mr-1"></i> Arraste para ver mais colunas';
-        container.insertAdjacentElement('afterend', hint);
-        
-        // Monitora o scroll para remover gradiente quando chegar ao final
-        container.addEventListener('scroll', function() {
-            const maxScroll = this.scrollWidth - this.clientWidth;
-            const currentScroll = this.scrollLeft;
-            
-            if (currentScroll >= maxScroll - 5) {
-                this.classList.add('scrolled-end');
-            } else {
-                this.classList.remove('scrolled-end');
-            }
-            
-            // Esconde o hint após o primeiro scroll
-            if (currentScroll > 10) {
-                hint.style.display = 'none';
-            }
-        });
-        
-        // Verifica se precisa de scroll
-        const checkScroll = () => {
-            if (container.scrollWidth > container.clientWidth) {
-                container.classList.add('has-scroll');
-            } else {
-                container.classList.remove('has-scroll');
-                hint.style.display = 'none';
-            }
-        };
-        
-        // Verifica no carregamento e no resize
-        checkScroll();
-        window.addEventListener('resize', checkScroll);
-    });
-}
-
-
-setupTableScrollIndicators();
-
     async function carregarListaFuncionarios() {
         try {
             if (!auth.currentUser) {
@@ -726,129 +679,76 @@ setupTableScrollIndicators();
         }
     }
 
-    function setupFuncionariosScrollIndicator() {
-    const container = document.getElementById('funcionariosColaboradoresContainer');
-    if (!container) return;
-    
-    // Adiciona classe ao container pai para styling
-    container.parentElement.classList.add('funcionarios-scroll-container');
-    
-    // Adiciona hint de scroll se necessário
-    const hint = document.createElement('div');
-    hint.className = 'funcionarios-scroll-hint';
-    hint.innerHTML = '<i class="fas fa-arrows-alt-h mr-1"></i> Arraste para ver mais funcionários';
-    container.parentElement.insertAdjacentElement('afterend', hint);
-    
-    // Monitora o scroll para remover gradiente quando chegar ao final
-    container.addEventListener('scroll', function() {
-        const maxScroll = this.scrollWidth - this.clientWidth;
-        const currentScroll = this.scrollLeft;
+    function adicionarFuncionarioColaborador() {
+        const container = document.getElementById('funcionariosColaboradoresContainer');
+        if (!container) return;
         
-        if (currentScroll >= maxScroll - 5) {
-            this.classList.add('scrolled-end');
-        } else {
-            this.classList.remove('scrolled-end');
-        }
+        const funcionarioId = `funcionario_${Date.now()}`;
         
-        // Esconde o hint após o primeiro scroll
-        if (currentScroll > 10) {
-            hint.style.display = 'none';
-        }
-    });
-    
-    // Verifica se precisa de scroll no resize
-    const checkScroll = () => {
-        if (window.innerWidth <= 768) {
-            // Em mobile, verifica se há múltiplos funcionários
-            const funcionarios = container.children.length;
-            if (funcionarios > 1) {
-                hint.style.display = 'block';
-            } else {
-                hint.style.display = 'none';
-            }
-        } else {
-            hint.style.display = 'none';
-        }
-    };
-    
-    // Verifica no carregamento e no resize
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-    
-    // Observer para detectar quando funcionários são adicionados/removidos
-    const observer = new MutationObserver(checkScroll);
-    observer.observe(container, { childList: true });
-}
-
-// Modifique a função adicionarFuncionarioColaborador para melhor layout mobile
-function adicionarFuncionarioColaboradorMobile() {
-    const container = document.getElementById('funcionariosColaboradoresContainer');
-    if (!container) return;
-    
-    const funcionarioId = `funcionario_${Date.now()}`;
-    
-    const funcionarioDiv = document.createElement('div');
-    funcionarioDiv.className = 'funcionario-card bg-white p-3 sm:p-4 rounded-lg border border-gray-200 shadow-sm';
-    funcionarioDiv.id = funcionarioId;
-    
-    const optionsHtml = listaFuncionariosDisponiveis.map(f => 
-        `<option value="${f.id}">${f.nome}</option>`
-    ).join('');
-    
-    // Estrutura otimizada para mobile com campos em linha quando possível
-    funcionarioDiv.innerHTML = `
-        <div class="flex justify-between items-start mb-3 gap-2">
-            <h4 class="text-sm sm:text-md font-semibold text-gray-700 flex items-center flex-1">
-                <i class="fas fa-user mr-1 sm:mr-2 text-xs sm:text-base"></i>
-                <span class="truncate">Funcionário ${container.children.length + 1}</span>
-            </h4>
-            <button type="button" onclick="removerFuncionarioColaboradorEAtualizar('${funcionarioId}')" 
-                    class="text-red-500 hover:text-red-700 transition-colors p-1 flex-shrink-0 touch-target">
-                <i class="fas fa-times-circle text-lg"></i>
-            </button>
-        </div>
+        const funcionarioDiv = document.createElement('div');
+        funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
+        funcionarioDiv.id = funcionarioId;
         
-        <div class="funcionario-fields space-y-3">
-            <!-- Select de Funcionário -->
-            <div class="field-group">
-                <label class="field-label">
-                    <i class="fas fa-user-circle mr-1 text-xs"></i>
-                    Funcionário
-                </label>
-                <select id="${funcionarioId}_select" 
-                        class="field-input w-full">
-                    <option value="">-- Selecione --</option>
-                    ${optionsHtml}
-                </select>
+        const optionsHtml = listaFuncionariosDisponiveis.map(f => 
+            `<option value="${f.id}">${f.nome} (${f.email})</option>`
+        ).join('');
+        
+        funcionarioDiv.innerHTML = `
+            <div class="flex justify-between items-start mb-3">
+                <h4 class="text-md font-semibold text-gray-700 flex items-center">
+                    <i class="fas fa-user mr-2"></i>
+                    Funcionário Colaborador
+                </h4>
+                <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
+                        class="text-red-500 hover:text-red-700 transition-colors">
+                    <i class="fas fa-times-circle"></i>
+                </button>
             </div>
             
-            <!-- Grid responsivo para campos menores -->
-            <div class="fields-grid">
-                <!-- Transporte -->
-                <div class="field-group">
-                    <label class="field-label">
-                        <i class="fas fa-bus mr-1 text-xs"></i>
-                        Transporte
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
                     </label>
-                    <select id="${funcionarioId}_transporte" 
-                            class="field-input w-full">
-                        <option value="">Selecione</option>
-                        <option value="onibus">Ônibus</option>
-                        <option value="metro">Metrô</option>
-                        <option value="trem">Trem</option>
-                        <option value="carro">Carro</option>
-                        <option value="moto">Moto</option>
-                        <option value="bicicleta">Bicicleta</option>
-                        <option value="ape">A pé</option>
-                        <option value="uber">Uber/99</option>
+                    <select id="${funcionarioId}_select" 
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                        <option value="">-- Selecione um funcionário --</option>
+                        ${optionsHtml}
                     </select>
                 </div>
                 
-                <!-- Horas -->
-                <div class="field-group">
-                    <label class="field-label">
-                        <i class="fas fa-clock mr-1 text-xs"></i>
-                        Horas
+                <div class="md:col-span-2">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
+                    </label>
+                    <textarea id="${funcionarioId}_consumo" 
+                              rows="2"
+                              placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
+                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-bus mr-1"></i>Meio de Transporte
+                    </label>
+                    <select id="${funcionarioId}_transporte" 
+                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                        <option value="">-- Selecione --</option>
+                        <option value="onibus">Ônibus</option>
+                        <option value="metro">Metrô</option>
+                        <option value="trem">Trem</option>
+                        <option value="carro">Carro Próprio</option>
+                        <option value="moto">Moto</option>
+                        <option value="bicicleta">Bicicleta</option>
+                        <option value="ape">A pé</option>
+                        <option value="carona">Carona</option>
+                        <option value="uber">Uber/99/Táxi</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
                     </label>
                     <input type="number" 
                            id="${funcionarioId}_horas" 
@@ -856,52 +756,14 @@ function adicionarFuncionarioColaboradorMobile() {
                            max="24" 
                            step="0.5"
                            placeholder="Ex: 8"
-                           class="field-input w-full">
+                           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
                 </div>
             </div>
-            
-            <!-- Consumo em linha separada para melhor visualização -->
-            <div class="field-group">
-                <label class="field-label">
-                    <i class="fas fa-utensils mr-1 text-xs"></i>
-                    Consumo
-                </label>
-                <textarea id="${funcionarioId}_consumo" 
-                          rows="2"
-                          placeholder="Ex: 1 Pastel de carne, 1 Caldo 300ml"
-                          class="field-input w-full resize-none"></textarea>
-            </div>
-        </div>
-    `;
-    
-    container.appendChild(funcionarioDiv);
-    funcionariosColaboradores.push(funcionarioId);
-    
-    // Atualiza indicadores de scroll
-    setupFuncionariosScrollIndicator();
-    
-    // Em mobile, scrolla para mostrar o novo funcionário
-    if (window.innerWidth <= 768) {
-        setTimeout(() => {
-            funcionarioDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
-        }, 100);
+        `;
+        
+        container.appendChild(funcionarioDiv);
+        funcionariosColaboradores.push(funcionarioId);
     }
-}
-function removerFuncionarioColaboradorEAtualizar(funcionarioId) {
-    removerFuncionarioColaborador(funcionarioId);
-    
-    // Atualiza numeração dos funcionários restantes
-    const container = document.getElementById('funcionariosColaboradoresContainer');
-    if (container) {
-        const cards = container.querySelectorAll('.funcionario-card');
-        cards.forEach((card, index) => {
-            const titulo = card.querySelector('h4 span');
-            if (titulo) {
-                titulo.textContent = `Funcionário ${index + 1}`;
-            }
-        });
-    }
-}
 
     window.removerFuncionarioColaborador = function(funcionarioId) {
         const elemento = document.getElementById(funcionarioId);
