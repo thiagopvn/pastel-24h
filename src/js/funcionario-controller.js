@@ -1877,109 +1877,184 @@ window.removerItemConsumo = function(itemId) {
     }
 
     if (btnFecharTurno) {
-        btnFecharTurno.addEventListener('click', async () => {
-            clearError();
-            if (!currentTurnoId || !turnoAbertoLocalmente) {
-                showError("Nenhum turno aberto para fechar ou dados do turno não carregados."); return;
+    btnFecharTurno.addEventListener('click', async () => {
+        clearError();
+        
+        const turnoIdParaMensagem = currentTurnoId;
+        
+        if (!currentTurnoId || !turnoAbertoLocalmente) {
+            showError("Nenhum turno aberto para fechar ou dados do turno não carregados.");
+            return;
+        }
+        
+        if (!validateRequiredFieldsForClosure()) {
+            showError("Preencha todos os campos obrigatórios ('Caixa Inicial', 'Caixa Final Contado', campos de itens e formas de pagamento) antes de fechar.");
+            return;
+        }
+        
+        const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
+        const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
+        let divergenciaValorDetected = false;
+        if ((totalVendidoCalc - totalPagamentos) > 0.015) {
+            divergenciaValorDetected = true;
+        }
+        
+        const { diferencaCaixa } = updatePhysicalCashDifference();
+        const caixaComProblema = diferencaCaixa < -0.015;
+        
+        fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
+        fechamentoDivergenciaAlertaGeralDiv.textContent = '';
+        
+        let confirmMsg = "Você está prestes a fechar o turno.";
+        if (divergenciaValorDetected || caixaComProblema) {
+            let alertText = "ATENÇÃO: Divergências encontradas!\n";
+            if (divergenciaValorDetected) {
+                alertText += `- Faltam ${formatToBRL(totalVendidoCalc - totalPagamentos)} nos pagamentos\n`;
             }
-            if (!validateRequiredFieldsForClosure()) {
-                 showError("Preencha todos os campos obrigatórios ('Caixa Inicial', 'Caixa Final Contado', campos de itens e formas de pagamento) antes de fechar."); return;
+            if (caixaComProblema) {
+                alertText += `- Falta ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico\n`;
             }
-            const totalVendidoCalc = parseCurrencyToNumber(totalVendidoTurnoCalculadoInput.value);
-            const totalPagamentos = parseCurrencyToNumber(totalRegistradoPagamentosInput.value);
-            let divergenciaValorDetected = false;
-            if ((totalVendidoCalc - totalPagamentos) > 0.015) { divergenciaValorDetected = true; }
-            const { diferencaCaixa } = updatePhysicalCashDifference();
-            const caixaComProblema = diferencaCaixa < -0.015;
-            fechamentoDivergenciaAlertaGeralDiv.classList.add('hidden');
-            fechamentoDivergenciaAlertaGeralDiv.textContent = '';
-            let confirmMsg = "Você está prestes a fechar o turno.";
-            if (divergenciaValorDetected || caixaComProblema) {
-                let alertText = "ATENÇÃO: Divergências encontradas!\n";
-                if (divergenciaValorDetected) { alertText += `- Faltam ${formatToBRL(totalVendidoCalc - totalPagamentos)} nos pagamentos\n`; }
-                if (caixaComProblema) { alertText += `- Falta ${formatToBRL(Math.abs(diferencaCaixa))} no caixa físico\n`; }
-                alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
-                fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>');
-                fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
-                if (!confirm(alertText)) { return; }
-            } else {
-                 if (!confirm(confirmMsg + " Todos os valores parecem corretos. Confirmar fechamento?")) { return; }
+            alertText += "\nDeseja continuar e fechar o turno mesmo assim? As divergências serão registradas.";
+            fechamentoDivergenciaAlertaGeralDiv.innerHTML = alertText.replace(/\n/g, '<br>');
+            fechamentoDivergenciaAlertaGeralDiv.classList.remove('hidden');
+            if (!confirm(alertText)) {
+                return;
             }
-            showLoadingState(true, "Fechando turno..."); btnFecharTurno.disabled = true;
-            const user = auth.currentUser;
-            if (!user) {
-                showError("Sessão expirada ou usuário deslogado. Faça login novamente para fechar o turno.");
-                 showLoadingState(false); return;
+        } else {
+            if (!confirm(confirmMsg + " Todos os valores parecem corretos. Confirmar fechamento?")) {
+                return;
             }
-            const fechamentoDataObj = { hora: getFormattedTime(), responsavelId: user.uid, responsavelNome: localStorage.getItem('userName') || user.displayName || user.email };
-            const dadosColetados = collectItemData(false); 
-            const formasPagamentoObj = {
-                dinheiro: parseCurrencyToNumber(document.getElementById('pagamentoDinheiro').value),
-                pixManual: parseCurrencyToNumber(document.getElementById('pagamentoPixManual').value),
-                stoneDCV: parseCurrencyToNumber(document.getElementById('pagamentoStoneDCV').value),
-                stoneVoucher: parseCurrencyToNumber(document.getElementById('pagamentoStoneVoucher').value),
-                pagbankDCV: parseCurrencyToNumber(document.getElementById('pagamentoPagBankDCV').value),
-            };
-            const caixaFinalDinheiro = parseCurrencyToNumber(caixaFinalDinheiroInput?.value || '0');
-            const caixaFinalMoedas = parseCurrencyToNumber(caixaFinalMoedasInput?.value || '0');
-            const caixaFinalContadoVal = caixaFinalDinheiro + caixaFinalMoedas;
-            const caixaDiferencaVal = Math.abs(diferencaCaixa);
-            const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
-            let funcionariosIncompletos = false;
-            dadosFuncionariosColaboradores.forEach(func => {
-                const temConsumo = func.consumoDetalhado && (
-        func.consumoDetalhado.pasteis.length > 0 ||
-        func.consumoDetalhado.caldo.length > 0 ||
-        func.consumoDetalhado.bebidas.length > 0
-    );
-    
-    if (!temConsumo || !func.transporte || func.horasTrabalhadas === 0) {
-        funcionariosIncompletos = true;
-    }
-});
-if (funcionariosIncompletos) {
-    showError("Por favor, preencha todos os dados dos funcionários colaboradores (pelo menos um item de consumo, transporte e horas).");
-    showLoadingState(false);
-    btnFecharTurno.disabled = false;
-    return;
-}
-            try {
-                await db.runTransaction(async (transaction) => {
-                    const turnoRef = db.collection('turnos').doc(currentTurnoId);
-                    const turnoDoc = await transaction.get(turnoRef);
-                    if (!turnoDoc.exists) { throw new Error("Turno não existe mais no servidor."); }
-                    const turnoData = turnoDoc.data();
-                    if (turnoData.status !== 'aberto') { throw new Error("Turno já foi fechado em outra sessão."); }
-                    const caixaInicialDoTurno = turnoData.caixaInicial;
-                    const turnoUpdateData = {
-                        status: 'fechado', fechamento: fechamentoDataObj, itens: dadosColetados.itens, gelo: dadosColetados.gelo, 
-                        trocaGas: document.getElementById('trocaGas').value, caixaInicial: caixaInicialDoTurno,
-                        caixaFinalContado: caixaFinalContadoVal, formasPagamento: formasPagamentoObj,
-                        totalVendidoCalculadoFinal: totalVendidoCalc, totalRegistradoPagamentosFinal: totalPagamentos,
-                        diferencaCaixaFinal: caixaDiferencaVal, funcionariosColaboradores: dadosFuncionariosColaboradores,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-                        closedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    };
-                    transaction.update(turnoRef, turnoUpdateData);
-                    return { ...turnoData, ...turnoUpdateData };
-                });
-                if (dadosFuncionariosColaboradores.length > 0) { await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores); }
-                const periodoExibicao = currentTurnoId.split('_')[1].replace(/-/g, ' ');
-                turnoStatusP.textContent = `Turno ${periodoExibicao} de ${currentTurnoId.split('_')[0]} fechado com sucesso!`;
-                turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
-                removeTurnoLocal();
-                if (unsubscribeTurnoListener) { unsubscribeTurnoListener(); unsubscribeTurnoListener = null; }
-                await carregarDadosTurnoAnterior();
-                resetFormAndState("Turno fechado com sucesso! Você já pode abrir um novo turno.");
-            } catch (error) {
-                console.error("Erro ao fechar turno: ", error);
-                showError("Falha ao fechar turno: " + error.message + ". O turno pode ainda estar aberto. Verifique e tente novamente ou contate o suporte.");
-                await checkOpenTurno();
-            } finally {
-                showLoadingState(false);
+        }
+        
+        showLoadingState(true, "Fechando turno...");
+        btnFecharTurno.disabled = true;
+        
+        const user = auth.currentUser;
+        if (!user) {
+            showError("Sessão expirada ou usuário deslogado. Faça login novamente para fechar o turno.");
+            showLoadingState(false);
+            return;
+        }
+        
+        const fechamentoDataObj = {
+            hora: getFormattedTime(),
+            responsavelId: user.uid,
+            responsavelNome: localStorage.getItem('userName') || user.displayName || user.email
+        };
+        
+        const dadosColetados = collectItemData(false);
+        
+        const formasPagamentoObj = {
+            dinheiro: parseCurrencyToNumber(document.getElementById('pagamentoDinheiro').value),
+            pixManual: parseCurrencyToNumber(document.getElementById('pagamentoPixManual').value),
+            stoneDCV: parseCurrencyToNumber(document.getElementById('pagamentoStoneDCV').value),
+            stoneVoucher: parseCurrencyToNumber(document.getElementById('pagamentoStoneVoucher').value),
+            pagbankDCV: parseCurrencyToNumber(document.getElementById('pagamentoPagBankDCV').value),
+        };
+        
+        const caixaFinalDinheiro = parseCurrencyToNumber(caixaFinalDinheiroInput?.value || '0');
+        const caixaFinalMoedas = parseCurrencyToNumber(caixaFinalMoedasInput?.value || '0');
+        const caixaFinalContadoVal = caixaFinalDinheiro + caixaFinalMoedas;
+        const caixaDiferencaVal = Math.abs(diferencaCaixa);
+        
+        const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
+        let funcionariosIncompletos = false;
+        
+        dadosFuncionariosColaboradores.forEach(func => {
+            const temConsumo = func.consumoDetalhado && (
+                func.consumoDetalhado.pasteis.length > 0 ||
+                func.consumoDetalhado.caldo.length > 0 ||
+                func.consumoDetalhado.bebidas.length > 0
+            );
+            
+            if (!temConsumo || !func.transporte || func.horasTrabalhadas === 0) {
+                funcionariosIncompletos = true;
             }
         });
-    }
+        
+        if (funcionariosIncompletos) {
+            showError("Por favor, preencha todos os dados dos funcionários colaboradores (pelo menos um item de consumo, transporte e horas).");
+            showLoadingState(false);
+            btnFecharTurno.disabled = false;
+            return;
+        }
+        
+        try {
+            await db.runTransaction(async (transaction) => {
+                const turnoRef = db.collection('turnos').doc(currentTurnoId);
+                const turnoDoc = await transaction.get(turnoRef);
+                
+                if (!turnoDoc.exists) {
+                    throw new Error("Turno não existe mais no servidor.");
+                }
+                
+                const turnoData = turnoDoc.data();
+                if (turnoData.status !== 'aberto') {
+                    throw new Error("Turno já foi fechado em outra sessão.");
+                }
+                
+                const caixaInicialDoTurno = turnoData.caixaInicial;
+                
+                const turnoUpdateData = {
+                    status: 'fechado',
+                    fechamento: fechamentoDataObj,
+                    itens: dadosColetados.itens,
+                    gelo: dadosColetados.gelo,
+                    trocaGas: document.getElementById('trocaGas').value,
+                    caixaInicial: caixaInicialDoTurno,
+                    caixaFinalContado: caixaFinalContadoVal,
+                    caixaFinalDinheiro: caixaFinalDinheiro,
+                    caixaFinalMoedas: caixaFinalMoedas,
+                    formasPagamento: formasPagamentoObj,
+                    totalVendidoCalculadoFinal: totalVendidoCalc,
+                    totalRegistradoPagamentosFinal: totalPagamentos,
+                    diferencaCaixaFinal: caixaDiferencaVal,
+                    funcionariosColaboradores: dadosFuncionariosColaboradores,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    closedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+                
+                transaction.update(turnoRef, turnoUpdateData);
+                return { ...turnoData, ...turnoUpdateData };
+            });
+            
+            if (dadosFuncionariosColaboradores.length > 0) {
+                await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
+            }
+            
+            if (turnoIdParaMensagem) {
+                const partes = turnoIdParaMensagem.split('_');
+                if (partes.length >= 2) {
+                    const [data, periodo] = partes;
+                    const periodoExibicao = periodo.replace(/-/g, ' ');
+                    turnoStatusP.textContent = `Turno ${periodoExibicao} de ${data} fechado com sucesso!`;
+                } else {
+                    turnoStatusP.textContent = 'Turno fechado com sucesso!';
+                }
+            } else {
+                turnoStatusP.textContent = 'Turno fechado com sucesso!';
+            }
+            turnoStatusP.className = 'text-center text-green-600 font-semibold mb-4';
+            
+            removeTurnoLocal();
+            
+            if (unsubscribeTurnoListener) {
+                unsubscribeTurnoListener();
+                unsubscribeTurnoListener = null;
+            }
+            
+            await carregarDadosTurnoAnterior();
+            resetFormAndState("Turno fechado com sucesso! Você já pode abrir um novo turno.");
+            
+        } catch (error) {
+            console.error("Erro ao fechar turno: ", error);
+            showError("Falha ao fechar turno: " + error.message + ". O turno pode ainda estar aberto. Verifique e tente novamente ou contate o suporte.");
+            await checkOpenTurno();
+        } finally {
+            showLoadingState(false);
+        }
+    });
+}
     
     function validateRequiredFieldsForClosure() {
         let isValid = true; const fieldsToValidate = []; const invalidFields = [];
