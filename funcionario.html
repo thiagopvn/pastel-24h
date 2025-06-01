@@ -41,6 +41,79 @@
         }
     </script>
 </head>
+<style>
+/* Fix para scroll horizontal funcionar */
+.overflow-hidden {
+    overflow: visible !important;
+}
+
+.bg-white.rounded-xl.shadow-card.overflow-hidden {
+    overflow: visible !important;
+}
+
+.p-6 {
+    overflow: visible !important;
+}
+
+.space-y-8 {
+    overflow: visible !important;
+}
+
+.table-scroll-container {
+    width: 100%;
+    overflow: visible;
+    margin: 0;
+    padding: 0;
+}
+
+.scrollable-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    border: 2px solid #FFE4B5;
+    border-radius: 12px;
+    display: block;
+}
+
+.scrollable-table {
+    min-width: 900px !important;
+    width: max-content !important;
+    table-layout: auto !important;
+}
+
+/* Força scrollbar visível */
+.scrollable-table-wrapper::-webkit-scrollbar {
+    height: 14px !important;
+    display: block !important;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-track {
+    background: #FFE4B5 !important;
+    border-radius: 7px;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb {
+    background: #FFA500 !important;
+    border-radius: 7px;
+    border: 2px solid #FFE4B5;
+}
+
+/* Remove qualquer table-layout fixed */
+table.custom-table {
+    table-layout: auto !important;
+}
+
+/* Garante que fieldsets não cortem conteúdo */
+fieldset {
+    overflow: visible !important;
+}
+
+.item-section {
+    overflow: visible !important;
+}
+</style>
 <body class="bg-pattern min-h-screen">
     <header class="bg-header-gradient text-white shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
@@ -62,53 +135,7 @@
                 </button>
             </div>
         </div>
-        <style>
-/* Força scroll horizontal em todas as tabelas */
-.table-scroll-container {
-    width: 100% !important;
-    overflow: visible !important;
-}
-
-.scrollable-table-wrapper {
-    width: 100% !important;
-    overflow-x: scroll !important;
-    overflow-y: visible !important;
-    -webkit-overflow-scrolling: touch !important;
-    display: block !important;
-}
-
-.scrollable-table {
-    min-width: 900px !important;
-    width: max-content !important;
-    display: table !important;
-}
-
-/* Força a scrollbar a aparecer sempre */
-.scrollable-table-wrapper::-webkit-scrollbar {
-    height: 14px !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    display: block !important;
-}
-
-/* Remove qualquer overflow hidden dos containers pais */
-.item-section,
-fieldset,
-.p-6,
-.space-y-8 {
-    overflow: visible !important;
-}
-
-/* Garante que o form não corte o conteúdo */
-#formTurno {
-    overflow: visible !important;
-}
-
-/* Remove table-layout fixed se ainda existir */
-table.custom-table {
-    table-layout: auto !important;
-}
-</style>
+        
     </header>
 
     <main class="container mx-auto py-6 px-4">
@@ -138,7 +165,7 @@ table.custom-table {
             </div>
         </div>
 
-        <div class="bg-white rounded-xl shadow-card overflow-hidden">
+        <div class="bg-white rounded-xl shadow-card">
             <div class="p-6">
                 <form id="formTurno" class="space-y-8">
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm">
@@ -622,5 +649,29 @@ table.custom-table {
             }, 100);
         });
     </script>
+    <script>
+// Força scroll em todas as tabelas após carregamento
+window.addEventListener('load', function() {
+    // Remove overflow hidden de todos containers
+    document.querySelectorAll('.overflow-hidden').forEach(el => {
+        el.classList.remove('overflow-hidden');
+    });
+    
+    // Força overflow correto nas wrappers
+    document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
+        wrapper.style.overflowX = 'auto';
+        wrapper.style.overflowY = 'visible';
+        wrapper.style.width = '100%';
+        wrapper.style.display = 'block';
+    });
+    
+    // Garante largura mínima nas tabelas
+    document.querySelectorAll('.scrollable-table').forEach(table => {
+        table.style.minWidth = '900px';
+        table.style.width = 'max-content';
+        table.style.tableLayout = 'auto';
+    });
+});
+</script>
 </body>
 </html>
