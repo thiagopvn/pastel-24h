@@ -568,75 +568,175 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function adicionarFuncionarioColaborador() {
-        const container = document.getElementById('funcionariosColaboradoresContainer');
-        if (!container) return;
-        const funcionarioId = `funcionario_${Date.now()}`;
-        const funcionarioDiv = document.createElement('div');
-        funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
-        funcionarioDiv.id = funcionarioId;
-        const optionsHtml = listaFuncionariosDisponiveis.map(f => 
-            `<option value="${f.id}">${f.nome} (${f.email})</option>`
-        ).join('');
-        funcionarioDiv.innerHTML = `
-            <div class="flex justify-between items-start mb-3">
-                <h4 class="text-md font-semibold text-gray-700 flex items-center">
-                    <i class="fas fa-user mr-2"></i>
-                    Funcionário Colaborador
-                </h4>
-                <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
-                        class="text-red-500 hover:text-red-700 transition-colors">
-                    <i class="fas fa-times-circle"></i>
-                </button>
+    const container = document.getElementById('funcionariosColaboradoresContainer');
+    if (!container) return;
+    const funcionarioId = `funcionario_${Date.now()}`;
+    const funcionarioDiv = document.createElement('div');
+    funcionarioDiv.className = 'bg-white p-4 rounded-lg border border-gray-200 shadow-sm';
+    funcionarioDiv.id = funcionarioId;
+    
+    const optionsHtml = listaFuncionariosDisponiveis.map(f => 
+        `<option value="${f.id}">${f.nome} (${f.email})</option>`
+    ).join('');
+    
+    funcionarioDiv.innerHTML = `
+        <div class="flex justify-between items-start mb-3">
+            <h4 class="text-md font-semibold text-gray-700 flex items-center">
+                <i class="fas fa-user mr-2"></i>
+                Funcionário Colaborador
+            </h4>
+            <button type="button" onclick="removerFuncionarioColaborador('${funcionarioId}')" 
+                    class="text-red-500 hover:text-red-700 transition-colors">
+                <i class="fas fa-times-circle"></i>
+            </button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
+                </label>
+                <select id="${funcionarioId}_select" 
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                    <option value="">-- Selecione um funcionário --</option>
+                    ${optionsHtml}
+                </select>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-user-circle mr-1"></i>Selecione o Funcionário
-                    </label>
-                    <select id="${funcionarioId}_select" 
-                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                        <option value="">-- Selecione um funcionário --</option>
-                        ${optionsHtml}
-                    </select>
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-utensils mr-1"></i>O que consumiu? (Detalhe os itens)
-                    </label>
-                    <textarea id="${funcionarioId}_consumo" 
-                              rows="2"
-                              placeholder="Ex: 1 Pastel de Carne, 1 Caldo 300ml"
-                              class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500"></textarea>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-bus mr-1"></i>Meio de Transporte
-                    </label>
-                    <select id="${funcionarioId}_transporte" 
-                            class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
-                        <option value="">-- Selecione --</option>
-                        <option value="onibus">Ônibus</option> <option value="metro">Metrô</option>
-                        <option value="trem">Trem</option> <option value="carro">Carro Próprio</option>
-                        <option value="moto">Moto</option> <option value="bicicleta">Bicicleta</option>
-                        <option value="ape">A pé</option> <option value="carona">Carona</option>
-                        <option value="uber">Uber/99/Táxi</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
-                    </label>
-                    <input type="number" 
-                           id="${funcionarioId}_horas" 
-                           min="0" max="24" step="0.5"
-                           placeholder="Ex: 8"
-                           class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+            
+            <!-- NOVO SISTEMA DE CONSUMO -->
+            <div class="md:col-span-2">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-utensils mr-1"></i>Consumo do Funcionário
+                </label>
+                <div id="${funcionarioId}_consumo_container" class="space-y-3">
+                    
+                    <!-- Seção Pastéis -->
+                    <div class="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                        <h5 class="text-sm font-semibold text-orange-700 mb-2">
+                            <i class="fas fa-pizza-slice mr-1"></i>Pastéis
+                        </h5>
+                        <div id="${funcionarioId}_consumo_pasteis" class="space-y-2">
+                            <button type="button" onclick="adicionarItemConsumo('${funcionarioId}', 'pasteis')" 
+                                    class="text-sm bg-orange-500 hover:bg-orange-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-plus mr-1"></i>Adicionar Pastel
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção Caldo de Cana -->
+                    <div class="bg-green-50 p-3 rounded-lg border border-green-200">
+                        <h5 class="text-sm font-semibold text-green-700 mb-2">
+                            <i class="fas fa-glass-whiskey mr-1"></i>Caldo de Cana
+                        </h5>
+                        <div id="${funcionarioId}_consumo_caldo" class="space-y-2">
+                            <button type="button" onclick="adicionarItemConsumo('${funcionarioId}', 'caldo')" 
+                                    class="text-sm bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-plus mr-1"></i>Adicionar Caldo
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Seção Refrigerantes e Bebidas -->
+                    <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                        <h5 class="text-sm font-semibold text-blue-700 mb-2">
+                            <i class="fas fa-bottle-water mr-1"></i>Refrigerantes e Bebidas
+                        </h5>
+                        <div id="${funcionarioId}_consumo_bebidas" class="space-y-2">
+                            <button type="button" onclick="adicionarItemConsumo('${funcionarioId}', 'bebidas')" 
+                                    class="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded">
+                                <i class="fas fa-plus mr-1"></i>Adicionar Bebida
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
-        `;
-        container.appendChild(funcionarioDiv);
-        funcionariosColaboradores.push(funcionarioId);
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-bus mr-1"></i>Meio de Transporte
+                </label>
+                <select id="${funcionarioId}_transporte" 
+                        class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+                    <option value="">-- Selecione --</option>
+                    <option value="onibus">Ônibus</option>
+                    <option value="metro">Metrô</option>
+                    <option value="trem">Trem</option>
+                    <option value="carro">Carro Próprio</option>
+                    <option value="moto">Moto</option>
+                    <option value="bicicleta">Bicicleta</option>
+                    <option value="ape">A pé</option>
+                    <option value="carona">Carona</option>
+                    <option value="uber">Uber/99/Táxi</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">
+                    <i class="fas fa-clock mr-1"></i>Horas Trabalhadas
+                </label>
+                <input type="number" 
+                       id="${funcionarioId}_horas" 
+                       min="0" max="24" step="0.5"
+                       placeholder="Ex: 8"
+                       class="w-full p-2 border border-gray-300 rounded-lg focus:ring-pastel-orange-500 focus:border-pastel-orange-500">
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(funcionarioDiv);
+    funcionariosColaboradores.push(funcionarioId);
+}
+
+// Função para adicionar item de consumo
+window.adicionarItemConsumo = function(funcionarioId, categoria) {
+    const itemId = `item_${Date.now()}`;
+    const container = document.getElementById(`${funcionarioId}_consumo_${categoria}`);
+    if (!container) return;
+    
+    let options = '';
+    let produtos = [];
+    
+    switch(categoria) {
+        case 'pasteis':
+
+            const todosPasteis = [...localListaSaboresPasteis, ...localListaCasquinhas];
+            produtos = todosPasteis;
+            break;
+        case 'caldo':
+
+            produtos = localListaCaldoCana.filter(item => item !== "Fardo de Cana");
+            break;
+        case 'bebidas':
+            produtos = localListaRefrigerantes;
+            break;
     }
+    
+    options = produtos.map(produto => `<option value="${produto}">${produto}</option>`).join('');
+    
+    const itemDiv = document.createElement('div');
+    itemDiv.id = itemId;
+    itemDiv.className = 'flex items-center gap-2 mb-2';
+    itemDiv.innerHTML = `
+        <select id="${itemId}_produto" class="flex-1 p-2 border border-gray-300 rounded text-sm">
+            <option value="">Selecione...</option>
+            ${options}
+        </select>
+        <input type="number" id="${itemId}_quantidade" min="1" value="1" 
+               class="w-20 p-2 border border-gray-300 rounded text-sm" placeholder="Qtd">
+        <button type="button" onclick="removerItemConsumo('${itemId}')" 
+                class="text-red-500 hover:text-red-700">
+            <i class="fas fa-trash text-sm"></i>
+        </button>
+    `;
+
+    const addButton = container.querySelector('button');
+    container.insertBefore(itemDiv, addButton);
+}
+
+window.removerItemConsumo = function(itemId) {
+    const item = document.getElementById(itemId);
+    if (item) {
+        item.remove();
+    }
+}
 
     window.removerFuncionarioColaborador = function(funcionarioId) {
         const elemento = document.getElementById(funcionarioId);
@@ -647,47 +747,116 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function coletarDadosFuncionariosColaboradores() {
-        const dados = [];
-        if (!funcionariosColaboradores || funcionariosColaboradores.length === 0) {
-            console.log("Nenhum funcionário colaborador para coletar dados");
-            return dados;
-        }
-        funcionariosColaboradores.forEach(funcionarioId => {
-            try {
-                const selectElement = document.getElementById(`${funcionarioId}_select`);
-                const consumoElement = document.getElementById(`${funcionarioId}_consumo`);
-                const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
-                const horasElement = document.getElementById(`${funcionarioId}_horas`);
-                if (selectElement && selectElement.value) {
-                    const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
-                    if (!funcionarioSelecionado) {
-                        console.warn(`Funcionário ${selectElement.value} não encontrado na lista`);
-                        return;
-                    }
-                    const dadosFuncionario = {
-                        funcionarioId: selectElement.value,
-                        funcionarioNome: funcionarioSelecionado.nome || 'Nome não disponível',
-                        consumo: consumoElement?.value || '',
-                        transporte: transporteElement?.value || '',
-                        horasTrabalhadas: parseFloat(horasElement?.value) || 0,
-                        registradoPor: {
-                            id: auth.currentUser?.uid || '',
-                            nome: localStorage.getItem('userName') || auth.currentUser?.email || 'Usuário desconhecido'
-                        },
-                        dataRegistro: new Date().toISOString()
-                    };
-                    if (dadosFuncionario.funcionarioId) {
-                        dados.push(dadosFuncionario);
-                        console.log(`Dados coletados para funcionário: ${dadosFuncionario.funcionarioNome}`);
-                    }
-                }
-            } catch (err) {
-                console.error(`Erro ao coletar dados do funcionário ${funcionarioId}:`, err);
-            }
-        });
-        console.log(`Total de ${dados.length} funcionário(s) com dados coletados`);
+    const dados = [];
+    if (!funcionariosColaboradores || funcionariosColaboradores.length === 0) {
+        console.log("Nenhum funcionário colaborador para coletar dados");
         return dados;
     }
+    
+    funcionariosColaboradores.forEach(funcionarioId => {
+        try {
+            const selectElement = document.getElementById(`${funcionarioId}_select`);
+            const transporteElement = document.getElementById(`${funcionarioId}_transporte`);
+            const horasElement = document.getElementById(`${funcionarioId}_horas`);
+            
+            if (selectElement && selectElement.value) {
+                const funcionarioSelecionado = listaFuncionariosDisponiveis.find(f => f.id === selectElement.value);
+                if (!funcionarioSelecionado) {
+                    console.warn(`Funcionário ${selectElement.value} não encontrado na lista`);
+                    return;
+                }
+                
+                // Coletar dados de consumo estruturado
+                const consumoDetalhado = {
+                    pasteis: [],
+                    caldo: [],
+                    bebidas: []
+                };
+                
+                // Coletar pastéis
+                const pasteiContainer = document.getElementById(`${funcionarioId}_consumo_pasteis`);
+                if (pasteiContainer) {
+                    pasteiContainer.querySelectorAll('div[id^="item_"]').forEach(itemDiv => {
+                        const produtoSelect = itemDiv.querySelector('select');
+                        const quantidadeInput = itemDiv.querySelector('input[type="number"]');
+                        if (produtoSelect && produtoSelect.value && quantidadeInput && quantidadeInput.value) {
+                            consumoDetalhado.pasteis.push({
+                                produto: produtoSelect.value,
+                                quantidade: parseInt(quantidadeInput.value)
+                            });
+                        }
+                    });
+                }
+                
+                // Coletar caldo de cana
+                const caldoContainer = document.getElementById(`${funcionarioId}_consumo_caldo`);
+                if (caldoContainer) {
+                    caldoContainer.querySelectorAll('div[id^="item_"]').forEach(itemDiv => {
+                        const produtoSelect = itemDiv.querySelector('select');
+                        const quantidadeInput = itemDiv.querySelector('input[type="number"]');
+                        if (produtoSelect && produtoSelect.value && quantidadeInput && quantidadeInput.value) {
+                            consumoDetalhado.caldo.push({
+                                produto: produtoSelect.value,
+                                quantidade: parseInt(quantidadeInput.value)
+                            });
+                        }
+                    });
+                }
+                
+                // Coletar bebidas
+                const bebidasContainer = document.getElementById(`${funcionarioId}_consumo_bebidas`);
+                if (bebidasContainer) {
+                    bebidasContainer.querySelectorAll('div[id^="item_"]').forEach(itemDiv => {
+                        const produtoSelect = itemDiv.querySelector('select');
+                        const quantidadeInput = itemDiv.querySelector('input[type="number"]');
+                        if (produtoSelect && produtoSelect.value && quantidadeInput && quantidadeInput.value) {
+                            consumoDetalhado.bebidas.push({
+                                produto: produtoSelect.value,
+                                quantidade: parseInt(quantidadeInput.value)
+                            });
+                        }
+                    });
+                }
+                
+                // Gerar texto resumido do consumo para compatibilidade
+                let consumoTexto = [];
+                if (consumoDetalhado.pasteis.length > 0) {
+                    consumoTexto.push(...consumoDetalhado.pasteis.map(item => `${item.quantidade} ${item.produto}`));
+                }
+                if (consumoDetalhado.caldo.length > 0) {
+                    consumoTexto.push(...consumoDetalhado.caldo.map(item => `${item.quantidade} ${item.produto}`));
+                }
+                if (consumoDetalhado.bebidas.length > 0) {
+                    consumoTexto.push(...consumoDetalhado.bebidas.map(item => `${item.quantidade} ${item.produto}`));
+                }
+                
+                const dadosFuncionario = {
+                    funcionarioId: selectElement.value,
+                    funcionarioNome: funcionarioSelecionado.nome || 'Nome não disponível',
+                    consumo: consumoTexto.join(', '), // Texto resumido para compatibilidade
+                    consumoDetalhado: consumoDetalhado, // Novo campo com dados estruturados
+                    transporte: transporteElement?.value || '',
+                    horasTrabalhadas: parseFloat(horasElement?.value) || 0,
+                    registradoPor: {
+                        id: auth.currentUser?.uid || '',
+                        nome: localStorage.getItem('userName') || auth.currentUser?.email || 'Usuário desconhecido'
+                    },
+                    dataRegistro: new Date().toISOString()
+                };
+                
+                if (dadosFuncionario.funcionarioId) {
+                    dados.push(dadosFuncionario);
+                    console.log(`Dados coletados para funcionário: ${dadosFuncionario.funcionarioNome}`);
+                }
+            }
+        } catch (err) {
+            console.error(`Erro ao coletar dados do funcionário ${funcionarioId}:`, err);
+        }
+    });
+    
+    console.log(`Total de ${dados.length} funcionário(s) com dados coletados`);
+    return dados;
+}
 
     async function salvarDadosFuncionariosColaboradores(turnoId, dadosFuncionarios) {
         if (!dadosFuncionarios || dadosFuncionarios.length === 0) return;
@@ -1732,12 +1901,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             const dadosFuncionariosColaboradores = coletarDadosFuncionariosColaboradores();
             let funcionariosIncompletos = false;
             dadosFuncionariosColaboradores.forEach(func => {
-                if (!func.consumo || !func.transporte || func.horasTrabalhadas === 0) { funcionariosIncompletos = true; }
-            });
-            if (funcionariosIncompletos) {
-                showError("Por favor, preencha todos os dados dos funcionários colaboradores (consumo, transporte e horas).");
-                showLoadingState(false); btnFecharTurno.disabled = false; return;
-            }
+                const temConsumo = func.consumoDetalhado && (
+        func.consumoDetalhado.pasteis.length > 0 ||
+        func.consumoDetalhado.caldo.length > 0 ||
+        func.consumoDetalhado.bebidas.length > 0
+    );
+    
+    if (!temConsumo || !func.transporte || func.horasTrabalhadas === 0) {
+        funcionariosIncompletos = true;
+    }
+});
+if (funcionariosIncompletos) {
+    showError("Por favor, preencha todos os dados dos funcionários colaboradores (pelo menos um item de consumo, transporte e horas).");
+    showLoadingState(false);
+    btnFecharTurno.disabled = false;
+    return;
+}
             try {
                 await db.runTransaction(async (transaction) => {
                     const turnoRef = db.collection('turnos').doc(currentTurnoId);
