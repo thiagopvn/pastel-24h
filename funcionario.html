@@ -41,6 +41,93 @@
         }
     </script>
 </head>
+<!-- Adicione este CSS ao seu arquivo HTML dentro da tag <head> ou no seu arquivo style.css -->
+
+<style>
+/* Header fixo com fundo laranja bonito */
+header {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%) !important;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3) !important;
+}
+
+/* Ajuste do espaço do main para compensar o header fixo */
+main {
+    margin-top: 80px !important;
+}
+
+/* Título com letras brancas e estilização aprimorada */
+header h1 {
+    color: #FFFFFF !important;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    font-weight: 700 !important;
+    letter-spacing: 0.5px;
+}
+
+/* Ícone do título também em branco */
+header svg {
+    color: #FFFFFF !important;
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+/* Container do usuário com fundo semi-transparente melhorado */
+header .bg-white.bg-opacity-20 {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Botão de logout com estilo harmonizado */
+header #logoutButton {
+    background-color: rgba(220, 38, 38, 0.9) !important;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+header #logoutButton:hover {
+    background-color: rgba(185, 28, 28, 0.95) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Animação suave ao carregar */
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+header {
+    animation: slideDown 0.3s ease-out;
+}
+
+/* Responsividade melhorada */
+@media (max-width: 640px) {
+    main {
+        margin-top: 120px !important;
+    }
+    
+    header h1 {
+        font-size: 1.125rem !important;
+    }
+}
+
+/* Efeito de brilho no título ao passar o mouse */
+header h1:hover {
+    text-shadow: 2px 2px 8px rgba(255, 255, 255, 0.5), 
+                 -2px -2px 8px rgba(255, 255, 255, 0.5);
+    transition: text-shadow 0.3s ease;
+}
+</style>
 <body class="bg-pattern min-h-screen">
     <header class="bg-header-gradient text-white shadow-lg sticky top-0 z-50">
         <div class="container mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
