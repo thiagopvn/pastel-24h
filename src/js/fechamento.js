@@ -701,99 +701,100 @@ class FechamentoSemanal {
     }
 
     renderVisualizacaoDiaria() {
-        this.elements.diasSemanaCards.innerHTML = '';
+    this.elements.diasSemanaCards.innerHTML = '';
+    
+    this.state.diasSemana.forEach((dia) => {
+        const dateStr = this.formatDate(dia);
+        const diaSemanaIndex = dia.getDay();
+        const diaSemana = diaSemanaIndex === 0 ? 'Domingo' : this.CONFIG.diasSemana[diaSemanaIndex - 1];
         
-        this.state.diasSemana.forEach((dia, index) => {
-            const dateStr = this.formatDate(dia);
-            const diaSemana = this.CONFIG.diasSemana[index];
+        const card = document.createElement('div');
+        card.className = 'day-card p-6 rounded-xl animate-slide-in';
+        
+        let conteudoDia = `
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                ${diaSemana} ${dia.getDate()}/${dia.getMonth() + 1}
+            </h3>
+            <div class="space-y-3">
+        `;
+        
+        let funcionariosDia = 0;
+        
+        this.state.funcionarios.forEach(func => {
+            const dadosDia = this.obterDadosDiaFuncionario(func.uid, dateStr);
             
-            const card = document.createElement('div');
-            card.className = 'day-card p-6 rounded-xl animate-slide-in';
-            
-            let conteudoDia = `
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">
-                    ${diaSemana} ${dia.getDate()}/${dia.getMonth() + 1}
-                </h3>
-                <div class="space-y-3">
-            `;
-            
-            // Listar funcionários que trabalharam neste dia
-            let funcionariosDia = 0;
-            
-            this.state.funcionarios.forEach(func => {
-                const dadosDia = this.obterDadosDiaFuncionario(func.uid, dateStr);
+            if (dadosDia.trabalhou) {
+                funcionariosDia++;
+                const indexParaInput = this.state.diasSemana.findIndex(d => this.formatDate(d) === dateStr);
                 
-                if (dadosDia.trabalhou) {
-                    funcionariosDia++;
-                    
-                    conteudoDia += `
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <div class="flex justify-between items-start mb-2">
-                                <span class="text-sm font-medium text-gray-700">${func.nome}</span>
-                                <span class="text-xs text-gray-500">${dadosDia.horas.toFixed(1)}h</span>
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                    <label class="text-gray-500">Horas</label>
-                                    <input type="number" 
-                                           id="${func.uid}_${index}_horas"
-                                           value="${dadosDia.horas}"
-                                           min="0" max="24" step="0.5"
-                                           class="w-full px-2 py-1 border rounded text-sm">
-                                </div>
-                                <div>
-                                    <label class="text-gray-500">Alim.</label>
-                                    <input type="number" 
-                                           id="${func.uid}_${index}_alimentacao"
-                                           value="${dadosDia.alimentacao}"
-                                           min="0" step="0.01"
-                                           class="w-full px-2 py-1 border rounded text-sm">
-                                </div>
-                                <div>
-                                    <label class="text-gray-500">Transp.</label>
-                                    <select id="${func.uid}_${index}_transporte"
-                                            class="w-full px-2 py-1 border rounded text-sm">
-                                        <option value="nenhum" ${dadosDia.transporteTipo === 'nenhum' ? 'selected' : ''}>-</option>
-                                        <option value="onibus" ${dadosDia.transporteTipo === 'onibus' ? 'selected' : ''}>🚌 Ônibus</option>
-                                        <option value="moto" ${dadosDia.transporteTipo === 'moto' ? 'selected' : ''}>🏍️ Moto</option>
-                                        <option value="carro" ${dadosDia.transporteTipo === 'carro' ? 'selected' : ''}>🚗 Carro</option>
-                                        <option value="bicicleta" ${dadosDia.transporteTipo === 'bicicleta' ? 'selected' : ''}>🚲 Bicicleta</option>
-                                        <option value="outros" ${dadosDia.transporteTipo === 'outros' ? 'selected' : ''}>📍 Outros</option>
-                                    </select>
-                                </div>
-                                <div class="text-center pt-4">
-                                    <span class="text-red-600 font-medium">
-                                        Consumo: ${this.formatCurrency(dadosDia.consumo)}
-                                    </span>
-                                </div>
-                            </div>
-                            ${dadosDia.fonte ? `
-                                <div class="mt-2 text-xs text-gray-400">
-                                    <i class="fas fa-info-circle mr-1"></i>
-                                    Fonte: ${dadosDia.fonte}
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                }
-            });
-            
-            if (funcionariosDia === 0) {
                 conteudoDia += `
-                    <div class="text-center py-4 text-gray-400">
-                        <i class="fas fa-calendar-times text-2xl mb-2"></i>
-                        <p class="text-sm">Nenhum funcionário trabalhou neste dia</p>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-sm font-medium text-gray-700">${func.nome}</span>
+                            <span class="text-xs text-gray-500">${dadosDia.horas.toFixed(1)}h</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                                <label class="text-gray-500">Horas</label>
+                                <input type="number" 
+                                       id="${func.uid}_${indexParaInput}_horas"
+                                       value="${dadosDia.horas}"
+                                       min="0" max="24" step="0.5"
+                                       class="w-full px-2 py-1 border rounded text-sm">
+                            </div>
+                            <div>
+                                <label class="text-gray-500">Alim.</label>
+                                <input type="number" 
+                                       id="${func.uid}_${indexParaInput}_alimentacao"
+                                       value="${dadosDia.alimentacao}"
+                                       min="0" step="0.01"
+                                       class="w-full px-2 py-1 border rounded text-sm">
+                            </div>
+                            <div>
+                                <label class="text-gray-500">Transp.</label>
+                                <select id="${func.uid}_${indexParaInput}_transporte"
+                                        class="w-full px-2 py-1 border rounded text-sm">
+                                    <option value="nenhum" ${dadosDia.transporteTipo === 'nenhum' ? 'selected' : ''}>-</option>
+                                    <option value="onibus" ${dadosDia.transporteTipo === 'onibus' ? 'selected' : ''}>🚌 Ônibus</option>
+                                    <option value="moto" ${dadosDia.transporteTipo === 'moto' ? 'selected' : ''}>🏍️ Moto</option>
+                                    <option value="carro" ${dadosDia.transporteTipo === 'carro' ? 'selected' : ''}>🚗 Carro</option>
+                                    <option value="bicicleta" ${dadosDia.transporteTipo === 'bicicleta' ? 'selected' : ''}>🚲 Bicicleta</option>
+                                    <option value="outros" ${dadosDia.transporteTipo === 'outros' ? 'selected' : ''}>📍 Outros</option>
+                                </select>
+                            </div>
+                            <div class="text-center pt-4">
+                                <span class="text-red-600 font-medium">
+                                    Consumo: ${this.formatCurrency(dadosDia.consumo)}
+                                </span>
+                            </div>
+                        </div>
+                        ${dadosDia.fonte ? `
+                            <div class="mt-2 text-xs text-gray-400">
+                                <i class="fas fa-info-circle mr-1"></i>
+                                Fonte: ${dadosDia.fonte}
+                            </div>
+                        ` : ''}
                     </div>
                 `;
             }
-            
-            conteudoDia += '</div>';
-            
-            card.innerHTML = conteudoDia;
-            this.elements.diasSemanaCards.appendChild(card);
         });
-    }
+        
+        if (funcionariosDia === 0) {
+            conteudoDia += `
+                <div class="text-center py-4 text-gray-400">
+                    <i class="fas fa-calendar-times text-2xl mb-2"></i>
+                    <p class="text-sm">Nenhum funcionário trabalhou neste dia</p>
+                </div>
+            `;
+        }
+        
+        conteudoDia += '</div>';
+        
+        card.innerHTML = conteudoDia;
+        this.elements.diasSemanaCards.appendChild(card);
+    });
+}
 
     renderPorFuncionario() {
         this.elements.funcionariosDetailCards.innerHTML = '';
