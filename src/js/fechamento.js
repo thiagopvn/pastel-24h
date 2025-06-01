@@ -703,7 +703,15 @@ class FechamentoSemanal {
     renderVisualizacaoDiaria() {
     this.elements.diasSemanaCards.innerHTML = '';
     
-    this.state.diasSemana.forEach((dia) => {
+     const diasOrdenados = [...this.state.diasSemana].sort((a, b) => {
+        const diaA = a.getDay();
+        const diaB = b.getDay();
+        const ordemA = diaA === 0 ? 7 : diaA;
+        const ordemB = diaB === 0 ? 7 : diaB;
+        return ordemA - ordemB;
+    });
+    
+    diasOrdenados.forEach((dia) => {
         const dateStr = this.formatDate(dia);
         const diaSemanaIndex = dia.getDay();
         const diaSemana = diaSemanaIndex === 0 ? 'Domingo' : this.CONFIG.diasSemana[diaSemanaIndex - 1];
