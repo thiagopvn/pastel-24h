@@ -123,47 +123,7 @@ input[readonly]:focus {
     border-color: #D1D5DB;
 }
 
-table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    margin-top: 1rem;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border-radius: 0.5rem;
-    overflow: hidden;
-}
-
-th, td {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 1px solid #E5E7EB;
-}
-
-th {
-    background-color: #F9FAFB;
-    color: var(--color-text-medium);
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-}
-thead th:first-child { border-top-left-radius: 0.5rem; }
-thead th:last-child { border-top-right-radius: 0.5rem; }
-
-tbody tr:last-child td {
-    border-bottom: none;
-}
-tbody tr:last-child td:first-child { border-bottom-left-radius: 0.5rem; }
-tbody tr:last-child td:last-child { border-bottom-right-radius: 0.5rem; }
-
-tbody tr:hover {
-    background-color: #FEF3C7;
-}
-
-td input[type="number"], td input[type="text"] {
-    padding: 0.5rem;
-    font-size: 0.875rem;
-}
+/* Removido 'table' genérico para focar no específico da tabela com scroll */
 
 fieldset {
     border: 1px solid #E5E7EB;
@@ -676,8 +636,8 @@ input[type="number"].at-limit { background-color: #FEF3C7 !important; border-col
 .scroll-indicator { position: absolute; top: 0; bottom: 0; width: 30px; pointer-events: none; z-index: 10; display: none; }
 .scroll-indicator.left { left: 0; background: linear-gradient(to right, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%); box-shadow: inset 10px 0 10px -10px rgba(0,0,0,0.2); }
 .scroll-indicator.right { right: 0; background: linear-gradient(to left, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%); box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.2); }
-.scrollable-table { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scroll-snap-type: x proximity; overflow-x: auto; }
-.scrollable-table table { width: 100%; }
+.scrollable-table { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scroll-snap-type: x proximity; overflow-x: auto; width: 100%; }
+.scrollable-table table { min-width: max-content; width: auto; border-collapse: separate; }
 .scrollable-table th, .scrollable-table td { white-space: nowrap; }
 .scrollable-table td input[type="number"] { min-width: 75px; }
 .scrollable-table th:first-child, .scrollable-table td:first-child { min-width: 150px; }
