@@ -43,26 +43,15 @@
 </head>
 <!-- Adicione este CSS ao seu arquivo HTML dentro da tag <head> ou no seu arquivo style.css -->
 <style>
+.custom-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: max-content;
+}
+
 .custom-table thead {
     background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
     position: relative;
-    overflow: hidden;
-}
-
-.custom-table thead::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    animation: shimmer 3s infinite;
-}
-
-@keyframes shimmer {
-    0% { left: -100%; }
-    100% { left: 100%; }
 }
 
 .custom-table thead tr {
@@ -79,12 +68,11 @@
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
     background: transparent;
     position: relative;
-    transition: all 0.3s ease;
+    transition: background 0.3s ease;
 }
 
 .custom-table thead th:hover {
     background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
 }
 
 .custom-table thead th:first-child {
@@ -114,7 +102,7 @@
     width: 0;
     height: 2px;
     background: #FFFFFF;
-    transition: all 0.3s ease;
+    transition: width 0.3s ease;
     transform: translateX(-50%);
 }
 
@@ -132,17 +120,67 @@
 }
 
 .custom-table tbody tr {
-    transition: all 0.2s ease;
+    transition: background-color 0.2s ease;
 }
 
 .custom-table tbody tr:hover {
     background: #FFF5E6;
-    transform: scale(1.01);
-    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.15);
+}
+
+.custom-table input[type="text"], 
+.custom-table input[type="number"] {
+    width: 100%;
+    min-width: 60px;
+    box-sizing: border-box;
 }
 
 .custom-table tfoot {
     font-weight: 600;
+}
+
+.table-scroll-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(255, 140, 0, 0.1);
+    position: relative;
+    width: 100%;
+}
+
+.scrollable-table-wrapper {
+    border: 2px solid #FFE4B5;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar {
+    height: 14px;
+    background: #FFE4B5;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-track {
+    background: #FFE4B5;
+    border-radius: 7px;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb {
+    background: #FFA500;
+    border-radius: 7px;
+    border: 2px solid #FFE4B5;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #FF8C00;
+}
+
+.scrollable-table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: #FFA500 #FFE4B5;
+}
+
+.item-section {
+    overflow: visible;
 }
 
 @media (max-width: 768px) {
@@ -155,6 +193,10 @@
     .custom-table thead th i {
         display: none;
     }
+    
+    .scrollable-table-wrapper::-webkit-scrollbar {
+        height: 10px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -162,16 +204,6 @@
         font-size: 0.6rem;
         padding: 10px 2px;
     }
-}
-
-.table-scroll-container {
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 4px 15px rgba(255, 140, 0, 0.1);
-}
-
-.scrollable-table-wrapper {
-    border: 2px solid #FFE4B5;
 }
 </style>
 <style>
