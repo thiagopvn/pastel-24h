@@ -1406,7 +1406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         tr.dataset.categoryKey = categoryKey;
 
         const tdName = document.createElement('td');
-        tdName.className = 'px-3 py-2 font-medium text-gray-800';
+         tdName.className = 'px-3 py-2 font-medium text-gray-800 sticky left-0 bg-white z-5';
         tdName.textContent = itemName;
         tr.appendChild(tdName);
 
@@ -3175,6 +3175,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     initializePage();
 });
+
+// Função para gerenciar indicadores de scroll
+function setupScrollIndicators() {
+    document.querySelectorAll('.table-scroll-container').forEach(container => {
+        const scrollable = container.querySelector('.scrollable-table');
+        const leftIndicator = container.querySelector('.scroll-indicator.left');
+        const rightIndicator = container.querySelector('.scroll-indicator.right');
+        
+        if (!scrollable || !leftIndicator || !rightIndicator) return;
+        
+        function updateIndicators() {
+            const scrollLeft = scrollable.scrollLeft;
+            const scrollWidth = scrollable.scrollWidth;
+            const clientWidth = scrollable.clientWidth;
+            
+            // Mostrar/ocultar indicadores baseado na posição do scroll
+            leftIndicator.style.display = scrollLeft > 10 ? 'block' : 'none';
+            rightIndicator.style.display = 
+                scrollLeft < (scrollWidth - clientWidth - 10) ? 'block' : 'none';
+        }
+        
+        // Atualizar indicadores no scroll
+        scrollable.addEventListener('scroll', updateIndicators);
+        
+        // Atualizar no resize
+        window.addEventListener('resize', updateIndicators);
+        
+        // Verificar inicial
+        setTimeout(updateIndicators, 100);
+    });
+}
+
+// Chamar após carregar as tabelas
+setupScrollIndicators();
 
 if (typeof getFormattedDate === 'undefined') {
     function getFormattedDate(date = new Date()) {
