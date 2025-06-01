@@ -62,6 +62,53 @@
                 </button>
             </div>
         </div>
+        <style>
+/* Força scroll horizontal em todas as tabelas */
+.table-scroll-container {
+    width: 100% !important;
+    overflow: visible !important;
+}
+
+.scrollable-table-wrapper {
+    width: 100% !important;
+    overflow-x: scroll !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch !important;
+    display: block !important;
+}
+
+.scrollable-table {
+    min-width: 900px !important;
+    width: max-content !important;
+    display: table !important;
+}
+
+/* Força a scrollbar a aparecer sempre */
+.scrollable-table-wrapper::-webkit-scrollbar {
+    height: 14px !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    display: block !important;
+}
+
+/* Remove qualquer overflow hidden dos containers pais */
+.item-section,
+fieldset,
+.p-6,
+.space-y-8 {
+    overflow: visible !important;
+}
+
+/* Garante que o form não corte o conteúdo */
+#formTurno {
+    overflow: visible !important;
+}
+
+/* Remove table-layout fixed se ainda existir */
+table.custom-table {
+    table-layout: auto !important;
+}
+</style>
     </header>
 
     <main class="container mx-auto py-6 px-4">
