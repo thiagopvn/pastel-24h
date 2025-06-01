@@ -1,24 +1,19 @@
-/* css/style.css */
-
-/* --- Variáveis Globais de Cores e Fontes (Opcional, mas bom para consistência) --- */
 :root {
-    --color-primary: #F97316; /* Laranja principal (Tailwind orange-600) */
-    --color-primary-hover: #EA580C; /* Laranja mais escuro (Tailwind orange-700) */
-    --color-secondary: #FBBF24; /* Amarelo (Tailwind amber-400) */
-    --color-accent: #D97706; /* Laranja/marrom mais escuro (Tailwind amber-600) */
-    --color-text-dark: #1F2937; /* Cinza escuro (Tailwind gray-800) */
-    --color-text-medium: #4B5563; /* Cinza médio (Tailwind gray-600) */
-    --color-text-light: #F9FAFB; /* Cinza claro / Branco (Tailwind gray-50) */
-    --color-background: #F3F4F6; /* Fundo principal (Tailwind gray-100) */
-    --color-surface: #FFFFFF; /* Superfície de cards, inputs (Branco) */
-    --color-error: #DC2626; /* Vermelho para erros (Tailwind red-600) */
-    --color-success: #16A34A; /* Verde para sucesso (Tailwind green-600) */
-
+    --color-primary: #F97316;
+    --color-primary-hover: #EA580C;
+    --color-secondary: #FBBF24;
+    --color-accent: #D97706;
+    --color-text-dark: #1F2937;
+    --color-text-medium: #4B5563;
+    --color-text-light: #F9FAFB;
+    --color-background: #F3F4F6;
+    --color-surface: #FFFFFF;
+    --color-error: #DC2626;
+    --color-success: #16A34A;
     --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
-    --font-display: 'Poppins', var(--font-sans); /* Uma fonte mais estilizada para títulos, opcional */
+    --font-display: 'Poppins', var(--font-sans);
 }
 
-/* --- Estilos Globais --- */
 body {
     font-family: var(--font-sans);
     background-color: var(--color-background);
@@ -30,47 +25,24 @@ body {
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
-    color: var(--color-primary); /* Títulos com a cor primária */
-    margin-bottom: 0.75em; /* Espaçamento padrão para títulos */
+    color: var(--color-primary);
+    margin-bottom: 0.75em;
 }
-h1 { font-size: 2.25rem; line-height: 2.5rem; } /* Equivalente a text-4xl do Tailwind */
-h2 { font-size: 1.875rem; line-height: 2.25rem; } /* Equivalente a text-3xl */
-h3 { font-size: 1.5rem; line-height: 2rem; } /* Equivalente a text-2xl */
 
+h1 { font-size: 2.25rem; line-height: 2.5rem; }
+h2 { font-size: 1.875rem; line-height: 2.25rem; }
+h3 { font-size: 1.5rem; line-height: 2rem; }
 
-/* --- Customização do Cabeçalho --- */
-/* O Tailwind já faz isso bem, mas podemos adicionar um toque se necessário */
-/*
-header {
-    background-color: var(--color-primary);
-    color: var(--color-text-light);
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-header #loggedInUserName {
-    font-weight: 500;
-}
-header #logoutButton {
-    background-color: var(--color-error);
-    transition: background-color 0.2s ease-in-out;
-}
-header #logoutButton:hover {
-    background-color: #B91C1C; /* Tailwind red-700 */
-
-
-/* --- Estilo para Botões Principais (Abrir/Fechar Turno, Salvar Preços, etc.) --- */
-/* Aplicar a classe .btn-primary, .btn-secondary, etc., no HTML se quiser usar estes.
-   Tailwind já provê classes para botões (bg-cor, hover:bg-cor, etc.)
-   Esta é uma alternativa para definir um estilo de botão mais centralizado.
-*/
 .btn {
     padding: 0.75rem 1.5rem;
-    border-radius: 0.375rem; /* rounded-md */
-    font-weight: 600; /* font-semibold */
+    border-radius: 0.375rem;
+    font-weight: 600;
     transition: all 0.2s ease-in-out;
     cursor: pointer;
     text-align: center;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1); /* shadow */
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
 }
+
 .btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
@@ -81,40 +53,42 @@ header #logoutButton:hover {
     color: var(--color-text-light);
     border: 1px solid transparent;
 }
+
 .btn-primary:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
     transform: translateY(-1px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); /* shadow-md */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
 }
 
 .btn-success {
     background-color: var(--color-success);
     color: var(--color-text-light);
 }
+
 .btn-success:hover:not(:disabled) {
-    background-color: #15803D; /* green-700 */
+    background-color: #15803D;
 }
 
 .btn-danger {
     background-color: var(--color-error);
     color: var(--color-text-light);
 }
+
 .btn-danger:hover:not(:disabled) {
-    background-color: #B91C1C; /* red-700 */
+    background-color: #B91C1C;
 }
 
 .btn-neutral {
     background-color: var(--color-surface);
     color: var(--color-text-medium);
-    border: 1px solid #D1D5DB; /* border-gray-300 */
+    border: 1px solid #D1D5DB;
 }
+
 .btn-neutral:hover:not(:disabled) {
-    background-color: #F9FAFB; /* gray-50 */
-    border-color: #9CA3AF; /* gray-400 */
+    background-color: #F9FAFB;
+    border-color: #9CA3AF;
 }
 
-
-/* --- Estilo para Inputs e Selects --- */
 input[type="text"],
 input[type="email"],
 input[type="password"],
@@ -123,9 +97,9 @@ input[type="date"],
 input[type="time"],
 select,
 textarea {
-    padding: 0.65rem 0.85rem; /* Ajuste de padding */
-    border: 1px solid #D1D5DB; /* border-gray-300 */
-    border-radius: 0.375rem; /* rounded-md */
+    padding: 0.65rem 0.85rem;
+    border: 1px solid #D1D5DB;
+    border-radius: 0.375rem;
     background-color: var(--color-surface);
     color: var(--color-text-dark);
     transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
@@ -139,164 +113,115 @@ select:focus,
 textarea:focus {
     outline: none;
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3); /* Sombra de foco laranja */
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3);
 }
 
 input[readonly],
-select[disabled] { /* Selects usam 'disabled' para aparência de não editável */
-    background-color: #E5E7EB !important; /* Tailwind gray-200 mais enfático */
+select[disabled] {
+    background-color: #E5E7EB !important;
     color: var(--color-text-medium);
     cursor: not-allowed;
     box-shadow: none;
     border-color: #D1D5DB;
 }
-input[readonly]:focus { /* Remove sombra de foco de inputs readonly */
+
+input[readonly]:focus {
     box-shadow: inset 0 1px 2px rgba(0,0,0,0.075);
     border-color: #D1D5DB;
 }
 
-
-/* --- Estilo para Tabelas --- */
 table {
     width: 100%;
-    border-collapse: separate; /* Para permitir border-radius em células */
+    border-collapse: separate;
     border-spacing: 0;
     margin-top: 1rem;
     box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border-radius: 0.5rem; /* rounded-lg */
-    overflow: hidden; /* Para que o border-radius funcione com o a sombra */
+    border-radius: 0.5rem;
+    overflow: hidden;
 }
 
 th, td {
-    padding: 0.75rem 1rem; /* py-3 px-4 */
+    padding: 0.75rem 1rem;
     text-align: left;
-    border-bottom: 1px solid #E5E7EB; /* divide-gray-200 */
+    border-bottom: 1px solid #E5E7EB;
 }
 
 th {
-    background-color: #F9FAFB; /* bg-gray-50 */
+    background-color: #F9FAFB;
     color: var(--color-text-medium);
-    font-weight: 600; /* font-semibold */
+    font-weight: 600;
     text-transform: uppercase;
-    font-size: 0.75rem; /* text-xs */
-    letter-spacing: 0.05em; /* tracking-wider */
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
 }
+
 thead th:first-child { border-top-left-radius: 0.5rem; }
 thead th:last-child { border-top-right-radius: 0.5rem; }
 
 tbody tr:last-child td {
-    border-bottom: none; /* Remove a borda da última linha do tbody */
+    border-bottom: none;
 }
+
 tbody tr:last-child td:first-child { border-bottom-left-radius: 0.5rem; }
 tbody tr:last-child td:last-child { border-bottom-right-radius: 0.5rem; }
 
-
 tbody tr:hover {
-    background-color: #FEF3C7; /* Amarelo bem claro (amber-100), alternativo ao orange-50 do HTML */
+    background-color: #FEF3C7;
 }
 
-/* inputs dentro de tabelas, para serem menores */
 td input[type="number"], td input[type="text"] {
-    padding: 0.5rem; /* Menor padding */
-    font-size: 0.875rem; /* text-sm */
+    padding: 0.5rem;
+    font-size: 0.875rem;
 }
 
-
-/* --- Cards / Fieldsets --- */
-/* O Tailwind já faz um bom trabalho com `bg-white p-6 rounded-lg shadow-lg` */
-/* Mas podemos adicionar detalhes se quisermos uma classe .card */
-/*
-.card {
-    background-color: var(--color-surface);
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-}
-*/
 fieldset {
-    border: 1px solid #E5E7EB; /* Tailwind gray-200 */
+    border: 1px solid #E5E7EB;
     padding: 1.25rem;
-    border-radius: 0.5rem; /* rounded-lg */
+    border-radius: 0.5rem;
     box-shadow: 0 1px 2px rgba(0,0,0,0.05);
 }
+
 legend {
     padding: 0 0.5rem;
-    font-weight: 600; /* font-semibold */
-    color: var(--color-accent); /* Usa cor de acento para legendas */
-    font-size: 1.125rem; /* text-lg */
+    font-weight: 600;
+    color: var(--color-accent);
+    font-size: 1.125rem;
 }
 
-/* --- Mensagens de Erro/Sucesso/Alerta --- */
-/* A área de erro no login (index.html) já tem um ID, o JS o estiliza */
-/* Para mensagens gerais, poderíamos ter classes .alert */
 .alert {
     padding: 0.75rem 1.25rem;
     margin-bottom: 1rem;
     border: 1px solid transparent;
-    border-radius: 0.375rem; /* rounded-md */
+    border-radius: 0.375rem;
 }
+
 .alert-danger {
-    color: #721C24; /* Cor de texto para alerta vermelho */
-    background-color: #F8D7DA; /* Fundo do alerta vermelho */
+    color: #721C24;
+    background-color: #F8D7DA;
     border-color: #F5C6CB;
 }
-#errorMessages { /* Aplicado ao <p> do funcionário */
+
+#errorMessages {
     padding: 0.75rem 1.25rem;
-    /* A cor e fundo são controlados via JS/Tailwind classes por enquanto */
 }
 
 #fechamentoDivergenciaAlertaGeralDiv {
     line-height: 1.6;
     font-size: 0.9rem;
 }
+
 #fechamentoDivergenciaAlertaGeralDiv strong {
     font-size: 1rem;
     display: block;
     margin-bottom: 0.5rem;
 }
+
 #fechamentoDivergenciaAlertaGeralDiv br {
-    margin-bottom: 0.25rem; /* Espaço entre as linhas */
+    margin-bottom: 0.25rem;
     content: "";
     display: block;
 }
 
-
-/* --- Página de Login (index.html) --- */
-/*
-body.login-page {
-    background: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary) 100%);
-}
-.login-card-custom {
-    transform: translateY(-20px);
-    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease-in-out;
-}
-.login-card-custom:hover {
-    transform: translateY(-25px) scale(1.02);
-    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.25);
-}
-.login-card-custom img {
-    border: 4px solid var(--color-surface);
-}
-*/
-/* Já existe um style inline no index.html, pode mover para cá se preferir */
-
-/* --- Dashboard Admin --- */
-/*
-#tabContentDashboard h3 {
-    color: var(--color-text-medium);
-    border-bottom-color: var(--color-secondary);
-}
-#vendasPorProdutoReport ul li, #pagamentosReport ul li {
-    padding: 0.6rem;
-    transition: background-color 0.15s ease-in-out;
-}
-#vendasPorProdutoReport ul li:hover, #pagamentosReport ul li:hover {
-    background-color: #FFFBEB; // amber-50
-}
-*/
-
-
-/* --- Animação para o Spinner (caso não use a do Tailwind) --- */
 .spinner {
     border: 4px solid rgba(255, 255, 255, 0.3);
     border-left-color: #FFF;
@@ -304,41 +229,37 @@ body.login-page {
     width: 20px;
     height: 20px;
     animation: spin 1s linear infinite;
-    display: inline-block; /* Para usar dentro de botões */
+    display: inline-block;
 }
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
-
-/* Scrollbar mais sutil para áreas de overflow nos relatórios do admin */
-/* (Pode não funcionar em todos os navegadores, Firefox precisa de configuração diferente) */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
+
 ::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb {
     background: #ccc;
     border-radius: 10px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
     background: #aaa;
 }
 
-/* --- Estilos de Foco Consistentes (para acessibilidade) --- */
-/* O estilo de foco já foi aplicado nos inputs, pode ser expandido */
 a:focus, button:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.4); /* Sombra de foco laranja sutil */
-    /* Para elementos sem borda, isso dá um anel de foco */
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.4);
 }
 
-
-/* Considerações para impressão (básico) */
 @media print {
     body {
         background-color: #fff;
@@ -354,27 +275,21 @@ a:focus, button:focus {
     th, td {
         border-color: #ccc;
     }
-    /* Adicionar mais regras para otimizar a impressão conforme necessário */
 }
 
-/* Estilos para indicar campos transferidos do turno anterior */
-
-/* Estilo para o campo com dado transferido */
 [data-transferido-do-turno] {
-    background-color: #EFF6FF !important; /* Azul muito claro */
+    background-color: #EFF6FF !important;
     border-color: #93C5FD !important;
     border-width: 1px;
     color: #2563EB;
     font-weight: 500;
 }
 
-/* Efeito de hover para mostrar que não é editável */
 [data-transferido-do-turno]:hover {
     cursor: not-allowed;
     box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
 }
 
-/* Indicador visual pequeno ao lado do campo */
 .indicador-transferido {
     display: inline-block;
     font-size: 0.75rem;
@@ -396,12 +311,10 @@ a:focus, button:focus {
     }
 }
 
-/* Tooltip ao passar o mouse sobre o indicador */
 .indicador-transferido:hover {
     cursor: help;
 }
 
-/* Estilo para o popup de alerta quando tenta editar campo transferido */
 .alerta-campo-transferido {
     background-color: #FEF2F2;
     border: 1px solid #F87171;
@@ -428,7 +341,6 @@ a:focus, button:focus {
     }
 }
 
-/* Estilos para o cabeçalho de resumo do turno anterior */
 .turno-anterior-resumo {
     background-color: #F3F4F6;
     border-left: 4px solid #2563EB;
@@ -489,7 +401,6 @@ a:focus, button:focus {
     color: #1E3A8A;
 }
 
-/* Estilos para o resumo do turno anterior */
 .resumo-turno-anterior {
     background-color: #EFF6FF;
     border: 1px solid #BFDBFE;
@@ -608,7 +519,6 @@ a:focus, button:focus {
     font-size: 0.8rem;
 }
 
-/* Estilos para destacar valores */
 .resumo-turno-positive {
     color: #059669;
 }
@@ -652,7 +562,6 @@ a:focus, button:focus {
     color: #92400E;
 }
 
-/* Animação de pulso para indicar campos transferidos */
 .campo-transferido {
     background-color: #EFF6FF !important;
     border-color: #93C5FD !important;
@@ -687,9 +596,6 @@ a:focus, button:focus {
     justify-content: center;
 }
 
-/* === ESTILOS PARA TELA DE PREÇOS === */
-
-/* Cards de preços com animações elegantes */
 .price-card {
     position: relative;
     overflow: hidden;
@@ -717,7 +623,6 @@ a:focus, button:focus {
     opacity: 0.2;
 }
 
-/* Animação de destaque para cards modificados */
 .price-card.modified {
     animation: highlight-pulse 2s ease-in-out;
 }
@@ -728,7 +633,6 @@ a:focus, button:focus {
     100% { transform: scale(1); }
 }
 
-/* Estilo para inputs de preço */
 .price-input {
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -740,7 +644,6 @@ a:focus, button:focus {
     box-shadow: 0 10px 20px rgba(249, 115, 22, 0.1);
 }
 
-/* Fieldsets com melhor visual */
 .price-fieldset {
     background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
     border: 2px solid transparent;
@@ -765,7 +668,6 @@ a:focus, button:focus {
     opacity: 0.3;
 }
 
-/* Botão de salvar com estilo especial */
 .save-prices-btn {
     background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
     position: relative;
@@ -795,7 +697,6 @@ a:focus, button:focus {
     100% { transform: translateX(100%) translateY(100%) rotate(45deg); opacity: 0; }
 }
 
-/* Grid responsivo aprimorado para cards de preços */
 .prices-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -810,7 +711,6 @@ a:focus, button:focus {
     }
 }
 
-/* Indicadores visuais melhorados */
 .price-changed-indicator {
     position: absolute;
     top: -8px;
@@ -833,7 +733,6 @@ a:focus, button:focus {
     transform: scale(1);
 }
 
-/* Loading states para cards */
 .price-card-loading {
     background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
     background-size: 200% 100%;
@@ -845,7 +744,6 @@ a:focus, button:focus {
     100% { background-position: 200% 0; }
 }
 
-/* Tooltips para preços */
 .price-tooltip {
     position: relative;
 }
@@ -874,7 +772,6 @@ a:focus, button:focus {
     transform: translateX(-50%) translateY(-4px);
 }
 
-/* Cores de status para validação */
 .price-status-success {
     border-color: #22C55E !important;
     background-color: #F0FDF4 !important;
@@ -890,7 +787,6 @@ a:focus, button:focus {
     background-color: #FFFBEB !important;
 }
 
-/* Melhorias de acessibilidade */
 @media (prefers-reduced-motion: reduce) {
     .price-card,
     .price-input,
@@ -901,7 +797,6 @@ a:focus, button:focus {
     }
 }
 
-/* Dark mode support (opcional) */
 @media (prefers-color-scheme: dark) {
     .price-card {
         background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
@@ -920,16 +815,12 @@ a:focus, button:focus {
     }
 }
 
-/* Solução para o problema de ícones sobrepostos ao texto em inputs */
-
-/* Estilo base para containers de input com ícones */
 .input-with-icon,
 .price-input-wrapper {
   position: relative;
   width: 100%;
 }
 
-/* ÍCONES À ESQUERDA (comum em campos de login) */
 .input-with-icon .icon-wrapper {
   position: absolute;
   top: 0;
@@ -938,14 +829,13 @@ a:focus, button:focus {
   display: flex;
   align-items: center;
   padding-left: 0.75rem;
-  pointer-events: none; /* Permite clicar "através" do ícone */
+  pointer-events: none;
 }
 
 .input-with-icon input {
-  padding-left: 2.5rem !important; /* Espaço suficiente para o ícone */
+  padding-left: 2.5rem !important;
 }
 
-/* CAMPOS DE PREÇO (R$ à esquerda e checkmark à direita) */
 .price-input-wrapper .currency-wrapper {
   position: absolute;
   top: 0;
@@ -958,8 +848,8 @@ a:focus, button:focus {
 }
 
 .price-input-wrapper input {
-  padding-left: 2.5rem !important; /* Espaço para o "R$" */
-  padding-right: 2.5rem !important; /* Espaço para o ícone de check */
+  padding-left: 2.5rem !important;
+  padding-right: 2.5rem !important;
 }
 
 .price-input-wrapper .check-wrapper {
@@ -979,35 +869,26 @@ a:focus, button:focus {
   opacity: 1;
 }
 
-/* ALTERNATIVA COM CLASSES TAILWIND */
-/* Para uso em templates sem acesso ao CSS externo */
-
-/* Container para o input com ícone */
 .tw-input-icon-container {
   @apply relative w-full;
 }
 
-/* Ícone à esquerda */
 .tw-input-icon-left {
   @apply absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none;
 }
 
-/* Ícone à direita */
 .tw-input-icon-right {
   @apply absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none;
 }
 
-/* Input com ícone à esquerda */
 .tw-input-with-icon-left {
   @apply pl-10 pr-3 w-full;
 }
 
-/* Input com ícone à direita */
 .tw-input-with-icon-right {
   @apply pl-3 pr-10 w-full;
 }
 
-/* Input com ícones em ambos os lados */
 .tw-input-with-icons-both {
   @apply pl-10 pr-10 w-full;
 }
@@ -1044,7 +925,6 @@ a:focus, button:focus {
     }
 }
 
-/* Animação de shake para campos inválidos e botões */
 @keyframes shake {
     0%, 100% { transform: translateX(0); }
     10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
@@ -1059,7 +939,6 @@ a:focus, button:focus {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
-/* Shift status indicator */
 .shift-status-bar {
     position: fixed;
     top: 0;
@@ -1078,6 +957,7 @@ a:focus, button:focus {
 .shift-status-bar.closing {
     background: linear-gradient(90deg, #ffc107, #fd7e14);
 }
+
 .border-t-4 { border-top-width: 4px; }
 .pt-2 { padding-top: 0.5rem; }
 .bg-orange-100 { background-color: #FED7AA; }
@@ -1089,13 +969,11 @@ input:not([readonly]):not([disabled]) {
     cursor: text !important;
 }
 
-/* Adiciona ícone de bloqueio APENAS em campos readonly ou disabled */
 input[readonly], input[disabled], select[disabled] {
     cursor: not-allowed !important;
     position: relative;
 }
 
-/* Container para ícone de bloqueio */
 .campo-bloqueado-wrapper {
     position: relative;
     display: inline-block;
@@ -1113,7 +991,6 @@ input[readonly], input[disabled], select[disabled] {
     z-index: 10;
 }
 
-/* Apenas mostra ícone em campos que são readonly ou disabled */
 .campo-bloqueado-wrapper input[readonly] ~ .lock-icon,
 .campo-bloqueado-wrapper input[disabled] ~ .lock-icon,
 .campo-bloqueado-wrapper select[disabled] ~ .lock-icon {
@@ -1124,28 +1001,21 @@ input[readonly], input[disabled], select[disabled] {
     display: none !important;
 }
 
-/* Estilo específico para campos transferidos */
 [data-transferido-do-turno] {
     background-color: #EFF6FF !important;
     border-color: #93C5FD !important;
-    padding-right: 2.5rem !important; /* Espaço para o ícone */
+    padding-right: 2.5rem !important;
 }
 
 [data-transferido-do-turno]:hover {
     background-color: #DBEAFE !important;
 }
 
-/* ========================================== */
-/* NOVOS ESTILOS PARA CAMPOS OBRIGATÓRIOS */
-/* ========================================== */
-
-/* Estilo para campos obrigatórios não preenchidos */
 .border-red-500.bg-red-50 {
     background-color: #FEF2F2 !important;
     border-color: #EF4444 !important;
 }
 
-/* Ícone de erro nos campos */
 .error-icon {
     color: #EF4444;
     animation: pulse 2s infinite;
@@ -1157,7 +1027,6 @@ input[readonly], input[disabled], select[disabled] {
     100% { opacity: 1; }
 }
 
-/* Tooltip de erro para campos */
 .field-error-tooltip {
     animation: fadeIn 0.3s ease-in-out;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
@@ -1190,29 +1059,24 @@ input[readonly], input[disabled], select[disabled] {
     to { opacity: 0; transform: translateY(-5px); }
 }
 
-/* Destaque visual aprimorado para campos obrigatórios */
 input.border-red-500.ring-2,
 select.border-red-500.ring-2 {
     outline: none !important;
 }
 
-/* Melhoria no contraste para campos com erro */
 .bg-red-50:focus {
     background-color: #FEE2E2 !important;
 }
 
-/* Container com posição relativa para os ícones de erro */
 .error-container {
     position: relative;
 }
 
-/* Garante que o ícone de erro não interfira com a digitação */
 .error-icon {
     pointer-events: none;
     z-index: 10;
 }
 
-/* Destaque para fieldsets com campos obrigatórios não preenchidos */
 fieldset.border-red-300 {
     border-color: #FCA5A5 !important;
     background-color: rgba(254, 242, 242, 0.3) !important;
@@ -1224,7 +1088,6 @@ fieldset.border-red-300 legend {
     font-weight: 600;
 }
 
-/* Contador de erros nas legendas */
 .error-count {
     display: inline-block;
     padding: 0.125rem 0.5rem;
@@ -1234,18 +1097,15 @@ fieldset.border-red-300 legend {
     animation: pulse 2s infinite;
 }
 
-/* Melhoria na visibilidade dos campos com erro dentro de tabelas */
 .item-row .border-red-500 {
     box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.5) !important;
 }
 
-/* Destaque para campos de pagamento com erro */
 .payment-input.border-red-500 {
     font-weight: 600;
     color: #7F1D1D;
 }
 
-/* Estilo para campos obrigatórios quando o turno está sendo fechado */
 .closing-validation .border-red-500 {
     animation: pulse-red 1.5s infinite;
 }
@@ -1262,19 +1122,16 @@ fieldset.border-red-300 legend {
     }
 }
 
-/* Melhoria no contraste para leitura em campos com erro */
 input.bg-red-50:not([readonly]):not([disabled]) {
     color: #991B1B !important;
     font-weight: 500;
 }
 
-/* Transição suave ao remover erros */
 input:not(.border-red-500),
 select:not(.border-red-500) {
     transition: all 0.3s ease-in-out;
 }
 
-/* Indicador visual para seções com campos obrigatórios */
 fieldset.border-red-300::before {
     content: '⚠️';
     position: absolute;
@@ -1293,7 +1150,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Alerta de Estoque Baixo - Estilizado */
 .alerta-estoque-baixo {
     opacity: 0;
     animation: fadeInSlide 0.6s ease-out forwards;
@@ -1320,7 +1176,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Animação do ícone de alerta */
 .alerta-estoque-baixo .animate-pulse {
     animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -1336,7 +1191,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Efeito hover no alerta */
 .alerta-estoque-baixo > td > div > div {
     transition: all 0.3s ease;
 }
@@ -1347,7 +1201,6 @@ fieldset.border-red-300::before {
     border-color: #ef4444;
 }
 
-/* Transição suave ao remover */
 .alerta-estoque-baixo.removing {
     animation: fadeOutSlide 0.3s ease-in forwards;
 }
@@ -1363,7 +1216,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Botão de fechar */
 .alerta-estoque-baixo button {
     opacity: 0.6;
     transition: all 0.2s ease;
@@ -1374,7 +1226,6 @@ fieldset.border-red-300::before {
     transform: rotate(90deg);
 }
 
-/* Responsividade para telas menores */
 @media (max-width: 640px) {
     .alerta-estoque-baixo .flex {
         flex-direction: column;
@@ -1388,7 +1239,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Efeito de shake para chamar atenção */
 @keyframes shake {
     0%, 100% { transform: translateX(0); }
     10%, 30%, 50%, 70%, 90% { transform: translateX(-2px); }
@@ -1399,9 +1249,8 @@ fieldset.border-red-300::before {
     animation: shake 0.5s ease-in-out;
 }
 
-/* Estilo para campos calculados automaticamente */
 #gelo_pacote_consumo_interno {
-    background-color: #F3F4F6 !important; /* Cinza claro */
+    background-color: #F3F4F6 !important;
     border-color: #9CA3AF !important;
     border-style: dashed !important;
     color: #374151;
@@ -1409,75 +1258,352 @@ fieldset.border-red-300::before {
     position: relative;
 }
 
-/* Tooltip ao passar o mouse sobre campo calculado */
 #gelo_pacote_consumo_interno:hover {
     border-color: #6B7280 !important;
     box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.1);
 }
 
 .alerta-validacao {
-        animation: slideDown 0.3s ease-out;
-    }
-    
-    .fade-out {
-        animation: fadeOut 0.3s ease-out forwards;
-    }
-    
-    .shake-animation {
-        animation: shake 0.5s ease-in-out;
-    }
-    
-    .limite-indicador {
-        font-size: 0.75rem;
-        color: #6B7280;
-        pointer-events: none;
-    }
-    
-    .help-icon {
-        display: inline-block;
-        transition: color 0.2s;
-    }
-    
-    input[type="number"]:focus + .limite-indicador {
-        color: #F97316;
-        font-weight: 500;
-    }
-    
-    input[type="number"].at-limit {
-        background-color: #FEF3C7 !important;
-        border-color: #F59E0B !important;
-    }
-    
-    @keyframes slideDown {
-        from {
-            opacity: 0;
-            transform: translateY(-10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-    
-    @keyframes fadeOut {
-        from { opacity: 1; }
-        to { opacity: 0; }
-    }
-    
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-        20%, 40%, 60%, 80% { transform: translateX(5px); }
-    }
-
-    /* Container para tabelas com scroll */
-.table-scroll-container {
-    position: relative;
-    margin: 0 -1rem;
-    padding: 0 1rem;
+    animation: slideDown 0.3s ease-out;
 }
 
-/* Indicadores de scroll nas bordas */
+.fade-out {
+    animation: fadeOut 0.3s ease-out forwards;
+}
+
+.shake-animation {
+    animation: shake 0.5s ease-in-out;
+}
+
+.limite-indicador {
+    font-size: 0.75rem;
+    color: #6B7280;
+    pointer-events: none;
+}
+
+.help-icon {
+    display: inline-block;
+    transition: color 0.2s;
+}
+
+input[type="number"]:focus + .limite-indicador {
+    color: #F97316;
+    font-weight: 500;
+}
+
+input[type="number"].at-limit {
+    background-color: #FEF3C7 !important;
+    border-color: #F59E0B !important;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.table-scroll-container {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    overflow: visible;
+}
+
+.scrollable-table-wrapper {
+    border: 2px solid #FFE4B5;
+    border-radius: 12px;
+    overflow-x: auto !important;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+}
+
+.scrollable-table {
+    min-width: 900px !important;
+    width: max-content;
+    table-layout: auto;
+}
+
+@media screen and (max-width: 920px) {
+    .scrollable-table-wrapper {
+        overflow-x: scroll !important;
+    }
+    
+    .scrollable-table-wrapper::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 50px;
+        height: 100%;
+        background: linear-gradient(to left, rgba(255,255,255,1), rgba(255,255,255,0));
+        pointer-events: none;
+    }
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar {
+    height: 14px !important;
+    background: #FFE4B5;
+    display: block !important;
+    visibility: visible !important;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-track {
+    background: #FFE4B5;
+    border-radius: 7px;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb {
+    background: #FFA500;
+    border-radius: 7px;
+    border: 2px solid #FFE4B5;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #FF8C00;
+}
+
+.scrollable-table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: #FFA500 #FFE4B5;
+}
+
+.scrollable-table td,
+.scrollable-table th {
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.scrollable-table input[type="text"],
+.scrollable-table input[type="number"] {
+    min-width: 60px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.scrollable-table th:first-child,
+.scrollable-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #ffffff;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+}
+
+.scrollable-table thead th:first-child {
+    z-index: 11;
+}
+
+.custom-table thead {
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+    position: relative;
+}
+
+.custom-table thead tr {
+    border-bottom: 3px solid #FF6347;
+}
+
+.custom-table thead th {
+    color: #FFFFFF;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    padding: 16px 8px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    background: transparent;
+    position: relative;
+    transition: background 0.3s ease;
+}
+
+.custom-table thead th:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.custom-table thead th:first-child {
+    border-top-left-radius: 8px;
+}
+
+.custom-table thead th:last-child {
+    border-top-right-radius: 8px;
+}
+
+.custom-table thead th.sticky {
+    background: linear-gradient(135deg, #FFB347 0%, #FFA500 100%) !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    z-index: 20;
+}
+
+.custom-table thead th i {
+    margin-right: 6px;
+    opacity: 0.8;
+}
+
+.custom-table thead th::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: #FFFFFF;
+    transition: width 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.custom-table thead th:hover::after {
+    width: 80%;
+}
+
+.col-chegadas {
+    background: linear-gradient(135deg, #FF8C00 0%, #FF7F50 100%) !important;
+    font-weight: 700 !important;
+}
+
+.custom-table tbody {
+    background: #FFFFFF;
+}
+
+.custom-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.custom-table tbody tr:hover {
+    background: #FFF5E6;
+}
+
+.custom-table input[type="text"], 
+.custom-table input[type="number"] {
+    width: 100%;
+    min-width: 60px;
+    box-sizing: border-box;
+}
+
+.custom-table tfoot {
+    font-weight: 600;
+}
+
+.item-section {
+    overflow: visible;
+}
+
+@media (max-width: 768px) {
+    .custom-table thead th {
+        font-size: 0.65rem;
+        padding: 12px 4px;
+        letter-spacing: 0.5px;
+    }
+    
+    .custom-table thead th i {
+        display: none;
+    }
+    
+    .scrollable-table-wrapper::-webkit-scrollbar {
+        height: 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .custom-table thead th {
+        font-size: 0.6rem;
+        padding: 10px 2px;
+    }
+}
+
+header {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%) !important;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3) !important;
+}
+
+main {
+    margin-top: 80px !important;
+}
+
+header h1 {
+    color: #FFFFFF !important;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+    font-weight: 700 !important;
+    letter-spacing: 0.5px;
+}
+
+header svg {
+    color: #FFFFFF !important;
+    filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+header .bg-white.bg-opacity-20 {
+    background-color: rgba(255, 255, 255, 0.25) !important;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+header #logoutButton {
+    background-color: rgba(220, 38, 38, 0.9) !important;
+    backdrop-filter: blur(5px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+header #logoutButton:hover {
+    background-color: rgba(185, 28, 28, 0.95) !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+header {
+    animation: slideDown 0.3s ease-out;
+}
+
+@media (max-width: 640px) {
+    main {
+        margin-top: 120px !important;
+    }
+    
+    header h1 {
+        font-size: 1.125rem !important;
+    }
+}
+
+header h1:hover {
+    text-shadow: 2px 2px 8px rgba(255, 255, 255, 0.5), 
+                 -2px -2px 8px rgba(255, 255, 255, 0.5);
+    transition: text-shadow 0.3s ease;
+}
+
 .scroll-indicator {
     position: absolute;
     top: 0;
@@ -1500,14 +1626,12 @@ fieldset.border-red-300::before {
     box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.2);
 }
 
-/* Estilo do container scrollable */
 .scrollable-table {
-    -webkit-overflow-scrolling: touch; /* Scroll suave no iOS */
+    -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
     scroll-snap-type: x proximity;
 }
 
-/* Indicador visual de arraste no mobile */
 @media (max-width: 768px) {
     .scrollable-table {
         position: relative;
@@ -1528,20 +1652,17 @@ fieldset.border-red-300::before {
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     
-    /* Tamanho mínimo para inputs em mobile */
     .scrollable-table input[type="number"] {
         min-width: 60px !important;
         font-size: 14px !important;
     }
     
-    /* Células da tabela com largura mínima */
     .scrollable-table td,
     .scrollable-table th {
         min-width: 80px;
         white-space: nowrap;
     }
     
-    /* Primeira coluna fixa */
     .scrollable-table td:first-child,
     .scrollable-table th:first-child {
         position: sticky;
@@ -1552,7 +1673,6 @@ fieldset.border-red-300::before {
     }
 }
 
-/* Melhorar visibilidade da scrollbar em mobile */
 .scrollable-table::-webkit-scrollbar {
     height: 8px;
 }

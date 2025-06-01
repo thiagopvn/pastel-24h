@@ -2617,3 +2617,21 @@ if (typeof createInputCell === 'undefined') {
         return td;
     }
 }
+document.addEventListener('DOMContentLoaded', function() {
+    const scrollWrappers = document.querySelectorAll('.scrollable-table-wrapper');
+    
+    scrollWrappers.forEach(wrapper => {
+        const checkScroll = () => {
+            const hasScroll = wrapper.scrollWidth > wrapper.clientWidth;
+            if (hasScroll) {
+                wrapper.classList.add('has-scroll');
+            } else {
+                wrapper.classList.remove('has-scroll');
+            }
+        };
+        
+        checkScroll();
+        window.addEventListener('resize', checkScroll);
+        wrapper.addEventListener('scroll', checkScroll);
+    });
+});
