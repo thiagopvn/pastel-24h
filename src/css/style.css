@@ -806,3 +806,49 @@ tbody tr:hover .sticky {
         transform: translateX(0);
     }
 }
+
+/* Estilos para inputs de data */
+input[type="date"] {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    position: relative;
+    background-color: #ffffff;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-clear-button {
+    display: none;
+    -webkit-appearance: none;
+}
+
+input[type="date"]:focus::-webkit-calendar-picker-indicator {
+    opacity: 1;
+}
+
+/* Firefox */
+input[type="date"]::-moz-calendar-picker-indicator {
+    cursor: pointer;
+}
+
+/* Para melhor compatibilidade cross-browser */
+input[type="date"] {
+    min-height: 38px;
+    line-height: 38px;
+}

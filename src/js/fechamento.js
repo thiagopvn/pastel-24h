@@ -188,22 +188,26 @@ class FechamentoSemanal {
     }
 
     ajustarDataSemana() {
-        const inicio = new Date(this.elements.dataInicio.value);
-        if (!inicio || isNaN(inicio)) return;
-        
-        // Ajustar para segunda-feira se não for
-        const diaSemana = inicio.getDay();
-        if (diaSemana !== 1) { // 1 = segunda
-            const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
-            inicio.setDate(inicio.getDate() + diff);
-            this.elements.dataInicio.value = this.formatDate(inicio);
-        }
-        
-        // Definir domingo como fim
-        const fim = new Date(inicio);
-        fim.setDate(inicio.getDate() + 6);
-        this.elements.dataFim.value = this.formatDate(fim);
+    const inicio = new Date(this.elements.dataInicio.value);
+    if (!inicio || isNaN(inicio)) return;
+    
+    inicio.setHours(0, 0, 0, 0);
+    
+    const diaSemana = inicio.getDay();
+    const segunda = new Date(inicio);
+    
+    if (diaSemana === 0) {
+        segunda.setDate(inicio.getDate() - 6);
+    } else if (diaSemana !== 1) {
+        segunda.setDate(inicio.getDate() - (diaSemana - 1));
     }
+    
+    const domingo = new Date(segunda);
+    domingo.setDate(segunda.getDate() + 6);
+    
+    this.elements.dataInicio.value = this.formatDate(segunda);
+    this.elements.dataFim.value = this.formatDate(domingo);
+}
 
     async loadConfiguracoes() {
         try {
