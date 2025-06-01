@@ -42,7 +42,138 @@
     </script>
 </head>
 <!-- Adicione este CSS ao seu arquivo HTML dentro da tag <head> ou no seu arquivo style.css -->
+<style>
+.custom-table thead {
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+    position: relative;
+    overflow: hidden;
+}
 
+.custom-table thead::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+.custom-table thead tr {
+    border-bottom: 3px solid #FF6347;
+}
+
+.custom-table thead th {
+    color: #FFFFFF;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    padding: 16px 8px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+    background: transparent;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.custom-table thead th:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.custom-table thead th:first-child {
+    border-top-left-radius: 8px;
+}
+
+.custom-table thead th:last-child {
+    border-top-right-radius: 8px;
+}
+
+.custom-table thead th.sticky {
+    background: linear-gradient(135deg, #FFB347 0%, #FFA500 100%) !important;
+    box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+    z-index: 20;
+}
+
+.custom-table thead th i {
+    margin-right: 6px;
+    opacity: 0.8;
+}
+
+.custom-table thead th::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background: #FFFFFF;
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.custom-table thead th:hover::after {
+    width: 80%;
+}
+
+.col-chegadas {
+    background: linear-gradient(135deg, #FF8C00 0%, #FF7F50 100%) !important;
+    font-weight: 700 !important;
+}
+
+.custom-table tbody {
+    background: #FFFFFF;
+}
+
+.custom-table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.custom-table tbody tr:hover {
+    background: #FFF5E6;
+    transform: scale(1.01);
+    box-shadow: 0 2px 8px rgba(255, 140, 0, 0.15);
+}
+
+.custom-table tfoot {
+    font-weight: 600;
+}
+
+@media (max-width: 768px) {
+    .custom-table thead th {
+        font-size: 0.65rem;
+        padding: 12px 4px;
+        letter-spacing: 0.5px;
+    }
+    
+    .custom-table thead th i {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .custom-table thead th {
+        font-size: 0.6rem;
+        padding: 10px 2px;
+    }
+}
+
+.table-scroll-container {
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(255, 140, 0, 0.1);
+}
+
+.scrollable-table-wrapper {
+    border: 2px solid #FFE4B5;
+}
+</style>
 <style>
 /* Header fixo com fundo laranja bonito */
 header {
