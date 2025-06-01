@@ -81,59 +81,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function verificarEstoqueBaixo(itemKey, sobra) {
-        const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
-        if (alertaExistente) {
-            alertaExistente.classList.add('removing');
-            setTimeout(() => alertaExistente.remove(), 300);
-        }
-        const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
-        if (!limite) return;
-        if (sobra === '' || sobra === null || sobra === undefined) return;
-        const sobraNum = parseFloat(sobra) || 0;
-        if (sobraNum < limite && sobraNum >= 0) {
-            setTimeout(() => {
-                const inputSobra = document.getElementById(`${itemKey}_sobra`);
-                if (!inputSobra) return;
-                const row = inputSobra.closest('tr');
-                if (!row) return;
-                if (document.getElementById(`alerta-estoque-${itemKey}`)) return;
-                const alertaRow = document.createElement('tr');
-                alertaRow.id = `alerta-estoque-${itemKey}`;
-                alertaRow.className = 'alerta-estoque-baixo';
-                alertaRow.innerHTML = `
-                    <td colspan="9" class="p-0">
-                        <div class="mx-4 my-2">
-                            <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg p-3 shadow-md">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center">
-                                        <div class="flex-shrink-0">
-                                            <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
-                                                <i class="fas fa-exclamation-triangle text-white"></i>
-                                            </div>
-                                        </div>
-                                        <div class="ml-3">
-                                            <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide">
-                                                ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO
-                                            </h3>
-                                            <p class="text-xs text-red-600 mt-0.5">
-                                                Quantidade atual: <span class="font-bold">${sobraNum}</span> | 
-                                                Mínimo recomendado: <span class="font-bold">${limite}</span>
-                                            </p>
+    const alertaExistente = document.getElementById(`alerta-estoque-${itemKey}`);
+    if (alertaExistente) {
+        alertaExistente.classList.add('removing');
+        setTimeout(() => alertaExistente.remove(), 300);
+    }
+    const limite = LIMITES_ESTOQUE_MINIMO[itemKey];
+    if (!limite) return;
+    if (sobra === '' || sobra === null || sobra === undefined) return;
+    const sobraNum = parseFloat(sobra) || 0;
+    if (sobraNum < limite && sobraNum >= 0) {
+        setTimeout(() => {
+            const inputSobra = document.getElementById(`${itemKey}_sobra`);
+            if (!inputSobra) return;
+            const row = inputSobra.closest('tr');
+            if (!row) return;
+            if (document.getElementById(`alerta-estoque-${itemKey}`)) return;
+            const alertaRow = document.createElement('tr');
+            alertaRow.id = `alerta-estoque-${itemKey}`;
+            alertaRow.className = 'alerta-estoque-baixo';
+            alertaRow.innerHTML = `
+                <td colspan="9" class="p-0">
+                    <div class="mx-4 my-2">
+                        <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-300 rounded-lg p-3 shadow-md">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="flex-shrink-0">
+                                        <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center animate-pulse">
+                                            <i class="fas fa-exclamation-triangle text-white"></i>
                                         </div>
                                     </div>
-                                    <button onclick="this.closest('.alerta-estoque-baixo').classList.add('removing'); setTimeout(() => this.closest('.alerta-estoque-baixo').remove(), 300);" 
-                                            class="text-red-400 hover:text-red-600 transition-colors duration-200">
-                                        <i class="fas fa-times-circle text-lg"></i>
-                                    </button>
+                                    <div class="ml-3">
+                                        <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide">
+                                            ESTOQUE BAIXO, FAVOR PROVIDENCIAR REPOSIÇÃO
+                                        </h3>
+                                        <p class="text-xs text-red-600 mt-0.5">
+                                            Quantidade atual: <span class="font-bold">${sobraNum}</span> | 
+                                            Mínimo recomendado: <span class="font-bold">${limite}</span>
+                                        </p>
+                                    </div>
                                 </div>
+                                <button type="button" onclick="this.closest('.alerta-estoque-baixo').classList.add('removing'); setTimeout(() => this.closest('.alerta-estoque-baixo').remove(), 300);" 
+                                        class="text-red-400 hover:text-red-600 transition-colors duration-200">
+                                    <i class="fas fa-times-circle text-lg"></i>
+                                </button>
                             </div>
                         </div>
-                    </td>
-                `;
-                row.insertAdjacentElement('afterend', alertaRow);
-            }, 500);
-        }
+                    </div>
+                </td>
+            `;
+            row.insertAdjacentElement('afterend', alertaRow);
+        }, 500);
     }
+}
 
     function validarConsistenciaItem(itemKey, campoAlterado) {
         const entrada = parseFloat(document.getElementById(`${itemKey}_entrada`)?.value) || 0;
@@ -213,52 +213,52 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function mostrarAlertaValidacao(itemKey, errors) {
-        const alertaExistente = document.getElementById(`alerta-validacao-${itemKey}`);
-        if (alertaExistente) {
-            alertaExistente.remove();
-        }
-        if (errors.length === 0) return;
-        const itemRow = document.querySelector(`tr[data-item-key="${itemKey}"]`);
-        if (!itemRow) return;
-        const alertaRow = document.createElement('tr');
-        alertaRow.id = `alerta-validacao-${itemKey}`;
-        alertaRow.className = 'alerta-validacao fade-in';
-        alertaRow.innerHTML = `
-            <td colspan="9" class="p-0">
-                <div class="mx-4 my-2">
-                    <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-400 rounded-lg p-3 shadow-md">
-                        <div class="flex items-start">
-                            <div class="flex-shrink-0">
-                                <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-exclamation-triangle text-white"></i>
-                                </div>
+    const alertaExistente = document.getElementById(`alerta-validacao-${itemKey}`);
+    if (alertaExistente) {
+        alertaExistente.remove();
+    }
+    if (errors.length === 0) return;
+    const itemRow = document.querySelector(`tr[data-item-key="${itemKey}"]`);
+    if (!itemRow) return;
+    const alertaRow = document.createElement('tr');
+    alertaRow.id = `alerta-validacao-${itemKey}`;
+    alertaRow.className = 'alerta-validacao fade-in';
+    alertaRow.innerHTML = `
+        <td colspan="9" class="p-0">
+            <div class="mx-4 my-2">
+                <div class="bg-gradient-to-r from-red-50 to-red-100 border border-red-400 rounded-lg p-3 shadow-md">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                                <i class="fas fa-exclamation-triangle text-white"></i>
                             </div>
-                            <div class="ml-3 flex-1">
-                                <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide mb-1">
-                                    ERRO DE VALIDAÇÃO - VALORES INCONSISTENTES
-                                </h3>
-                                <ul class="text-xs text-red-700 space-y-1">
-                                    ${errors.map(error => `<li>• ${error}</li>`).join('')}
-                                </ul>
-                                <p class="text-xs text-red-600 mt-2 font-medium">
-                                    Os valores foram ajustados automaticamente para manter a consistência.
-                                </p>
-                            </div>
-                            <button onclick="this.closest('.alerta-validacao').remove();" 
-                                    class="text-red-400 hover:text-red-600 transition-colors duration-200 ml-2">
-                                <i class="fas fa-times-circle text-lg"></i>
-                            </button>
                         </div>
+                        <div class="ml-3 flex-1">
+                            <h3 class="text-sm font-bold text-red-800 uppercase tracking-wide mb-1">
+                                ERRO DE VALIDAÇÃO - VALORES INCONSISTENTES
+                            </h3>
+                            <ul class="text-xs text-red-700 space-y-1">
+                                ${errors.map(error => `<li>• ${error}</li>`).join('')}
+                            </ul>
+                            <p class="text-xs text-red-600 mt-2 font-medium">
+                                Os valores foram ajustados automaticamente para manter a consistência.
+                            </p>
+                        </div>
+                        <button type="button" onclick="this.closest('.alerta-validacao').remove();" 
+                                class="text-red-400 hover:text-red-600 transition-colors duration-200 ml-2">
+                            <i class="fas fa-times-circle text-lg"></i>
+                        </button>
                     </div>
                 </div>
-            </td>
-        `;
-        itemRow.insertAdjacentElement('afterend', alertaRow);
-        setTimeout(() => {
-            alertaRow.classList.add('fade-out');
-            setTimeout(() => alertaRow.remove(), 300);
-        }, 5000);
-    }
+            </div>
+        </td>
+    `;
+    itemRow.insertAdjacentElement('afterend', alertaRow);
+    setTimeout(() => {
+        alertaRow.classList.add('fade-out');
+        setTimeout(() => alertaRow.remove(), 300);
+    }, 5000);
+}
 
     function validarTodosItens() {
         const errors = [];
