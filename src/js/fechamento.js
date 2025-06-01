@@ -230,60 +230,57 @@ class FechamentoSemanal {
     }
 
     async carregarDados() {
-        this.showStatus('Iniciando carregamento de dados...', 'loading');
+    this.showStatus('Iniciando carregamento de dados...', 'loading');
+    
+    try {
+        const dataInicio = new Date(this.elements.dataInicio.value);
+        const dataFim = new Date(this.elements.dataFim.value);
         
-        try {
-            const dataInicio = new Date(this.elements.dataInicio.value);
-            const dataFim = new Date(this.elements.dataFim.value);
-            
-            if (!dataInicio || !dataFim || isNaN(dataInicio) || isNaN(dataFim)) {
-                throw new Error('Por favor, selecione as datas corretamente');
-            }
-            
-            if (dataInicio > dataFim) {
-                throw new Error('A data inicial não pode ser maior que a data final');
-            }
-            
-            // Gerar array de dias da semana
-            this.state.diasSemana = [];
-            const currentDate = new Date(dataInicio);
-            while (currentDate <= dataFim) {
-                this.state.diasSemana.push(new Date(currentDate));
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // Carregar funcionários
-            this.showStatus('Carregando funcionários...', 'loading');
-            await this.loadFuncionarios();
-            
-            // Carregar turnos
-            this.showStatus('Carregando turnos da semana...', 'loading');
-            await this.loadTurnos(dataInicio, dataFim);
-            
-            // NOVO: Carregar dados de funcionariosColaboradores
-            this.showStatus('Carregando dados de colaboradores...', 'loading');
-            await this.loadFuncionariosColaboradores(dataInicio, dataFim);
-            
-            // Carregar dados salvos anteriormente do fechamento
-            await this.loadFechamentoData(dataInicio, dataFim);
-            
-            // Renderizar interface
-            this.renderAll();
-            
-            // Calcular totais
-            this.recalcularTotais();
-            
-            // Ocultar mensagem vazia
-            this.elements.emptyMessage.style.display = 'none';
-            
-            this.state.dadosAlterados = false;
-            this.showStatus('Dados carregados com sucesso!', 'success');
-            
-        } catch (error) {
-            console.error('Erro ao carregar dados:', error);
-            this.showError(error.message);
+        if (!dataInicio || !dataFim || isNaN(dataInicio) || isNaN(dataFim)) {
+            throw new Error('Por favor, selecione as datas corretamente');
         }
+        
+        if (dataInicio > dataFim) {
+            throw new Error('A data inicial não pode ser maior que a data final');
+        }
+        
+        this.state.diasSemana = [];
+        const currentDate = new Date(dataInicio);
+        currentDate.setHours(0, 0, 0, 0);
+        
+        const endDate = new Date(dataFim);
+        endDate.setHours(23, 59, 59, 999);
+        
+        while (currentDate <= endDate) {
+            this.state.diasSemana.push(new Date(currentDate));
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        this.showStatus('Carregando funcionários...', 'loading');
+        await this.loadFuncionarios();
+        
+        this.showStatus('Carregando turnos da semana...', 'loading');
+        await this.loadTurnos(dataInicio, dataFim);
+        
+        this.showStatus('Carregando dados de colaboradores...', 'loading');
+        await this.loadFuncionariosColaboradores(dataInicio, dataFim);
+        
+        await this.loadFechamentoData(dataInicio, dataFim);
+        
+        this.renderAll();
+        
+        this.recalcularTotais();
+        
+        this.elements.emptyMessage.style.display = 'none';
+        
+        this.state.dadosAlterados = false;
+        this.showStatus('Dados carregados com sucesso!', 'success');
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        this.showError(error.message);
     }
+}
 
     async loadFuncionarios() {
         try {
@@ -807,15 +804,23 @@ class FechamentoSemanal {
         
         let detalheDias = '<div class="grid grid-cols-7 gap-2 mt-4">';
         
-        this.state.diasSemana.forEach((dia, index) => {
+        const diasOrdenados = [...this.state.diasSemana].sort((a, b) => {
+            const diaA = a.getDay();
+            const diaB = b.getDay();
+            const ordemA = diaA === 0 ? 7 : diaA;
+            const ordemB = diaB === 0 ? 7 : diaB;
+            return ordemA - ordemB;
+        });
+        
+        diasOrdenados.forEach((dia) => {
             const dateStr = this.formatDate(dia);
             const dadosDia = this.obterDadosDiaFuncionario(func.uid, dateStr);
             const diaSemanaIndex = dia.getDay();
-            const abrevIndex = diaSemanaIndex === 0 ? 6 : diaSemanaIndex - 1;
+            const indexAbrev = diaSemanaIndex === 0 ? 6 : diaSemanaIndex - 1;
             
             detalheDias += `
                 <div class="${dadosDia.trabalhou ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-2 text-center">
-                    <p class="text-xs font-medium text-gray-600">${this.CONFIG.diasSemanaAbrev[abrevIndex]}</p>
+                    <p class="text-xs font-medium text-gray-600">${this.CONFIG.diasSemanaAbrev[indexAbrev]}</p>
                     <p class="text-sm font-bold ${dadosDia.trabalhou ? 'text-green-600' : 'text-gray-400'}">
                         ${dadosDia.trabalhou ? dadosDia.horas.toFixed(1) + 'h' : '-'}
                     </p>
