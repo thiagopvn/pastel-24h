@@ -268,26 +268,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function adicionarIndicadorLimite(inputElement, limiteMaximo) {
-        if (!inputElement) return;
-        const wrapper = inputElement.parentElement;
-        if (!wrapper) return;
-        const indicadorExistente = wrapper.querySelector('.limite-indicador');
-        if (indicadorExistente) {
-            indicadorExistente.remove();
-        }
-        if (limiteMaximo <= 0) return;
-        const indicador = document.createElement('span');
-        indicador.className = 'limite-indicador absolute right-8 top-1/2 transform -translate-y-1/2 text-xs text-gray-500';
-        indicador.innerHTML = `<i class="fas fa-info-circle"></i> Máx: ${limiteMaximo}`;
-        wrapper.style.position = 'relative';
-        wrapper.appendChild(indicador);
-        const valorAtual = parseFloat(inputElement.value) || 0;
-        if (valorAtual >= limiteMaximo) {
-            inputElement.classList.add('at-limit');
-        } else {
-            inputElement.classList.remove('at-limit');
-        }
-    }
+    return;
+}
 
     function adicionarTooltipAjuda() {
         const tooltips = {
