@@ -703,18 +703,10 @@ class FechamentoSemanal {
     renderVisualizacaoDiaria() {
     this.elements.diasSemanaCards.innerHTML = '';
     
-     const diasOrdenados = [...this.state.diasSemana].sort((a, b) => {
-        const diaA = a.getDay();
-        const diaB = b.getDay();
-        const ordemA = diaA === 0 ? 7 : diaA;
-        const ordemB = diaB === 0 ? 7 : diaB;
-        return ordemA - ordemB;
-    });
-    
-    diasOrdenados.forEach((dia) => {
+    this.state.diasSemana.forEach((dia) => {
         const dateStr = this.formatDate(dia);
         const diaSemanaIndex = dia.getDay();
-        const diaSemana = diaSemanaIndex === 0 ? 'Domingo' : this.CONFIG.diasSemana[diaSemanaIndex - 1];
+        const diaSemana = this.CONFIG.diasSemana[diaSemanaIndex === 0 ? 6 : diaSemanaIndex - 1];
         
         const card = document.createElement('div');
         card.className = 'day-card p-6 rounded-xl animate-slide-in';
@@ -805,115 +797,117 @@ class FechamentoSemanal {
 }
 
     renderPorFuncionario() {
-        this.elements.funcionariosDetailCards.innerHTML = '';
+    this.elements.funcionariosDetailCards.innerHTML = '';
+    
+    this.state.funcionarios.forEach(func => {
+        const dadosFuncionario = this.calcularDadosFuncionario(func.uid);
         
-        this.state.funcionarios.forEach(func => {
-            const dadosFuncionario = this.calcularDadosFuncionario(func.uid);
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-xl shadow-sm p-6 animate-slide-in';
+        
+        let detalheDias = '<div class="grid grid-cols-7 gap-2 mt-4">';
+        
+        this.state.diasSemana.forEach((dia, index) => {
+            const dateStr = this.formatDate(dia);
+            const dadosDia = this.obterDadosDiaFuncionario(func.uid, dateStr);
+            const diaSemanaIndex = dia.getDay();
+            const abrevIndex = diaSemanaIndex === 0 ? 6 : diaSemanaIndex - 1;
             
-            const card = document.createElement('div');
-            card.className = 'bg-white rounded-xl shadow-sm p-6 animate-slide-in';
-            
-            let detalheDias = '<div class="grid grid-cols-7 gap-2 mt-4">';
-            
-            this.state.diasSemana.forEach((dia, index) => {
-                const dateStr = this.formatDate(dia);
-                const dadosDia = this.obterDadosDiaFuncionario(func.uid, dateStr);
-                
-                detalheDias += `
-                    <div class="${dadosDia.trabalhou ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-2 text-center">
-                        <p class="text-xs font-medium text-gray-600">${this.CONFIG.diasSemanaAbrev[index]}</p>
-                        <p class="text-sm font-bold ${dadosDia.trabalhou ? 'text-green-600' : 'text-gray-400'}">
-                            ${dadosDia.trabalhou ? dadosDia.horas.toFixed(1) + 'h' : '-'}
+            detalheDias += `
+                <div class="${dadosDia.trabalhou ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'} border rounded-lg p-2 text-center">
+                    <p class="text-xs font-medium text-gray-600">${this.CONFIG.diasSemanaAbrev[abrevIndex]}</p>
+                    <p class="text-sm font-bold ${dadosDia.trabalhou ? 'text-green-600' : 'text-gray-400'}">
+                        ${dadosDia.trabalhou ? dadosDia.horas.toFixed(1) + 'h' : '-'}
+                    </p>
+                    ${dadosDia.trabalhou ? `
+                        <p class="text-xs text-gray-500 mt-1">
+                            ${this.getTransporteIcon(dadosDia.transporteTipo)}
                         </p>
-                        ${dadosDia.trabalhou ? `
-                            <p class="text-xs text-gray-500 mt-1">
-                                ${this.getTransporteIcon(dadosDia.transporteTipo)}
-                            </p>
-                        ` : ''}
-                    </div>
-                `;
-            });
-            
-            detalheDias += '</div>';
-            
-            card.innerHTML = `
-                <div class="flex justify-between items-start mb-6">
-                    <div>
-                        <h3 class="text-xl font-semibold text-gray-800">${func.nome}</h3>
-                        <p class="text-sm text-gray-500">
-                            ${func.role === 'admin' ? '👑 Administrador' : '👤 Funcionário'}
-                            • ${func.email}
-                        </p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-sm text-gray-500">Total a Receber</p>
-                        <p class="text-2xl font-bold ${dadosFuncionario.totalReceber >= 0 ? 'text-green-600' : 'text-red-600'}">
-                            ${this.formatCurrency(dadosFuncionario.totalReceber)}
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-blue-50 p-3 rounded-lg text-center">
-                        <i class="fas fa-clock text-blue-600 text-xl mb-1"></i>
-                        <p class="text-xs text-gray-600">Horas</p>
-                        <p class="font-semibold">${dadosFuncionario.totalHoras.toFixed(1)}h</p>
-                        <p class="text-sm text-blue-600">${this.formatCurrency(dadosFuncionario.totalHorasValor)}</p>
-                    </div>
-                    
-                    <div class="bg-purple-50 p-3 rounded-lg text-center">
-                        <i class="fas fa-bus text-purple-600 text-xl mb-1"></i>
-                        <p class="text-xs text-gray-600">Transporte</p>
-                        <p class="font-semibold text-purple-600">${this.formatCurrency(dadosFuncionario.totalTransporte)}</p>
-                    </div>
-                    
-                    <div class="bg-orange-50 p-3 rounded-lg text-center">
-                        <i class="fas fa-utensils text-orange-600 text-xl mb-1"></i>
-                        <p class="text-xs text-gray-600">Alimentação</p>
-                        <p class="font-semibold text-orange-600">${this.formatCurrency(dadosFuncionario.totalAlimentacao)}</p>
-                    </div>
-                    
-                    <div class="bg-red-50 p-3 rounded-lg text-center">
-                        <i class="fas fa-shopping-cart text-red-600 text-xl mb-1"></i>
-                        <p class="text-xs text-gray-600">Consumo</p>
-                        <p class="font-semibold text-red-600">-${this.formatCurrency(dadosFuncionario.totalConsumo)}</p>
-                    </div>
-                </div>
-                
-                <h4 class="text-sm font-semibold text-gray-700 mb-2">Dias Trabalhados</h4>
-                ${detalheDias}
-                
-                <div class="mt-6 pt-6 border-t border-gray-200">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-plus-circle text-green-500 mr-1"></i>Adicional
-                            </label>
-                            <input type="number" 
-                                   id="${func.uid}_detail_adicional"
-                                   value="${dadosFuncionario.adicional}"
-                                   min="0" step="0.01" 
-                                   class="w-full px-3 py-2 text-green-600 font-semibold border rounded-lg focus:ring-2 focus:ring-green-500"
-                                   placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="fas fa-minus-circle text-red-500 mr-1"></i>Desconto Extra
-                            </label>
-                            <input type="number" 
-                                   id="${func.uid}_detail_desconto"
-                                   value="${dadosFuncionario.desconto}"
-                                   min="0" step="0.01" 
-                                   class="w-full px-3 py-2 text-red-600 font-semibold border rounded-lg focus:ring-2 focus:ring-red-500"
-                                   placeholder="0.00">
-                        </div>
-                    </div>
+                    ` : ''}
                 </div>
             `;
-            
-            this.elements.funcionariosDetailCards.appendChild(card);
         });
-    }
+        
+        detalheDias += '</div>';
+        
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-800">${func.nome}</h3>
+                    <p class="text-sm text-gray-500">
+                        ${func.role === 'admin' ? '👑 Administrador' : '👤 Funcionário'}
+                        • ${func.email}
+                    </p>
+                </div>
+                <div class="text-right">
+                    <p class="text-sm text-gray-500">Total a Receber</p>
+                    <p class="text-2xl font-bold ${dadosFuncionario.totalReceber >= 0 ? 'text-green-600' : 'text-red-600'}">
+                        ${this.formatCurrency(dadosFuncionario.totalReceber)}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-blue-50 p-3 rounded-lg text-center">
+                    <i class="fas fa-clock text-blue-600 text-xl mb-1"></i>
+                    <p class="text-xs text-gray-600">Horas</p>
+                    <p class="font-semibold">${dadosFuncionario.totalHoras.toFixed(1)}h</p>
+                    <p class="text-sm text-blue-600">${this.formatCurrency(dadosFuncionario.totalHorasValor)}</p>
+                </div>
+                
+                <div class="bg-purple-50 p-3 rounded-lg text-center">
+                    <i class="fas fa-bus text-purple-600 text-xl mb-1"></i>
+                    <p class="text-xs text-gray-600">Transporte</p>
+                    <p class="font-semibold text-purple-600">${this.formatCurrency(dadosFuncionario.totalTransporte)}</p>
+                </div>
+                
+                <div class="bg-orange-50 p-3 rounded-lg text-center">
+                    <i class="fas fa-utensils text-orange-600 text-xl mb-1"></i>
+                    <p class="text-xs text-gray-600">Alimentação</p>
+                    <p class="font-semibold text-orange-600">${this.formatCurrency(dadosFuncionario.totalAlimentacao)}</p>
+                </div>
+                
+                <div class="bg-red-50 p-3 rounded-lg text-center">
+                    <i class="fas fa-shopping-cart text-red-600 text-xl mb-1"></i>
+                    <p class="text-xs text-gray-600">Consumo</p>
+                    <p class="font-semibold text-red-600">-${this.formatCurrency(dadosFuncionario.totalConsumo)}</p>
+                </div>
+            </div>
+            
+            <h4 class="text-sm font-semibold text-gray-700 mb-2">Dias Trabalhados</h4>
+            ${detalheDias}
+            
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-plus-circle text-green-500 mr-1"></i>Adicional
+                        </label>
+                        <input type="number" 
+                               id="${func.uid}_detail_adicional"
+                               value="${dadosFuncionario.adicional}"
+                               min="0" step="0.01" 
+                               class="w-full px-3 py-2 text-green-600 font-semibold border rounded-lg focus:ring-2 focus:ring-green-500"
+                               placeholder="0.00">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-minus-circle text-red-500 mr-1"></i>Desconto Extra
+                        </label>
+                        <input type="number" 
+                               id="${func.uid}_detail_desconto"
+                               value="${dadosFuncionario.desconto}"
+                               min="0" step="0.01" 
+                               class="w-full px-3 py-2 text-red-600 font-semibold border rounded-lg focus:ring-2 focus:ring-red-500"
+                               placeholder="0.00">
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        this.elements.funcionariosDetailCards.appendChild(card);
+    });
+}
 
     calcularDadosFuncionario(uid) {
         let totalHoras = 0;
