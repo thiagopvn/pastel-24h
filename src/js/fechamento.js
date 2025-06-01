@@ -15,7 +15,8 @@ class FechamentoSemanal {
                 onibus: 9.60,
                 moto: 15.00,
                 carro: 20.00,
-                outros: 10.00
+                outros: 10.00,
+                bicicleta: 0 // Adicionado bicicleta
             },
             valorHoraPadrao: 10.00,
             diasSemana: ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'],
@@ -26,6 +27,7 @@ class FechamentoSemanal {
         this.state = {
             funcionarios: [],
             turnosData: {},
+            funcionariosColaboradoresData: {}, // Novo: armazenar dados de colaboradores
             diasSemana: [],
             valoresTransporte: { ...this.CONFIG.transportePadrao },
             dadosAlterados: false,
@@ -254,6 +256,10 @@ class FechamentoSemanal {
             this.showStatus('Carregando turnos da semana...', 'loading');
             await this.loadTurnos(dataInicio, dataFim);
             
+            // NOVO: Carregar dados de funcionariosColaboradores
+            this.showStatus('Carregando dados de colaboradores...', 'loading');
+            await this.loadFuncionariosColaboradores(dataInicio, dataFim);
+            
             // Carregar dados salvos anteriormente do fechamento
             await this.loadFechamentoData(dataInicio, dataFim);
             
@@ -374,31 +380,178 @@ class FechamentoSemanal {
         }
     }
 
-    async loadFechamentoData(dataInicio, dataFim) {
-    try {
-        const semanaId = `${this.formatDate(dataInicio)}_${this.formatDate(dataFim)}`;
-        const fechamentoDoc = await db.collection('fechamentos_semanais').doc(semanaId).get();
-        
-        if (fechamentoDoc.exists) {
-            const data = fechamentoDoc.data();
+    // NOVO MÉTODO: Carregar dados de funcionariosColaboradores
+    async loadFuncionariosColaboradores(dataInicio, dataFim) {
+        try {
+            console.log('🔍 Buscando dados de funcionariosColaboradores...');
+            this.state.funcionariosColaboradoresData = {};
             
-            // Certifique-se de que o objeto funcionarios existe
-            if (data && data.funcionarios) {
-                this.state.fechamentoData = data.funcionarios;
-                console.log('✅ Dados de fechamento carregados:', this.state.fechamentoData);
+            // Buscar todos os turnos no período (incluindo os abertos)
+            const currentDate = new Date(dataInicio);
+            while (currentDate <= dataFim) {
+                const dateStr = this.formatDate(currentDate);
+                
+                // Buscar turnos do dia (sem filtro de status para pegar todos)
+                const turnosSnapshot = await db.collection('turnos')
+                    .where(firebase.firestore.FieldPath.documentId(), '>=', dateStr)
+                    .where(firebase.firestore.FieldPath.documentId(), '<', dateStr + 'z')
+                    .get();
+                
+                for (const doc of turnosSnapshot.docs) {
+                    const turnoData = doc.data();
+                    
+                    // Verificar se tem funcionariosColaboradores
+                    if (turnoData.funcionariosColaboradores && Array.isArray(turnoData.funcionariosColaboradores)) {
+                        console.log(`📋 Turno ${doc.id} tem ${turnoData.funcionariosColaboradores.length} colaboradores`);
+                        
+                        // Processar cada colaborador
+                        for (const colaborador of turnoData.funcionariosColaboradores) {
+                            const funcionarioId = colaborador.funcionarioId;
+                            
+                            if (!funcionarioId) continue;
+                            
+                            // Inicializar estrutura
+                            if (!this.state.funcionariosColaboradoresData[dateStr]) {
+                                this.state.funcionariosColaboradoresData[dateStr] = {};
+                            }
+                            
+                            if (!this.state.funcionariosColaboradoresData[dateStr][funcionarioId]) {
+                                this.state.funcionariosColaboradoresData[dateStr][funcionarioId] = {
+                                    nome: colaborador.funcionarioNome || 'Sem nome',
+                                    dados: []
+                                };
+                            }
+                            
+                            // Processar consumo
+                            const consumoValor = await this.calcularConsumoColaborador(colaborador.consumo);
+                            
+                            // Adicionar dados do colaborador
+                            this.state.funcionariosColaboradoresData[dateStr][funcionarioId].dados.push({
+                                turnoId: doc.id,
+                                horasTrabalhadas: colaborador.horasTrabalhadas || 0,
+                                transporte: colaborador.transporte || 'nenhum',
+                                consumo: consumoValor,
+                                consumoDetalhes: colaborador.consumo,
+                                dataRegistro: colaborador.dataRegistro,
+                                registradoPor: colaborador.registradoPor
+                            });
+                        }
+                    }
+                }
+                
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            console.log('✅ Dados de colaboradores carregados:', this.state.funcionariosColaboradoresData);
+            
+        } catch (error) {
+            console.error('❌ Erro ao carregar funcionariosColaboradores:', error);
+            // Não lançar erro para não interromper o carregamento
+        }
+    }
+
+    // NOVO MÉTODO: Calcular consumo do colaborador baseado na string
+    async calcularConsumoColaborador(consumoString) {
+        if (!consumoString || typeof consumoString !== 'string') return 0;
+        
+        let consumoTotal = 0;
+        
+        try {
+            // Buscar preços atuais do Firebase
+            const produtosDoc = await db.collection('produtos').get();
+            const precos = {};
+            
+            produtosDoc.forEach(doc => {
+                precos[doc.id] = doc.data();
+            });
+            
+            // Parse do consumo (exemplo: "1 Carne com Queijo, 1 Copo 300ml")
+            const itens = consumoString.split(',').map(item => item.trim());
+            
+            for (const item of itens) {
+                // Extrair quantidade e nome do produto
+                const match = item.match(/^(\d+)\s+(.+)$/);
+                if (match) {
+                    const quantidade = parseInt(match[1]);
+                    const produtoNome = match[2].trim();
+                    
+                    // Procurar o preço do produto
+                    const precoUnitario = this.buscarPrecoProduto(produtoNome, precos);
+                    consumoTotal += quantidade * precoUnitario;
+                    
+                    console.log(`  Consumo: ${quantidade}x ${produtoNome} = R$ ${(quantidade * precoUnitario).toFixed(2)}`);
+                }
+            }
+        } catch (error) {
+            console.error('Erro ao calcular consumo do colaborador:', error);
+        }
+        
+        return consumoTotal;
+    }
+
+    // NOVO MÉTODO: Buscar preço do produto pelo nome
+    buscarPrecoProduto(nomeProduto, precos) {
+        // Normalizar nome do produto
+        const nomeNormalizado = nomeProduto.toLowerCase()
+            .replace(/\s+/g, '_')
+            .replace(/[ç]/g, 'c')
+            .replace(/[ãâáàä]/g, 'a')
+            .replace(/[éêèë]/g, 'e')
+            .replace(/[íìîï]/g, 'i')
+            .replace(/[óôõòö]/g, 'o')
+            .replace(/[úùûü]/g, 'u');
+        
+        // Mapear nomes comuns para as chaves do Firebase
+        const mapeamento = {
+            'carne com queijo': 'carne_com_queijo',
+            'copo 300ml': 'copo_300ml',
+            'copo 400ml': 'copo_400ml',
+            'copo 500ml': 'copo_500ml',
+            'garrafa 500ml': 'garrafa_500ml',
+            'garrafa 1 litro': 'garrafa_1_litro',
+            'coca-cola': 'coca-cola',
+            'refri limao': 'refri_limao',
+            'agua c gas': 'agua_c_gas'
+        };
+        
+        const chaveNormalizada = mapeamento[nomeProduto.toLowerCase()] || nomeNormalizado;
+        
+        // Procurar em todas as categorias
+        for (const [categoria, produtos] of Object.entries(precos)) {
+            if (produtos[chaveNormalizada] !== undefined) {
+                return produtos[chaveNormalizada] || 0;
+            }
+        }
+        
+        console.warn(`⚠️ Preço não encontrado para: ${nomeProduto} (chave: ${chaveNormalizada})`);
+        return 0; // Retorna 0 se não encontrar o preço
+    }
+
+    async loadFechamentoData(dataInicio, dataFim) {
+        try {
+            const semanaId = `${this.formatDate(dataInicio)}_${this.formatDate(dataFim)}`;
+            const fechamentoDoc = await db.collection('fechamentos_semanais').doc(semanaId).get();
+            
+            if (fechamentoDoc.exists) {
+                const data = fechamentoDoc.data();
+                
+                // Certifique-se de que o objeto funcionarios existe
+                if (data && data.funcionarios) {
+                    this.state.fechamentoData = data.funcionarios;
+                    console.log('✅ Dados de fechamento carregados:', this.state.fechamentoData);
+                } else {
+                    this.state.fechamentoData = {};
+                    console.log('⚠️ Documento existe, mas não tem dados de funcionários');
+                }
             } else {
                 this.state.fechamentoData = {};
-                console.log('⚠️ Documento existe, mas não tem dados de funcionários');
+                console.log('ℹ️ Nenhum fechamento anterior encontrado');
             }
-        } else {
+        } catch (error) {
+            console.error('❌ Erro ao carregar fechamento:', error);
             this.state.fechamentoData = {};
-            console.log('ℹ️ Nenhum fechamento anterior encontrado');
         }
-    } catch (error) {
-        console.error('❌ Erro ao carregar fechamento:', error);
-        this.state.fechamentoData = {};
     }
-}
 
     calcularHorasTrabalhadas(horaInicio, horaFim) {
         if (!horaInicio || !horaFim) return 0;
@@ -601,6 +754,7 @@ class FechamentoSemanal {
                                         <option value="onibus" ${dadosDia.transporteTipo === 'onibus' ? 'selected' : ''}>🚌 Ônibus</option>
                                         <option value="moto" ${dadosDia.transporteTipo === 'moto' ? 'selected' : ''}>🏍️ Moto</option>
                                         <option value="carro" ${dadosDia.transporteTipo === 'carro' ? 'selected' : ''}>🚗 Carro</option>
+                                        <option value="bicicleta" ${dadosDia.transporteTipo === 'bicicleta' ? 'selected' : ''}>🚲 Bicicleta</option>
                                         <option value="outros" ${dadosDia.transporteTipo === 'outros' ? 'selected' : ''}>📍 Outros</option>
                                     </select>
                                 </div>
@@ -610,6 +764,12 @@ class FechamentoSemanal {
                                     </span>
                                 </div>
                             </div>
+                            ${dadosDia.fonte ? `
+                                <div class="mt-2 text-xs text-gray-400">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Fonte: ${dadosDia.fonte}
+                                </div>
+                            ` : ''}
                         </div>
                     `;
                 }
@@ -788,57 +948,81 @@ class FechamentoSemanal {
     }
 
     obterDadosDiaFuncionario(uid, dateStr) {
-    // Primeiro verifica se há turnos registrados
-    const turnosDia = this.state.turnosData[dateStr]?.[uid];
-    
-    // Verifica se há dados salvos no fechamento
-    const dadosSalvos = this.state.fechamentoData[uid]?.diasTrabalhados?.[dateStr] || {};
-    
-    console.log(`Verificando dados para ${uid} em ${dateStr}:`, dadosSalvos);
-    
-    if (turnosDia && turnosDia.turnos.length > 0) {
-        // Somar dados de todos os turnos do dia
-        let horasTotal = 0;
-        let consumoTotal = 0;
+        // Primeiro verifica se há dados de funcionariosColaboradores
+        const colaboradorDia = this.state.funcionariosColaboradoresData[dateStr]?.[uid];
         
-        turnosDia.turnos.forEach(turno => {
-            horasTotal += turno.horas;
-            consumoTotal += turno.consumo;
+        // Depois verifica se há turnos registrados
+        const turnosDia = this.state.turnosData[dateStr]?.[uid];
+        
+        // Verifica se há dados salvos no fechamento
+        const dadosSalvos = this.state.fechamentoData[uid]?.diasTrabalhados?.[dateStr] || {};
+        
+        console.log(`Verificando dados para ${uid} em ${dateStr}:`, {
+            colaborador: colaboradorDia,
+            turnos: turnosDia,
+            salvos: dadosSalvos
         });
         
-        // Usar dados salvos se existirem, senão usar calculados
+        // Combinar dados de todas as fontes
+        let horasTotal = 0;
+        let consumoTotal = 0;
+        let transporteTipo = 'nenhum';
+        let alimentacao = 0;
+        let fonte = '';
+        
+        // Prioridade 1: Dados de colaboradores
+        if (colaboradorDia && colaboradorDia.dados.length > 0) {
+            colaboradorDia.dados.forEach(dado => {
+                horasTotal += dado.horasTrabalhadas || 0;
+                consumoTotal += dado.consumo || 0;
+                transporteTipo = dado.transporte || transporteTipo;
+            });
+            fonte = 'Colaborador';
+        }
+        
+        // Prioridade 2: Dados de turnos
+        if (turnosDia && turnosDia.turnos.length > 0) {
+            turnosDia.turnos.forEach(turno => {
+                horasTotal += turno.horas;
+                consumoTotal += turno.consumo;
+            });
+            fonte = fonte ? fonte + '/Turno' : 'Turno';
+        }
+        
+        // Usar dados salvos para sobrescrever se existirem (exceto consumo)
+        if (dadosSalvos && Object.keys(dadosSalvos).length > 0) {
+            horasTotal = dadosSalvos.horas !== undefined ? dadosSalvos.horas : horasTotal;
+            alimentacao = dadosSalvos.alimentacao || 0;
+            transporteTipo = dadosSalvos.transporteTipo || transporteTipo;
+            // Consumo sempre vem dos dados originais, não dos salvos
+            fonte = fonte ? fonte + '/Salvo' : 'Salvo';
+        }
+        
+        // Se há qualquer dado, marcar como trabalhou
+        const trabalhou = horasTotal > 0 || consumoTotal > 0 || (dadosSalvos && Object.keys(dadosSalvos).length > 0);
+        
+        if (trabalhou) {
+            return {
+                trabalhou: true,
+                horas: horasTotal,
+                alimentacao: alimentacao,
+                transporteTipo: transporteTipo,
+                consumo: consumoTotal,
+                turnos: turnosDia?.turnos || [],
+                fonte: fonte
+            };
+        }
+        
         return {
-            trabalhou: true,
-            horas: dadosSalvos.horas !== undefined ? dadosSalvos.horas : horasTotal,
-            alimentacao: dadosSalvos.alimentacao || 0,
-            transporteTipo: dadosSalvos.transporteTipo || 'nenhum',
-            consumo: consumoTotal, // Sempre usar o consumo calculado do turno
-            turnos: turnosDia.turnos
+            trabalhou: false,
+            horas: 0,
+            alimentacao: 0,
+            transporteTipo: 'nenhum',
+            consumo: 0,
+            turnos: [],
+            fonte: ''
         };
     }
-    
-    // Verificar se existem dados salvos mesmo sem turnos registrados
-    if (dadosSalvos && Object.keys(dadosSalvos).length > 0) {
-        console.log(`Dados salvos sem turnos para ${uid} em ${dateStr}:`, dadosSalvos);
-        return {
-            trabalhou: true,
-            horas: dadosSalvos.horas || 0,
-            alimentacao: dadosSalvos.alimentacao || 0,
-            transporteTipo: dadosSalvos.transporteTipo || 'nenhum',
-            consumo: dadosSalvos.consumo || 0,
-            turnos: []
-        };
-    }
-    
-    return {
-        trabalhou: false,
-        horas: 0,
-        alimentacao: 0,
-        transporteTipo: 'nenhum',
-        consumo: 0,
-        turnos: []
-    };
-}
 
     obterValorInput(id) {
         const element = document.getElementById(id);
@@ -935,7 +1119,8 @@ class FechamentoSemanal {
                             transporteTipo: transporteTipo,
                             transporteValor: this.state.valoresTransporte[transporteTipo] || 0,
                             consumo: dadosDia.consumo,
-                            turnos: dadosDia.turnos.map(t => t.turnoId)
+                            turnos: dadosDia.turnos.map(t => t.turnoId),
+                            fonte: dadosDia.fonte
                         };
                         
                         // Atualizar cada turno com os dados do fechamento
@@ -1046,6 +1231,7 @@ class FechamentoSemanal {
             onibus: '🚌',
             moto: '🏍️',
             carro: '🚗',
+            bicicleta: '🚲',
             outros: '📍'
         };
         return icons[tipo] || '-';
@@ -1071,7 +1257,8 @@ class FechamentoSemanal {
             onibus: parseFloat(document.getElementById('valorOnibus').value) || 0,
             moto: parseFloat(document.getElementById('valorMoto').value) || 0,
             carro: parseFloat(document.getElementById('valorCarro').value) || 0,
-            outros: parseFloat(document.getElementById('valorOutros').value) || 0
+            outros: parseFloat(document.getElementById('valorOutros').value) || 0,
+            bicicleta: 0 // Sempre 0 para bicicleta
         };
         
         localStorage.setItem('valoresTransporte', JSON.stringify(this.state.valoresTransporte));
