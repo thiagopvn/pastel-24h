@@ -6,15 +6,10 @@
     <title>Controle de Turno - Pastelaria 24h</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="src/css/style.css">
-    <!-- Firebase App (Core) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <!-- Firebase Authentication -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
-    <!-- Firebase Firestore -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <!-- Google Fonts -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap">
     <script>
         tailwind.config = {
@@ -45,143 +40,6 @@
             }
         }
     </script>
-    <style>
-        /* Estilos personalizados - Sistema de Controle de Turno */
-        body {
-            font-family: 'Poppins', sans-serif;
-            background-color: #f8f9fd;
-        }
-        
-        .bg-header-gradient {
-            background: linear-gradient(135deg, #F97316, #EA580C);
-        }
-
-        .custom-shadow {
-            box-shadow: 0 4px 20px -5px rgba(249, 115, 22, 0.25);
-        }
-        
-        .bg-pattern {
-            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23f97316' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-        }
-        
-        /* Animações */
-        @keyframes pulse-shadow {
-            0% {
-                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(249, 115, 22, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
-            }
-        }
-        
-        .btn-pulse {
-            animation: pulse-shadow 1.5s infinite;
-        }
-        
-        /* Estilos para tabelas e formulários */
-        .input-focus:focus {
-            outline: none;
-            border-color: #F97316;
-            box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
-        }
-        
-        .transition-all-300 {
-            transition: all 0.3s ease;
-        }
-        
-        .hover-scale:hover {
-            transform: scale(1.03);
-        }
-        
-        /* Status de turno */
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-        }
-        
-        .status-badge-active {
-            background-color: rgba(16, 185, 129, 0.1);
-            color: #059669;
-        }
-        
-        .status-badge-inactive {
-            background-color: rgba(239, 68, 68, 0.1);
-            color: #DC2626;
-        }
-        
-        .status-badge-warning {
-            background-color: rgba(245, 158, 11, 0.1);
-            color: #D97706;
-        }
-        
-        /* Efeito de carregamento */
-        .loading-placeholder {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.5;
-            }
-        }
-
-        /* Melhorias visuais para tabelas */
-        table.custom-table {
-            border-radius: 0.75rem;
-            overflow: hidden;
-        }
-        
-        table.custom-table th {
-            background-color: #FEF3C7;
-            color: #92400E;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.75rem;
-            letter-spacing: 0.05em;
-        }
-        
-        table.custom-table tr:hover {
-            background-color: #FFF7ED;
-        }
-        
-        /* Animações para feedback */
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .fade-in {
-            animation: fadeIn 0.3s ease-in-out;
-        }
-
-        /* Destaque visual para coluna de chegadas */
-        .col-chegadas {
-            background-color: #FEF3C7 !important;
-            border-left: 2px solid #F59E0B;
-            border-right: 2px solid #F59E0B;
-        }
-        
-        .col-chegadas input {
-            background-color: #FFFBEB !important;
-            border-color: #FCD34D !important;
-        }
-        
-        .col-chegadas input:focus {
-            background-color: #FEFCE8 !important;
-            border-color: #F59E0B !important;
-            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
-        }
-    </style>
 </head>
 <body class="bg-pattern min-h-screen">
     <header class="bg-header-gradient text-white shadow-lg sticky top-0 z-50">
@@ -191,13 +49,9 @@
                     <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
                 </svg>
                 <h1 class="text-xl font-bold tracking-wide text-white drop-shadow-sm">
-  Pastelaria 24h - Controle de Turno
-</h1>
-
-
-
+                    Pastelaria 24h - Controle de Turno
+                </h1>
             </div>
-            
             <div class="flex items-center mt-2 sm:mt-0">
                 <div class="mr-4 bg-white bg-opacity-20 rounded-full px-3 py-1 flex items-center">
                     <i class="fa fa-user-circle mr-2"></i>
@@ -211,7 +65,6 @@
     </header>
 
     <main class="container mx-auto py-6 px-4">
-        <!-- Turno Control Buttons -->
         <div class="bg-white rounded-xl shadow-card mb-8 overflow-hidden">
             <div class="p-6">
                 <div class="flex flex-col sm:flex-row justify-center items-center gap-4 mb-6">
@@ -222,7 +75,6 @@
                         <i class="fa fa-stop-circle mr-2"></i> Fechar Turno
                     </button>
                 </div>
-                
                 <div id="turnoStatusContainer" class="text-center">
                     <div id="turnoStatusLoadingIndicator" class="hidden">
                         <div class="inline-flex items-center px-4 py-2 rounded-full bg-blue-50 text-blue-700">
@@ -235,16 +87,13 @@
                     </div>
                     <p id="turnoStatus" class="text-center text-blue-600 font-semibold mb-4"></p>
                 </div>
-                
                 <div id="errorMessages" class="text-red-600 text-sm mb-4 text-center font-medium p-3 bg-red-100 border border-red-300 rounded-md hidden"></div>
             </div>
         </div>
 
-        <!-- Main Content -->
         <div class="bg-white rounded-xl shadow-card overflow-hidden">
             <div class="p-6">
                 <form id="formTurno" class="space-y-8">
-                    <!-- Detalhes do Turno -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fa fa-info-circle mr-2"></i>Detalhes do Turno
@@ -281,7 +130,6 @@
                         </div>
                     </fieldset>
 
-                    <!-- AVISO SOBRE NOVA COLUNA CHEGADAS -->
                     <div class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-lg">
                         <div class="flex items-start">
                             <div class="flex-shrink-0">
@@ -298,194 +146,191 @@
                         </div>
                     </div>
 
-                    <!-- Seção Pastéis -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="pasteis">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-utensils mr-2"></i>Pastéis
                         </legend>
                         <div class="table-scroll-container">
-                        <div class="scroll-indicator left"></div>
-                        <div class="scroll-indicator right"></div>
-                        <div class="overflow-x-auto mt-2 scrollable-table">
-                            <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
-                                <thead>
-                                    <tr>
-                                        <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
-                                            Sabor
-                                        </th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabelaPasteis" class="bg-white divide-y divide-gray-200">
-                                    <!-- Linhas de pastéis serão inseridas aqui pelo JS -->
-                                </tbody>
-                                <tbody id="tabelaCasquinhas" class="bg-white divide-y divide-gray-200 border-t-2 border-pastel-orange-300 mt-2 pt-2">
-                                    <!-- Linhas de casquinhas serão inseridas aqui pelo JS -->
-                                </tbody>
-                                <tfoot class="bg-pastel-orange-50">
-                                    <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Comuns:</td>
-                                        <td id="totalPasteisComunsVendido" class="px-2 py-2 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalPasteisComunsValor" class="px-2 py-2">R$ 0.00</td>
-                                    </tr>
-                                    <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Especiais:</td>
-                                        <td id="totalPasteisEspeciaisVendido" class="px-2 py-2 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalPasteisEspeciaisValor" class="px-2 py-2">R$ 0.00</td>
-                                    </tr>
-                                    <tr class="font-semibold text-gray-700">
-                                        <td class="px-3 py-2 text-right" colspan="6">Total Casquinhas:</td>
-                                        <td id="totalCasquinhasVendido" class="px-2 py-2 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalCasquinhasValor" class="px-2 py-2">R$ 0.00</td>
-                                    </tr>
-                                    <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL GERAL DE PASTÉIS (C+E):</td>
-                                        <td id="totalGeralPasteisVendido" class="px-2 py-3 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalGeralPasteisValor" class="px-2 py-3">R$ 0.00</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                            <div class="scroll-indicator left"></div>
+                            <div class="scroll-indicator right"></div>
+                            <div class="scrollable-table-wrapper">
+                                <div class="overflow-x-auto mt-2 scrollable-table">
+                                    <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
+                                                    Sabor
+                                                </th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabelaPasteis" class="bg-white divide-y divide-gray-200"></tbody>
+                                        <tbody id="tabelaCasquinhas" class="bg-white divide-y divide-gray-200 border-t-2 border-pastel-orange-300 mt-2 pt-2"></tbody>
+                                        <tfoot class="bg-pastel-orange-50">
+                                            <tr class="font-semibold text-gray-700">
+                                                <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Comuns:</td>
+                                                <td id="totalPasteisComunsVendido" class="px-2 py-2 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalPasteisComunsValor" class="px-2 py-2">R$ 0.00</td>
+                                            </tr>
+                                            <tr class="font-semibold text-gray-700">
+                                                <td class="px-3 py-2 text-right" colspan="6">Total Pastéis Especiais:</td>
+                                                <td id="totalPasteisEspeciaisVendido" class="px-2 py-2 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalPasteisEspeciaisValor" class="px-2 py-2">R$ 0.00</td>
+                                            </tr>
+                                            <tr class="font-semibold text-gray-700">
+                                                <td class="px-3 py-2 text-right" colspan="6">Total Casquinhas:</td>
+                                                <td id="totalCasquinhasVendido" class="px-2 py-2 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalCasquinhasValor" class="px-2 py-2">R$ 0.00</td>
+                                            </tr>
+                                            <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
+                                                <td class="px-3 py-3 text-right" colspan="6">TOTAL GERAL DE PASTÉIS (C+E):</td>
+                                                <td id="totalGeralPasteisVendido" class="px-2 py-3 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalGeralPasteisValor" class="px-2 py-3">R$ 0.00</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
 
-                    <!-- Seção Caldo de Cana -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="caldo_cana">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-glass-whiskey mr-2"></i>Caldo de Cana
                         </legend>
                         <div class="table-scroll-container">
-                        <div class="scroll-indicator left"></div>
-                        <div class="scroll-indicator right"></div>
-                        <div class="overflow-x-auto mt-2 scrollable-table">
-                            <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
-                                <thead>
-                                    <tr>
-                                        <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
-                                            Item
-                                        </th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabelaCaldoCana" class="bg-white divide-y divide-gray-200">
-                                    <!-- Linhas serão inseridas aqui -->
-                                </tbody>
-                                <tfoot class="bg-pastel-orange-50">
-                                    <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL CALDO DE CANA:</td>
-                                        <td id="totalCaldoCanaVendido" class="px-2 py-3 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalCaldoCanaValor" class="px-2 py-3">R$ 0.00</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                            <div class="scroll-indicator left"></div>
+                            <div class="scroll-indicator right"></div>
+                            <div class="scrollable-table-wrapper">
+                                <div class="overflow-x-auto mt-2 scrollable-table">
+                                    <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
+                                                    Item
+                                                </th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabelaCaldoCana" class="bg-white divide-y divide-gray-200"></tbody>
+                                        <tfoot class="bg-pastel-orange-50">
+                                            <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
+                                                <td class="px-3 py-3 text-right" colspan="6">TOTAL CALDO DE CANA:</td>
+                                                <td id="totalCaldoCanaVendido" class="px-2 py-3 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalCaldoCanaValor" class="px-2 py-3">R$ 0.00</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
 
-                    <!-- Seção Refrigerantes -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="refrigerantes">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-bottle-water mr-2"></i>Refrigerantes e Bebidas
                         </legend>
                         <div class="table-scroll-container">
-                        <div class="scroll-indicator left"></div>
-                        <div class="scroll-indicator right"></div>
-                        <div class="overflow-x-auto mt-2 scrollable-table">
-                            <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
-                                <thead>
-                                    <tr>
-                                        <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
-                                            Item
-                                        </th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
-                                        <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tabelaRefrigerantes" class="bg-white divide-y divide-gray-200">
-                                    <!-- Linhas serão inseridas aqui -->
-                                </tbody>
-                                <tfoot class="bg-pastel-orange-50">
-                                    <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                                        <td class="px-3 py-3 text-right" colspan="6">TOTAL REFRIGERANTES E BEBIDAS:</td>
-                                        <td id="totalRefrigerantesVendido" class="px-2 py-3 text-center">0</td>
-                                        <td></td>
-                                        <td id="totalRefrigerantesValor" class="px-2 py-3">R$ 0.00</td>
-                                    </tr>
-                                </tfoot>
-                            </table>
+                            <div class="scroll-indicator left"></div>
+                            <div class="scroll-indicator right"></div>
+                            <div class="scrollable-table-wrapper">
+                                <div class="overflow-x-auto mt-2 scrollable-table">
+                                    <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
+                                                    Item
+                                                </th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Descarte</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Consumo Func.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendido</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Unit.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Item</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabelaRefrigerantes" class="bg-white divide-y divide-gray-200"></tbody>
+                                        <tfoot class="bg-pastel-orange-50">
+                                            <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
+                                                <td class="px-3 py-3 text-right" colspan="6">TOTAL REFRIGERANTES E BEBIDAS:</td>
+                                                <td id="totalRefrigerantesVendido" class="px-2 py-3 text-center">0</td>
+                                                <td></td>
+                                                <td id="totalRefrigerantesValor" class="px-2 py-3">R$ 0.00</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
                     
-                    <!-- Seção Gelo -->
-<fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="gelo">
-    <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
-        <i class="fas fa-cube mr-2"></i>Gelo
-    </legend>
-            <div class="table-scroll-container">
-            <div class="scroll-indicator left"></div>
-            <div class="scroll-indicator right"></div>
-            <div class="overflow-x-auto mt-2 scrollable-table">
-                <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
-            <thead>
-                <tr>
-                    <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
-                        Item
-                    </th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada (Pct)</th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas (Pct)</th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra (Pct)</th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendas (Pct)</th>
-                   <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">
-                        <span class="flex items-center">
-                            Consumo Interno (Pct)
-                            <i class="fas fa-calculator ml-1 text-blue-500" title="Calculado automaticamente"></i>
-                        </span>
-                    </th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Pct.</th>
-                    <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Venda Gelo</th>
-                </tr>
-            </thead>
-            <tbody id="tabelaGelo" class="bg-white divide-y divide-gray-200">
-                <!-- Linha de Gelo será inserida aqui pelo JS -->
-            </tbody>
-            <tfoot class="bg-pastel-orange-50">
-                <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
-                    <td class="px-3 py-3 text-right" colspan="7">TOTAL VENDA DE GELO:</td>
-                    <td id="totalGeloValor" class="px-2 py-3">R$ 0.00</td>
-                </tr>
-            </tfoot>
-       </table>
-</div>
-<div class="mt-2 text-xs text-gray-600 italic flex items-center">
-    <i class="fas fa-info-circle mr-1 text-blue-500"></i>
-    Consumo interno é calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas
-</div>
-</fieldset>
+                    <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm item-section" data-category="gelo">
+                        <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
+                            <i class="fas fa-cube mr-2"></i>Gelo
+                        </legend>
+                        <div class="table-scroll-container">
+                            <div class="scroll-indicator left"></div>
+                            <div class="scroll-indicator right"></div>
+                            <div class="scrollable-table-wrapper">
+                                <div class="overflow-x-auto mt-2 scrollable-table">
+                                    <table class="min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-3 py-3 text-left text-xs font-medium tracking-wider sticky left-0 bg-yellow-100 z-10">
+                                                    Item
+                                                </th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Entrada (Pct)</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider col-chegadas">Chegadas (Pct)</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Sobra (Pct)</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Vendas (Pct)</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">
+                                                    <span class="flex items-center">
+                                                        Consumo Interno (Pct)
+                                                        <i class="fas fa-calculator ml-1 text-blue-500" title="Calculado automaticamente"></i>
+                                                    </span>
+                                                </th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Preço Pct.</th>
+                                                <th class="px-2 py-3 text-left text-xs font-medium tracking-wider">Total Venda Gelo</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tabelaGelo" class="bg-white divide-y divide-gray-200"></tbody>
+                                        <tfoot class="bg-pastel-orange-50">
+                                            <tr class="font-bold text-pastel-orange-600 text-md bg-pastel-orange-100">
+                                                <td class="px-3 py-3 text-right" colspan="7">TOTAL VENDA DE GELO:</td>
+                                                <td id="totalGeloValor" class="px-2 py-3">R$ 0.00</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2 text-xs text-gray-600 italic flex items-center">
+                            <i class="fas fa-info-circle mr-1 text-blue-500"></i>
+                            Consumo interno é calculado automaticamente: (Entrada + Chegadas) - Sobra - Vendas
+                        </div>
+                    </fieldset>
 
-                    <!-- Botijão de Gás -->
                     <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm">
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-fire mr-2"></i>Botijão de Gás
@@ -499,156 +344,161 @@
                         </div>
                     </fieldset>
 
-<!-- Seção Funcionários no Turno -->
-<fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm" id="secaoFuncionariosColaboradores">
-    <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
-        <i class="fas fa-users mr-2"></i>Funcionários Colaboradores no Turno
-    </legend>
-    
-    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg mb-4">
-        <div class="flex items-start">
-            <div class="flex-shrink-0">
-                <i class="fas fa-info-circle text-blue-400 text-xl"></i>
-            </div>
-            <div class="ml-3">
-                <p class="text-blue-700 text-sm">
-                    Registre aqui os funcionários que trabalharam com você neste turno. 
-                    As informações serão salvas no perfil de cada funcionário automaticamente.
-                </p>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Container para lista de funcionários -->
-    <div id="funcionariosColaboradoresContainer" class="space-y-4">
-        <!-- Funcionários serão adicionados dinamicamente aqui -->
-    </div>
-    
-    <!-- Botão para adicionar novo funcionário -->
-    <div class="mt-4 flex justify-center">
-        <button type="button" id="btnAdicionarFuncionario" 
-                class="flex items-center bg-pastel-orange-500 hover:bg-pastel-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pastel-orange-500 focus:ring-opacity-50">
-            <i class="fas fa-plus-circle mr-2"></i>
-            Adicionar Funcionário Colaborador
-        </button>
-    </div>
-</fieldset>
+                    <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm" id="secaoFuncionariosColaboradores">
+                        <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
+                            <i class="fas fa-users mr-2"></i>Funcionários Colaboradores no Turno
+                        </legend>
+                        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-lg mb-4">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0">
+                                    <i class="fas fa-info-circle text-blue-400 text-xl"></i>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-blue-700 text-sm">
+                                        Registre aqui os funcionários que trabalharam com você neste turno. 
+                                        As informações serão salvas no perfil de cada funcionário automaticamente.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="funcionariosColaboradoresContainer" class="space-y-4"></div>
+                        <div class="mt-4 flex justify-center">
+                            <button type="button" id="btnAdicionarFuncionario" 
+                                    class="flex items-center bg-pastel-orange-500 hover:bg-pastel-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-pastel-orange-500 focus:ring-opacity-50">
+                                <i class="fas fa-plus-circle mr-2"></i>
+                                Adicionar Funcionário Colaborador
+                            </button>
+                        </div>
+                    </fieldset>
 
-                    <!-- Caixa -->
-<fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm">
-    <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
-        <i class="fas fa-cash-register mr-2"></i>Controle de Caixa
-    </legend>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    <div>
-        <label for="caixaInicialDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
-            <i class="fas fa-money-bill-wave mr-1"></i>Caixa Inicial - Dinheiro
-        </label>
-        <input type="text" id="caixaInicialDinheiro" name="caixaInicialDinheiro" 
-               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-               placeholder="R$ 0,00" readonly>
-    </div>
-    <div>
-        <label for="caixaInicialMoedas" class="block text-sm font-medium text-gray-700 mb-1">
-            <i class="fas fa-coins mr-1"></i>Caixa Inicial - Moedas
-        </label>
-        <input type="text" id="caixaInicialMoedas" name="caixaInicialMoedas" 
-               class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
-               placeholder="R$ 0,00" readonly>
-    </div>
-</div>
-        <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
-            <label for="totalVendidoTurnoCalculado" class="block text-sm font-medium text-blue-700 mb-1">
-                <i class="fas fa-calculator mr-1"></i> Total Vendido no Turno (Calculado Pelos Itens)
-            </label>
-            <input type="text" id="totalVendidoTurnoCalculado" name="totalVendidoTurnoCalculado"
-                   class="w-full p-3 border border-blue-200 rounded-lg bg-blue-100 shadow-inner font-semibold text-blue-800" readonly placeholder="R$ 0,00">
-        </div>
-    </div>
-    
-    <h3 class="text-md font-semibold text-pastel-orange-600 mt-8 mb-4 border-t pt-4 flex items-center">
-        <i class="fas fa-credit-card mr-2"></i>Valores Finais por Forma de Pagamento (Fechamento)
-    </h3>
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div>
-            <label for="pagamentoDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-money-bill-wave mr-1"></i> Dinheiro (R$)
-            </label>
-            <input type="text" id="pagamentoDinheiro" name="pagamentoDinheiro" 
-                   class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                   placeholder="R$ 0,00">
-        </div>
-        <div>
-            <label for="pagamentoPixManual" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-qrcode mr-1"></i> PIX Manual (R$)
-            </label>
-            <input type="text" id="pagamentoPixManual" name="pagamentoPixManual" 
-                   class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                   placeholder="R$ 0,00">
-        </div>
-        <div>
-            <label for="pagamentoStoneDCV" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-credit-card mr-1"></i> Stone D/C/V (R$)
-            </label>
-            <input type="text" id="pagamentoStoneDCV" name="pagamentoStoneDCV" 
-                   class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                   placeholder="R$ 0,00">
-        </div>
-        <div>
-            <label for="pagamentoStoneVoucher" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-ticket-alt mr-1"></i> Stone Voucher (R$)
-            </label>
-            <input type="text" id="pagamentoStoneVoucher" name="pagamentoStoneVoucher" 
-                   class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                   placeholder="R$ 0,00">
-        </div>
-        <div>
-            <label for="pagamentoPagBankDCV" class="block text-sm font-medium text-gray-700 mb-1">
-                <i class="fas fa-credit-card mr-1"></i> PAGBANK D/C/V (R$)
-            </label>
-            <input type="text" id="pagamentoPagBankDCV" name="pagamentoPagBankDCV" 
-                   class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                   placeholder="R$ 0,00">
-        </div>
-        <div class="bg-green-50 p-4 rounded-lg border border-green-100 sm:col-span-2 lg:col-span-1">
-            <label for="totalRegistradoPagamentos" class="block text-sm font-medium text-green-700 mb-1">
-                <i class="fas fa-check-circle mr-1"></i> Total Registrado (Soma Automática)
-            </label>
-            <input type="text" id="totalRegistradoPagamentos" name="totalRegistradoPagamentos"
-               class="w-full p-3 border border-green-200 rounded-lg bg-green-100 shadow-inner font-semibold text-green-800" readonly placeholder="R$ 0,00">
-        </div>
-    </div>
-
-    <!-- Container para alerta de divergência de vendas vs pagamentos (criado dinamicamente) -->
-    
-    <div class="mt-8 p-5 border rounded-lg bg-gray-50 shadow-sm">
-        <h4 class="text-md font-semibold text-pastel-orange-600 mb-4 flex items-center">
-            <i class="fas fa-balance-scale mr-2"></i>Ajustes de Caixa (Dinheiro e Moedas)
-        </h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="caixaFinalContado" class="block text-sm font-medium text-gray-700 mb-1">
-                    <i class="fas fa-money-bill-wave mr-1"></i> Caixa Final Contado (Dinheiro + Moedas)
-                </label>
-                <input type="text" id="caixaFinalContado" name="caixaFinalContado" 
-                    class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
-                    placeholder="R$ 0,00">
-            </div>
-            <div class="p-4 rounded-lg border" id="caixaDiferencaContainer">
-                <label for="caixaDiferenca" class="block text-sm font-medium mb-1">
-                    <i class="fas fa-exclamation-circle mr-1"></i> Diferença de Caixa Físico
-                </label>
-                <input type="text" id="caixaDiferenca" name="caixaDiferenca" readonly
-                    class="w-full p-3 border rounded-lg bg-gray-100 shadow-inner font-semibold">
-                <p id="divergenciaCaixaAlerta" class="text-xs mt-2 italic"></p>
-            </div>
-        </div>
-    </div>
-</fieldset>
+                    <fieldset class="border border-gray-200 p-6 rounded-lg shadow-sm">
+                        <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
+                            <i class="fas fa-cash-register mr-2"></i>Controle de Caixa
+                        </legend>
+                        <div class="space-y-6">
+                            <div>
+                                <h3 class="text-md font-semibold text-gray-700 mb-3 border-b pb-2 flex items-center">
+                                    <i class="fas fa-sign-in-alt mr-2 text-green-500"></i>Caixa Inicial
+                                </h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="caixaInicialDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-money-bill-wave mr-1"></i>Dinheiro
+                                        </label>
+                                        <input type="text" id="caixaInicialDinheiro" name="caixaInicialDinheiro" 
+                                            class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
+                                            placeholder="R$ 0,00" readonly>
+                                    </div>
+                                    <div>
+                                        <label for="caixaInicialMoedas" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-coins mr-1"></i>Moedas
+                                        </label>
+                                        <input type="text" id="caixaInicialMoedas" name="caixaInicialMoedas" 
+                                            class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus" 
+                                            placeholder="R$ 0,00" readonly>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                <label for="totalVendidoTurnoCalculado" class="block text-sm font-medium text-blue-700 mb-1">
+                                    <i class="fas fa-calculator mr-1"></i> Total Vendido no Turno (Calculado Pelos Itens)
+                                </label>
+                                <input type="text" id="totalVendidoTurnoCalculado" name="totalVendidoTurnoCalculado"
+                                    class="w-full p-3 border border-blue-200 rounded-lg bg-blue-100 shadow-inner font-semibold text-blue-800" readonly placeholder="R$ 0,00">
+                            </div>
+                            
+                            <div>
+                                <h3 class="text-md font-semibold text-gray-700 mt-6 mb-3 border-b pb-2 flex items-center">
+                                    <i class="fas fa-credit-card mr-2 text-blue-500"></i>Valores Finais por Forma de Pagamento (Fechamento)
+                                </h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div>
+                                        <label for="pagamentoDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-money-bill-wave mr-1"></i> Dinheiro (R$)
+                                        </label>
+                                        <input type="text" id="pagamentoDinheiro" name="pagamentoDinheiro" 
+                                            class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label for="pagamentoPixManual" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-qrcode mr-1"></i> PIX Manual (R$)
+                                        </label>
+                                        <input type="text" id="pagamentoPixManual" name="pagamentoPixManual" 
+                                            class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label for="pagamentoStoneDCV" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-credit-card mr-1"></i> Stone D/C/V (R$)
+                                        </label>
+                                        <input type="text" id="pagamentoStoneDCV" name="pagamentoStoneDCV" 
+                                            class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label for="pagamentoStoneVoucher" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-ticket-alt mr-1"></i> Stone Voucher (R$)
+                                        </label>
+                                        <input type="text" id="pagamentoStoneVoucher" name="pagamentoStoneVoucher" 
+                                            class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label for="pagamentoPagBankDCV" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-credit-card mr-1"></i> PAGBANK D/C/V (R$)
+                                        </label>
+                                        <input type="text" id="pagamentoPagBankDCV" name="pagamentoPagBankDCV" 
+                                            class="payment-input w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div class="bg-green-50 p-4 rounded-lg border border-green-100 sm:col-span-2 lg:col-span-1">
+                                        <label for="totalRegistradoPagamentos" class="block text-sm font-medium text-green-700 mb-1">
+                                            <i class="fas fa-check-circle mr-1"></i> Total Registrado (Soma Automática)
+                                        </label>
+                                        <input type="text" id="totalRegistradoPagamentos" name="totalRegistradoPagamentos"
+                                            class="w-full p-3 border border-green-200 rounded-lg bg-green-100 shadow-inner font-semibold text-green-800" readonly placeholder="R$ 0,00">
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="salesDivergenceAlert" class="mt-4 p-4 rounded-lg border hidden"></div>
+                            
+                            <div>
+                                <h3 class="text-md font-semibold text-gray-700 mt-6 mb-3 border-b pb-2 flex items-center">
+                                    <i class="fas fa-sign-out-alt mr-2 text-red-500"></i>Caixa Final (Contagem Física)
+                                </h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label for="caixaFinalDinheiro" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-money-bill-wave mr-1"></i>Dinheiro Contado
+                                        </label>
+                                        <input type="text" id="caixaFinalDinheiro" name="caixaFinalDinheiro" 
+                                            class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                    <div>
+                                        <label for="caixaFinalMoedas" class="block text-sm font-medium text-gray-700 mb-1">
+                                            <i class="fas fa-coins mr-1"></i>Moedas Contadas
+                                        </label>
+                                        <input type="text" id="caixaFinalMoedas" name="caixaFinalMoedas" 
+                                            class="w-full p-3 border border-gray-300 rounded-lg shadow-inner focus:ring-pastel-orange-500 focus:border-pastel-orange-500 input-focus"
+                                            placeholder="R$ 0,00">
+                                    </div>
+                                </div>
+                                <div class="mt-4 p-4 rounded-lg border" id="caixaDiferencaContainer">
+                                    <label for="caixaDiferenca" class="block text-sm font-medium mb-1">
+                                        <i class="fas fa-balance-scale-right mr-1"></i>Diferença de Caixa Físico
+                                    </label>
+                                    <input type="text" id="caixaDiferenca" name="caixaDiferenca" readonly
+                                        class="w-full p-3 border rounded-lg bg-gray-100 shadow-inner font-semibold">
+                                    <p id="divergenciaCaixaAlerta" class="text-xs mt-2 italic"></p>
+                                </div>
+                            </div>
+                        </div>
+                    </fieldset>
                     
-                    <div id="fechamentoDivergenciaAlertaGeral" class="mt-6 p-5 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold text-center hidden">
-                        <!-- Mensagem de divergência geral será inserida aqui pelo JS -->
-                    </div>
+                    <div id="fechamentoDivergenciaAlertaGeral" class="mt-6 p-5 bg-red-100 border border-red-300 rounded-lg text-red-700 font-semibold text-center hidden"></div>
                 </form>
             </div>
         </div>
@@ -667,7 +517,7 @@
                     <p class="text-sm text-gray-400">Sistema de Controle de Caixa • v2.1</p>
                 </div>
                 <div class="text-sm text-gray-400">
-                    <p>&copy; 2023-2025 • Todos os direitos reservados</p>
+                    <p>© 2023-2025 • Todos os direitos reservados</p>
                     <p class="mt-1">Desenvolvido com tecnologias modernas para seu negócio</p>
                 </div>
             </div>
@@ -679,28 +529,28 @@
         <span class="status-text"></span>
     </div>
 
-    <!-- Scripts JavaScript -->
     <script src="src/js/firebase-config.js"></script>
     <script src="src/js/shared.js"></script>
     <script src="src/js/auth.js"></script>
     <script src="src/js/funcionario-controller.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // Protege a rota, permitindo apenas acesso a usuários com a role 'funcionario'
             protectRoute(['funcionario']);
 
-            // Monitor de status de conexão com internet
             function updateConnectionStatus() {
                 const statusEl = document.getElementById('connection-status');
+                if (!statusEl) return;
                 const statusIcon = statusEl.querySelector('.status-icon');
                 const statusText = statusEl.querySelector('.status-text');
                 
                 if (navigator.onLine) {
-                    statusEl.classList.remove('bg-red-100', 'text-red-700');
+                    statusEl.classList.remove('bg-red-100', 'text-red-700', 'hidden');
                     statusEl.classList.add('bg-green-100', 'text-green-700');
-                    statusIcon.classList.remove('bg-red-500');
-                    statusIcon.classList.add('bg-green-500');
-                    statusText.textContent = 'Conectado';
+                    if (statusIcon) {
+                         statusIcon.classList.remove('bg-red-500');
+                         statusIcon.classList.add('bg-green-500');
+                    }
+                    if (statusText) statusText.textContent = 'Conectado';
                     
                     setTimeout(() => {
                         statusEl.classList.add('fade-out');
@@ -712,23 +562,22 @@
                 } else {
                     statusEl.classList.remove('hidden', 'bg-green-100', 'text-green-700');
                     statusEl.classList.add('bg-red-100', 'text-red-700');
-                    statusIcon.classList.remove('bg-green-500');
-                    statusIcon.classList.add('bg-red-500');
-                    statusText.textContent = 'Sem conexão';
+                     if (statusIcon) {
+                        statusIcon.classList.remove('bg-green-500');
+                        statusIcon.classList.add('bg-red-500');
+                    }
+                    if (statusText) statusText.textContent = 'Sem conexão';
                 }
+                 statusEl.classList.remove('hidden');
             }
             
-            window.addEventListener('online', function() {
-                updateConnectionStatus();
-            });
+            window.addEventListener('online', updateConnectionStatus);
+            window.addEventListener('offline', updateConnectionStatus);
+            updateConnectionStatus();
             
-            window.addEventListener('offline', function() {
-                updateConnectionStatus();
-            });
-            
-            // Exibe indicador de carregamento
             function showLoadingState(isLoading) {
                 const loadingIndicator = document.getElementById('turnoStatusLoadingIndicator');
+                if (!loadingIndicator) return;
                 if (isLoading) {
                     loadingIndicator.classList.remove('hidden');
                 } else {
@@ -736,9 +585,9 @@
                 }
             }
             
-            // Exibe efeito visual de "entrada" do formulário
             setTimeout(() => {
-                document.querySelector('main').classList.add('fade-in');
+                const mainElement = document.querySelector('main');
+                if (mainElement) mainElement.classList.add('fade-in');
             }, 100);
         });
     </script>
