@@ -2281,7 +2281,39 @@ function setupScrollIndicators() {
         setTimeout(updateIndicators, 100);
     });
 }
+
+function enhanceMobileScroll() {
+    document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
+        let isScrolling;
+        wrapper.addEventListener('scroll', function() {
+            wrapper.classList.add('scrolling');
+            
+            window.clearTimeout(isScrolling);
+            isScrolling = setTimeout(function() {
+                wrapper.classList.remove('scrolling');
+            }, 500);
+        });
+        wrapper.addEventListener('touchstart', function() {
+            this.style.scrollBehavior = 'auto';
+        });
+        
+        wrapper.addEventListener('touchend', function() {
+            this.style.scrollBehavior = 'smooth';
+        });
+    });
+     if (window.innerWidth <= 768) {
+        document.body.classList.add('mobile-device');
+    }
+    window.addEventListener('resize', function() {
+        if (window.innerWidth <= 768) {
+            document.body.classList.add('mobile-device');
+        } else {
+            document.body.classList.remove('mobile-device');
+        }
+    });
+}
 setupScrollIndicators();
+enhanceMobileScroll();
 
 if (typeof getFormattedDate === 'undefined') {
     function getFormattedDate(date = new Date()) {

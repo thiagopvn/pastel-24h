@@ -123,8 +123,6 @@ input[readonly]:focus {
     border-color: #D1D5DB;
 }
 
-/* Removido 'table' genérico para focar no específico da tabela com scroll */
-
 fieldset {
     border: 1px solid #E5E7EB;
     padding: 1.25rem;
@@ -630,34 +628,156 @@ fieldset.border-red-300::before { content: '⚠️'; position: absolute; top: -1
 input[type="number"]:focus + .limite-indicador { color: #F97316; font-weight: 500; }
 input[type="number"].at-limit { background-color: #FEF3C7 !important; border-color: #F59E0B !important; }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
 
-.table-scroll-container { position: relative; margin: 0 -1rem; padding: 0 1rem; }
-.scroll-indicator { position: absolute; top: 0; bottom: 0; width: 30px; pointer-events: none; z-index: 10; display: none; }
-.scroll-indicator.left { left: 0; background: linear-gradient(to right, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%); box-shadow: inset 10px 0 10px -10px rgba(0,0,0,0.2); }
-.scroll-indicator.right { right: 0; background: linear-gradient(to left, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 100%); box-shadow: inset -10px 0 10px -10px rgba(0,0,0,0.2); }
-.scrollable-table { -webkit-overflow-scrolling: touch; scroll-behavior: smooth; scroll-snap-type: x proximity; overflow-x: auto; width: 100%; }
-.scrollable-table table { min-width: max-content; width: auto; border-collapse: separate; }
-.scrollable-table th, .scrollable-table td { white-space: nowrap; }
-.scrollable-table td input[type="number"] { min-width: 75px; }
-.scrollable-table th:first-child, .scrollable-table td:first-child { min-width: 150px; }
-.scrollable-table th.sticky:first-child { position: -webkit-sticky; position: sticky; left: 0; z-index: 10; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-.scrollable-table td.sticky:first-child { position: -webkit-sticky; position: sticky; left: 0; z-index: 5; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-.scrollable-table tfoot td.sticky:first-child { position: -webkit-sticky; position: sticky; left: 0; z-index: 5; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
-
-@media (max-width: 768px) {
-    .scrollable-table-wrapper { position: relative; padding-bottom: 20px; }
-    .scrollable-table-wrapper::after {
-        content: '← Arraste para ver mais →'; position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-        font-size: 0.7rem; color: #4B5563; background-color: rgba(243, 244, 246, 0.8);
-        padding: 3px 8px; border-radius: 10px; pointer-events: none; white-space: nowrap;
-    }
-    .scrollable-table input[type="number"] { min-width: 60px !important; font-size: 14px !important; }
+.table-scroll-container {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
 }
 
-.scrollable-table::-webkit-scrollbar { height: 8px; }
-.scrollable-table::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-.scrollable-table::-webkit-scrollbar-thumb { background: #F97316; border-radius: 10px; }
-.sticky.left-0 { box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1); }
-tbody tr:nth-child(even) .sticky { background-color: #f9fafb; }
-tbody tr:hover .sticky { background-color: #fef3c7 !important; }
+.scrollable-table-wrapper {
+    position: relative;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+}
+
+.scrollable-table {
+    width: 100%;
+    min-width: 900px;
+}
+
+.scroll-indicator {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    pointer-events: none;
+    z-index: 20;
+    display: none;
+}
+
+.scroll-indicator.left {
+    left: 0;
+    background: linear-gradient(to right, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 100%);
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+.scroll-indicator.right {
+    right: 0;
+    background: linear-gradient(to left, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 100%);
+    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+}
+
+.sticky.left-0 {
+    box-shadow: 2px 0 5px -2px rgba(0,0,0,0.1);
+}
+
+tbody tr:nth-child(even) .sticky {
+    background-color: #f9fafb;
+}
+
+tbody tr:hover .sticky {
+    background-color: #fef3c7 !important;
+}
+
+@media (max-width: 768px) {
+    main.container {
+        padding-left: 0;
+        padding-right: 0;
+    }
+    
+    fieldset {
+        margin-left: 0.5rem;
+        margin-right: 0.5rem;
+        padding: 0.75rem;
+    }
+    
+    button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    input[type="number"],
+    input[type="text"],
+    select {
+        font-size: 16px !important;
+    }
+    
+    .sticky.left-0 {
+        position: sticky;
+        left: 0;
+        z-index: 10;
+        background-color: white;
+        min-width: 120px;
+        box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .scrollable-table input[type="number"] {
+        min-width: 60px !important;
+        width: 60px !important;
+        font-size: 14px !important;
+        padding: 4px !important;
+    }
+    
+    .scrollable-table td,
+    .scrollable-table th {
+        padding: 4px 2px !important;
+        font-size: 12px !important;
+    }
+    
+    .scrollable-table td:first-child,
+    .scrollable-table th:first-child {
+        min-width: 120px !important;
+        max-width: 120px !important;
+    }
+    
+    .table-scroll-container {
+        margin: 0 -1rem;
+        padding: 0;
+    }
+    
+    .scrollable-table-wrapper::after {
+        content: '👉 Deslize para ver mais →';
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(249, 115, 22, 0.9);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 100;
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+        50% { opacity: 0.8; transform: translateX(-50%) scale(0.95); }
+    }
+    
+    .scrollable-table-wrapper.scrolling::after {
+        display: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .scrollable-table {
+        min-width: 800px;
+    }
+    
+    .scrollable-table input[type="number"] {
+        min-width: 50px !important;
+        width: 50px !important;
+    }
+}
+
+@media (hover: none) {
+    .scrollable-table td:active {
+        background-color: rgba(249, 115, 22, 0.1);
+    }
+}
