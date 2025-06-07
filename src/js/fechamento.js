@@ -205,6 +205,13 @@ class FechamentoSemanal {
     const domingo = new Date(segunda);
     domingo.setDate(segunda.getDate() + 6);
     
+    const hoje = new Date();
+    hoje.setHours(23, 59, 59, 999);
+    
+    if (domingo > hoje) {
+        alert('⚠️ Atenção: Você está tentando fazer o fechamento de uma semana futura. Certifique-se de que isso está correto.');
+    }
+    
     this.elements.dataInicio.value = this.formatDate(segunda);
     this.elements.dataFim.value = this.formatDate(domingo);
 }
@@ -453,42 +460,41 @@ class FechamentoSemanal {
 
     // NOVO MÉTODO: Calcular consumo do colaborador baseado na string
     async calcularConsumoColaborador(consumoString) {
-        if (!consumoString || typeof consumoString !== 'string') return 0;
+    if (!consumoString || typeof consumoString !== 'string') return 0;
+    
+    let consumoTotal = 0;
+    
+    try {
+        const produtosDoc = await db.collection('produtos').get();
+        const precos = {};
         
-        let consumoTotal = 0;
+        produtosDoc.forEach(doc => {
+            precos[doc.id] = doc.data();
+        });
         
-        try {
-            // Buscar preços atuais do Firebase
-            const produtosDoc = await db.collection('produtos').get();
-            const precos = {};
-            
-            produtosDoc.forEach(doc => {
-                precos[doc.id] = doc.data();
-            });
-            
-            // Parse do consumo (exemplo: "1 Carne com Queijo, 1 Copo 300ml")
-            const itens = consumoString.split(',').map(item => item.trim());
-            
-            for (const item of itens) {
-                // Extrair quantidade e nome do produto
-                const match = item.match(/^(\d+)\s+(.+)$/);
-                if (match) {
-                    const quantidade = parseInt(match[1]);
-                    const produtoNome = match[2].trim();
-                    
-                    // Procurar o preço do produto
-                    const precoUnitario = this.buscarPrecoProduto(produtoNome, precos);
-                    consumoTotal += quantidade * precoUnitario;
-                    
-                    console.log(`  Consumo: ${quantidade}x ${produtoNome} = R$ ${(quantidade * precoUnitario).toFixed(2)}`);
-                }
+        const itens = consumoString.split(',').map(item => item.trim());
+        
+        for (const item of itens) {
+            const match = item.match(/^(\d+)\s+(.+)$/);
+            if (match) {
+                const quantidade = parseInt(match[1]);
+                const produtoNome = match[2].trim();
+                
+                const precoUnitario = this.buscarPrecoProduto(produtoNome, precos);
+                consumoTotal += quantidade * precoUnitario;
+                
+                console.log(`  Consumo: ${quantidade}x ${produtoNome} = R$ ${(quantidade * precoUnitario).toFixed(2)}`);
             }
-        } catch (error) {
-            console.error('Erro ao calcular consumo do colaborador:', error);
         }
-        
-        return consumoTotal;
+    } catch (error) {
+        console.error('Erro ao calcular consumo do colaborador:', error);
     }
+
+    const consumoComDesconto = consumoTotal * 0.5;
+    console.log(`  💰 Consumo colaborador: R$ ${consumoTotal.toFixed(2)} → Com 50% desc: R$ ${consumoComDesconto.toFixed(2)}`);
+    
+    return consumoComDesconto;
+}
 
     // NOVO MÉTODO: Buscar preço do produto pelo nome
     buscarPrecoProduto(nomeProduto, precos) {
@@ -573,43 +579,42 @@ class FechamentoSemanal {
     }
 
     calcularConsumoTotal(turnoData) {
-        let consumoTotal = 0;
+    let consumoTotal = 0;
+    
+    const processarCategoria = (categoria, nomeCategoria) => {
+        if (!categoria) return;
         
-        // Função auxiliar para processar itens de uma categoria
-        const processarCategoria = (categoria, nomeCategoria) => {
-            if (!categoria) return;
-            
-            Object.entries(categoria).forEach(([key, item]) => {
-                if (item && typeof item === 'object' && item.consumo && item.consumo > 0) {
-                    const precoUnitario = item.precoUnitario || 0;
-                    const valorConsumo = item.consumo * precoUnitario;
-                    if (valorConsumo > 0) {
-                        console.log(`  ${nomeCategoria} ${key}: ${item.consumo} x R$ ${precoUnitario} = R$ ${valorConsumo.toFixed(2)}`);
-                        consumoTotal += valorConsumo;
-                    }
+        Object.entries(categoria).forEach(([key, item]) => {
+            if (item && typeof item === 'object' && item.consumo && item.consumo > 0) {
+                const precoUnitario = item.precoUnitario || 0;
+                const valorConsumo = item.consumo * precoUnitario;
+                if (valorConsumo > 0) {
+                    console.log(`  ${nomeCategoria} ${key}: ${item.consumo} x R$ ${precoUnitario} = R$ ${valorConsumo.toFixed(2)}`);
+                    consumoTotal += valorConsumo;
                 }
-            });
-        };
-        
-        // Processar todas as categorias
-        if (turnoData.itens) {
-            processarCategoria(turnoData.itens.pasteis, '🥟');
-            processarCategoria(turnoData.itens.caldo_cana, '🥤');
-            processarCategoria(turnoData.itens.casquinhas, '🍦');
-            processarCategoria(turnoData.itens.refrigerantes, '🥤');
-        }
-        
-        // Consumo de gelo
-        if (turnoData.gelo?.gelo_pacote?.consumoInterno && turnoData.gelo.gelo_pacote.consumoInterno > 0) {
-            const valorGelo = turnoData.gelo.gelo_pacote.consumoInterno * (turnoData.gelo.gelo_pacote.precoUnitario || 0);
-            if (valorGelo > 0) {
-                console.log(`  🧊 Gelo: ${turnoData.gelo.gelo_pacote.consumoInterno} x R$ ${turnoData.gelo.gelo_pacote.precoUnitario} = R$ ${valorGelo.toFixed(2)}`);
-                consumoTotal += valorGelo;
             }
-        }
-        
-        return consumoTotal;
+        });
+    };
+    
+    if (turnoData.itens) {
+        processarCategoria(turnoData.itens.pasteis, '🥟');
+        processarCategoria(turnoData.itens.caldo_cana, '🥤');
+        processarCategoria(turnoData.itens.casquinhas, '🍦');
+        processarCategoria(turnoData.itens.refrigerantes, '🥤');
     }
+    
+    if (turnoData.gelo?.gelo_pacote?.consumoInterno && turnoData.gelo.gelo_pacote.consumoInterno > 0) {
+        const valorGelo = turnoData.gelo.gelo_pacote.consumoInterno * (turnoData.gelo.gelo_pacote.precoUnitario || 0);
+        if (valorGelo > 0) {
+            console.log(`  🧊 Gelo: ${turnoData.gelo.gelo_pacote.consumoInterno} x R$ ${turnoData.gelo.gelo_pacote.precoUnitario} = R$ ${valorGelo.toFixed(2)}`);
+            consumoTotal += valorGelo;
+        }
+    }
+    const consumoComDesconto = consumoTotal * 0.5;
+    console.log(`  💰 Consumo total: R$ ${consumoTotal.toFixed(2)} → Com 50% desc: R$ ${consumoComDesconto.toFixed(2)}`);
+    
+    return consumoComDesconto;
+}
 
     renderAll() {
         // Renderizar conteúdo baseado na tab ativa
@@ -627,75 +632,74 @@ class FechamentoSemanal {
     }
 
     renderResumo() {
-        // Renderizar cards de resumo dos funcionários
-        this.elements.funcionariosSummaryCards.innerHTML = '';
+    this.elements.funcionariosSummaryCards.innerHTML = '';
+    
+    this.state.funcionarios.forEach(func => {
+        const dadosFuncionario = this.calcularDadosFuncionario(func.uid);
         
-        this.state.funcionarios.forEach(func => {
-            const dadosFuncionario = this.calcularDadosFuncionario(func.uid);
-            
-            const card = document.createElement('div');
-            card.className = 'employee-summary-card p-6 animate-slide-in';
-            
-            card.innerHTML = `
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h3 class="text-lg font-semibold text-gray-800">${func.nome}</h3>
-                        <p class="text-sm text-gray-500">
-                            ${func.role === 'admin' ? '👑 Administrador' : '👤 Funcionário'}
-                            • ${dadosFuncionario.diasTrabalhados} dias
-                        </p>
-                    </div>
-                    <span class="text-2xl font-bold ${dadosFuncionario.totalReceber >= 0 ? 'text-green-600' : 'text-red-600'}">
-                        ${this.formatCurrency(dadosFuncionario.totalReceber)}
-                    </span>
+        const card = document.createElement('div');
+        card.className = 'employee-summary-card p-6 animate-slide-in';
+        
+        card.innerHTML = `
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-800">${func.nome}</h3>
+                    <p class="text-sm text-gray-500">
+                        ${func.role === 'admin' ? '👑 Administrador' : '👤 Funcionário'}
+                        • ${dadosFuncionario.diasTrabalhados} dias
+                    </p>
                 </div>
-                
+                <span class="text-2xl font-bold ${dadosFuncionario.totalReceber >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${this.formatCurrency(dadosFuncionario.totalReceber)}
+                </span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <p class="text-xs text-gray-500">Horas</p>
+                    <p class="text-sm font-semibold">${dadosFuncionario.totalHoras.toFixed(1)}h • ${this.formatCurrency(dadosFuncionario.totalHorasValor)}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Transporte</p>
+                    <p class="text-sm font-semibold">${this.formatCurrency(dadosFuncionario.totalTransporte)}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Alimentação</p>
+                    <p class="text-sm font-semibold">${this.formatCurrency(dadosFuncionario.totalAlimentacao)}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-gray-500">Consumo <span class="text-green-600">(50% desc.)</span></p>
+                    <p class="text-sm font-semibold text-red-600">-${this.formatCurrency(dadosFuncionario.totalConsumo)}</p>
+                </div>
+            </div>
+            
+            <div class="mt-4 pt-4 border-t border-gray-100">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <p class="text-xs text-gray-500">Horas</p>
-                        <p class="text-sm font-semibold">${dadosFuncionario.totalHoras.toFixed(1)}h • ${this.formatCurrency(dadosFuncionario.totalHorasValor)}</p>
+                        <label class="text-xs text-gray-500">Adicional</label>
+                        <input type="number" 
+                               id="${func.uid}_adicional"
+                               value="${dadosFuncionario.adicional}"
+                               min="0" step="0.01" 
+                               class="w-full mt-1 px-2 py-1 text-sm text-green-600 font-semibold border rounded focus:ring-1 focus:ring-green-500"
+                               placeholder="0.00">
                     </div>
                     <div>
-                        <p class="text-xs text-gray-500">Transporte</p>
-                        <p class="text-sm font-semibold">${this.formatCurrency(dadosFuncionario.totalTransporte)}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-500">Alimentação</p>
-                        <p class="text-sm font-semibold">${this.formatCurrency(dadosFuncionario.totalAlimentacao)}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-500">Consumo</p>
-                        <p class="text-sm font-semibold text-red-600">-${this.formatCurrency(dadosFuncionario.totalConsumo)}</p>
+                        <label class="text-xs text-gray-500">Desconto</label>
+                        <input type="number" 
+                               id="${func.uid}_desconto"
+                               value="${dadosFuncionario.desconto}"
+                               min="0" step="0.01" 
+                               class="w-full mt-1 px-2 py-1 text-sm text-red-600 font-semibold border rounded focus:ring-1 focus:ring-red-500"
+                               placeholder="0.00">
                     </div>
                 </div>
-                
-                <div class="mt-4 pt-4 border-t border-gray-100">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="text-xs text-gray-500">Adicional</label>
-                            <input type="number" 
-                                   id="${func.uid}_adicional"
-                                   value="${dadosFuncionario.adicional}"
-                                   min="0" step="0.01" 
-                                   class="w-full mt-1 px-2 py-1 text-sm text-green-600 font-semibold border rounded focus:ring-1 focus:ring-green-500"
-                                   placeholder="0.00">
-                        </div>
-                        <div>
-                            <label class="text-xs text-gray-500">Desconto</label>
-                            <input type="number" 
-                                   id="${func.uid}_desconto"
-                                   value="${dadosFuncionario.desconto}"
-                                   min="0" step="0.01" 
-                                   class="w-full mt-1 px-2 py-1 text-sm text-red-600 font-semibold border rounded focus:ring-1 focus:ring-red-500"
-                                   placeholder="0.00">
-                        </div>
-                    </div>
-                </div>
-            `;
-            
-            this.elements.funcionariosSummaryCards.appendChild(card);
-        });
-    }
+            </div>
+        `;
+        
+        this.elements.funcionariosSummaryCards.appendChild(card);
+    });
+}
 
     renderVisualizacaoDiaria() {
     this.elements.diasSemanaCards.innerHTML = '';
@@ -764,6 +768,7 @@ class FechamentoSemanal {
                                 <span class="text-red-600 font-medium">
                                     Consumo: ${this.formatCurrency(dadosDia.consumo)}
                                 </span>
+                                <span class="text-xs text-green-600 block">(com 50% desc.)</span>
                             </div>
                         </div>
                         ${dadosDia.fonte ? `
@@ -874,7 +879,7 @@ class FechamentoSemanal {
                 
                 <div class="bg-red-50 p-3 rounded-lg text-center">
                     <i class="fas fa-shopping-cart text-red-600 text-xl mb-1"></i>
-                    <p class="text-xs text-gray-600">Consumo</p>
+                    <p class="text-xs text-gray-600">Consumo <span class="text-green-600">(50% desc.)</span></p>
                     <p class="font-semibold text-red-600">-${this.formatCurrency(dadosFuncionario.totalConsumo)}</p>
                 </div>
             </div>
@@ -1196,6 +1201,11 @@ class FechamentoSemanal {
             
             this.state.dadosAlterados = false;
             this.showStatus('✅ Dados salvos com sucesso!', 'success');
+            // Atualizar indicador de último salvamento
+const ultimoSalvamento = document.getElementById('ultimoSalvamento');
+if (ultimoSalvamento) {
+    ultimoSalvamento.textContent = `Último salvamento: ${new Date().toLocaleString('pt-BR')}`;
+}
             
             console.log('✅ Fechamento salvo:', dadosFechamento);
             
