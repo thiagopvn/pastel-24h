@@ -2002,7 +2002,7 @@ window.removerItemConsumo = function(itemId) {
             btnFecharTurno.disabled = false;
             return;
         }
-        
+        const observacoesTurno = observacoesTurnoTextarea?.value?.trim() || '';
         try {
             await db.runTransaction(async (transaction) => {
                 const turnoRef = db.collection('turnos').doc(currentTurnoId);
@@ -2046,8 +2046,7 @@ window.removerItemConsumo = function(itemId) {
             if (dadosFuncionariosColaboradores.length > 0) {
                 await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
             }
-            const observacoesTurno = observacoesTurnoTextarea?.value?.trim() || '';
-            
+
             if (turnoIdParaMensagem) {
                 const partes = turnoIdParaMensagem.split('_');
                 if (partes.length >= 2) {
