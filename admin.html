@@ -626,6 +626,32 @@
                 </div>
             </div>
 
+            <div class="glass-effect rounded-2xl p-6 mb-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">Configuração de Taxas</h3>
+                    <button id="saveTaxConfig" class="bg-primary-500 hover:bg-primary-600 text-white px-4 py-2 rounded-lg transition-all text-sm">
+                        <i class="fas fa-save mr-2"></i>Salvar Taxas
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Taxa Stone D/C/V (%)</label>
+                        <input type="number" id="taxaStoneDCV" step="0.01" min="0" max="10" value="2.99" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Taxa Stone Voucher (%)</label>
+                        <input type="number" id="taxaStoneVoucher" step="0.01" min="0" max="10" value="2.99" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Taxa PagBank D/C/V (%)</label>
+                        <input type="number" id="taxaPagbankDCV" step="0.01" min="0" max="10" value="2.49" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div class="glass-effect rounded-2xl p-6">
                     <div class="flex items-center justify-between mb-4">
@@ -1936,16 +1962,77 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('refreshIcon').classList.remove('animate-spin');
     }
 }
+async function loadTaxConfig() {
+    try {
+        const configDoc = await db.collection('config').doc('taxas_cartao').get();
+        if (configDoc.exists) {
+            const taxas = configDoc.data();
+            document.getElementById('taxaStoneDCV').value = taxas.stoneDCV || 2.99;
+            document.getElementById('taxaStoneVoucher').value = taxas.stoneVoucher || 2.99;
+            document.getElementById('taxaPagbankDCV').value = taxas.pagbankDCV || 2.49;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar configuração de taxas:', error);
+    }
+}
+
+document.getElementById('saveTaxConfig').addEventListener('click', async () => {
+    try {
+        const taxas = {
+            stoneDCV: parseFloat(document.getElementById('taxaStoneDCV').value) || 2.99,
+            stoneVoucher: parseFloat(document.getElementById('taxaStoneVoucher').value) || 2.99,
+            pagbankDCV: parseFloat(document.getElementById('taxaPagbankDCV').value) || 2.49,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: auth.currentUser.uid
+        };
+        
+        await db.collection('config').doc('taxas_cartao').set(taxas);
+        showToast('Taxas salvas com sucesso!', 'success');
+        loadDashboardData(); // Recarregar para recalcular lucro
+    } catch (error) {
+        showToast('Erro ao salvar taxas: ' + error.message, 'error');
+    }
+});
+
+loadTaxConfig();
 
 async function updateKPIs(turnos, turnosAnteriores = []) {
     let totalVendas = 0;
     let totalPedidos = turnos.length;
     let totalDivergencias = 0;
     let totalCaixa = 0;
+    let totalTaxasCartao = 0;
+    
+    let taxasCartao = {
+        stoneDCV: 2.99,
+        stoneVoucher: 2.99,
+        pagbankDCV: 2.49
+    };
+    
+    try {
+        const taxasDoc = await db.collection('config').doc('taxas_cartao').get();
+        if (taxasDoc.exists) {
+            taxasCartao = { ...taxasCartao, ...taxasDoc.data() };
+        }
+    } catch (error) {
+        console.error('Erro ao carregar taxas:', error);
+    }
     
     turnos.forEach(turno => {
         totalVendas += turno.totalVendidoCalculadoFinal || 0;
         totalCaixa += turno.caixaFinalContado || 0;
+        
+        if (turno.formasPagamento) {
+            if (turno.formasPagamento.stoneDCV) {
+                totalTaxasCartao += (turno.formasPagamento.stoneDCV * (taxasCartao.stoneDCV / 100));
+            }
+            if (turno.formasPagamento.stoneVoucher) {
+                totalTaxasCartao += (turno.formasPagamento.stoneVoucher * (taxasCartao.stoneVoucher / 100));
+            }
+            if (turno.formasPagamento.pagbankDCV) {
+                totalTaxasCartao += (turno.formasPagamento.pagbankDCV * (taxasCartao.pagbankDCV / 100));
+            }
+        }
         
         const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
         const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
@@ -1960,10 +2047,23 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     let totalPedidosAnterior = turnosAnteriores.length;
     let totalDivergenciasAnterior = 0;
     let totalCaixaAnterior = 0;
+    let totalTaxasCartaoAnterior = 0;
     
     turnosAnteriores.forEach(turno => {
         totalVendasAnterior += turno.totalVendidoCalculadoFinal || 0;
         totalCaixaAnterior += turno.caixaFinalContado || 0;
+        
+        if (turno.formasPagamento) {
+            if (turno.formasPagamento.stoneDCV) {
+                totalTaxasCartaoAnterior += (turno.formasPagamento.stoneDCV * (taxasCartao.stoneDCV / 100));
+            }
+            if (turno.formasPagamento.stoneVoucher) {
+                totalTaxasCartaoAnterior += (turno.formasPagamento.stoneVoucher * (taxasCartao.stoneVoucher / 100));
+            }
+            if (turno.formasPagamento.pagbankDCV) {
+                totalTaxasCartaoAnterior += (turno.formasPagamento.pagbankDCV * (taxasCartao.pagbankDCV / 100));
+            }
+        }
         
         const vendidoCalc = turno.totalVendidoCalculadoFinal || 0;
         const pagamentosReg = turno.totalRegistradoPagamentosFinal || 0;
@@ -1978,8 +2078,10 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const ticketMedioAnterior = totalPedidosAnterior > 0 ? totalVendasAnterior / totalPedidosAnterior : 0;
     const percentualDivergencias = totalPedidos > 0 ? (totalDivergencias / totalPedidos) * 100 : 0;
     const percentualDivergenciasAnterior = totalPedidosAnterior > 0 ? (totalDivergenciasAnterior / totalPedidosAnterior) * 100 : 0;
-    const lucroEstimado = totalVendas * 0.35;
-    const lucroEstimadoAnterior = totalVendasAnterior * 0.35;
+    
+    const margemLucro = 0.35;
+    const lucroEstimado = (totalVendas * margemLucro) - totalTaxasCartao;
+    const lucroEstimadoAnterior = (totalVendasAnterior * margemLucro) - totalTaxasCartaoAnterior;
     
     const calcularTendencia = (atual, anterior) => {
         if (anterior === 0) return atual > 0 ? 100 : 0;
@@ -2014,6 +2116,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         divergencias: percentualDivergencias,
         caixa: totalCaixa,
         lucro: lucroEstimado,
+        taxasCartao: totalTaxasCartao,
         turnos: turnos
     };
 }
@@ -2760,67 +2863,163 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
             }
 
             function generateKPIModalContent(kpiType) {
-                const data = currentData;
-                
-                switch (kpiType) {
-                    case 'vendas':
-                        return `
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div class="bg-primary-50 p-4 rounded-lg">
-                                    <h4 class="font-semibold text-primary-700 mb-2">Total de Vendas</h4>
-                                    <p class="text-2xl font-bold text-primary-600">${formatCurrency(data.vendas)}</p>
-                                </div>
-                                <div class="bg-success-50 p-4 rounded-lg">
-                                    <h4 class="font-semibold text-success-700 mb-2">Crescimento</h4>
-                                    <p class="text-2xl font-bold text-success-600">+12.5%</p>
-                                </div>
-                            </div>
-                            <div class="mt-4">
-                                <h4 class="font-semibold mb-2">Vendas por Período</h4>
-                                <div class="space-y-2">
-                                    <div class="flex justify-between">
-                                        <span>Manhã:</span>
-                                        <span class="font-semibold">${formatCurrency(data.vendas * 0.3)}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>Tarde:</span>
-                                        <span class="font-semibold">${formatCurrency(data.vendas * 0.4)}</span>
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span>Noite:</span>
-                                        <span class="font-semibold">${formatCurrency(data.vendas * 0.3)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `;
-                    case 'ticket':
-                        return `
-                            <div class="text-center mb-4">
-                                <p class="text-3xl font-bold text-success-600">${formatCurrency(data.ticket)}</p>
-                                <p class="text-gray-600">Ticket médio atual</p>
-                            </div>
-                            <div class="space-y-3">
-                                <div class="flex justify-between items-center">
-                                    <span>Meta mensal:</span>
-                                    <span class="font-semibold">${formatCurrency(25.00)}</span>
-                                </div>
-                                <div class="w-full bg-gray-200 rounded-full h-2">
-                                    <div class="bg-success-500 h-2 rounded-full" style="width: ${Math.min((data.ticket / 25) * 100, 100)}%"></div>
-                                </div>
-                                <p class="text-sm text-gray-600">
-                                    ${data.ticket >= 25 ? '✅ Meta atingida!' : `Faltam ${formatCurrency(25 - data.ticket)} para atingir a meta`}
-                                </p>
-                            </div>
-                        `;
-                    default:
-                        return `
-                            <div class="text-center py-8">
-                                <i class="fas fa-chart-bar text-4xl text-gray-400 mb-4"></i>
-                                <p class="text-gray-600">Detalhes em desenvolvimento</p>
-                            </div>
-                        `;
-                }
-            }
+    const data = currentData;
+    
+    switch (kpiType) {
+        case 'vendas':
+            return `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-primary-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-primary-700 mb-2">Total de Vendas</h4>
+                        <p class="text-2xl font-bold text-primary-600">${formatCurrency(data.vendas)}</p>
+                    </div>
+                    <div class="bg-success-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-success-700 mb-2">Crescimento</h4>
+                        <p class="text-2xl font-bold text-success-600">+12.5%</p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-semibold mb-2">Vendas por Período</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span>Manhã:</span>
+                            <span class="font-semibold">${formatCurrency(data.vendas * 0.3)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Tarde:</span>
+                            <span class="font-semibold">${formatCurrency(data.vendas * 0.4)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Noite:</span>
+                            <span class="font-semibold">${formatCurrency(data.vendas * 0.3)}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        case 'ticket':
+            return `
+                <div class="text-center mb-4">
+                    <p class="text-3xl font-bold text-success-600">${formatCurrency(data.ticket)}</p>
+                    <p class="text-gray-600">Ticket médio atual</p>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span>Meta mensal:</span>
+                        <span class="font-semibold">${formatCurrency(25.00)}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-success-500 h-2 rounded-full" style="width: ${Math.min((data.ticket / 25) * 100, 100)}%"></div>
+                    </div>
+                    <p class="text-sm text-gray-600">
+                        ${data.ticket >= 25 ? '✅ Meta atingida!' : `Faltam ${formatCurrency(25 - data.ticket)} para atingir a meta`}
+                    </p>
+                </div>
+            `;
+        case 'pedidos':
+            return `
+                <div class="text-center mb-4">
+                    <p class="text-3xl font-bold text-blue-600">${data.pedidos}</p>
+                    <p class="text-gray-600">Total de pedidos realizados</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-blue-700 mb-2">Média por Dia</h4>
+                        <p class="text-xl font-bold text-blue-600">${Math.round(data.pedidos / 30)}</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-green-700 mb-2">Ticket Médio</h4>
+                        <p class="text-xl font-bold text-green-600">${formatCurrency(data.ticket)}</p>
+                    </div>
+                </div>
+            `;
+        case 'divergencias':
+            return `
+                <div class="text-center mb-4">
+                    <p class="text-3xl font-bold text-warning-600">${data.divergencias.toFixed(1)}%</p>
+                    <p class="text-gray-600">Percentual de divergências</p>
+                </div>
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span>Meta (máximo):</span>
+                        <span class="font-semibold text-red-600">5.0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2">
+                        <div class="bg-${data.divergencias <= 5 ? 'success' : 'danger'}-500 h-2 rounded-full" style="width: ${Math.min((data.divergencias / 10) * 100, 100)}%"></div>
+                    </div>
+                    <p class="text-sm text-gray-600">
+                        ${data.divergencias <= 5 ? '✅ Dentro da meta!' : '⚠️ Acima do limite recomendado'}
+                    </p>
+                </div>
+            `;
+        case 'caixa':
+            return `
+                <div class="text-center mb-4">
+                    <p class="text-3xl font-bold text-purple-600">${formatCurrency(data.caixa)}</p>
+                    <p class="text-gray-600">Total em caixa</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-green-700 mb-2">Status</h4>
+                        <p class="text-lg font-bold text-green-600">✅ Atualizado</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-blue-700 mb-2">Último Update</h4>
+                        <p class="text-lg font-bold text-blue-600">Agora</p>
+                    </div>
+                </div>
+            `;
+        case 'lucro':
+            return `
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-green-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-green-700 mb-2">Lucro Estimado</h4>
+                        <p class="text-2xl font-bold text-green-600">${formatCurrency(data.lucro)}</p>
+                        <p class="text-sm text-gray-600 mt-1">Margem de 35% - Taxas de cartão</p>
+                    </div>
+                    <div class="bg-yellow-50 p-4 rounded-lg">
+                        <h4 class="font-semibold text-yellow-700 mb-2">Taxas de Cartão</h4>
+                        <p class="text-2xl font-bold text-yellow-600">${formatCurrency(data.taxasCartao || 0)}</p>
+                        <p class="text-sm text-gray-600 mt-1">Total em taxas pagas</p>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <h4 class="font-semibold mb-2">Composição do Lucro</h4>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span>Vendas Totais:</span>
+                            <span class="font-semibold">${formatCurrency(data.vendas)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Margem Bruta (35%):</span>
+                            <span class="font-semibold text-green-600">+${formatCurrency(data.vendas * 0.35)}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span>Taxas de Cartão:</span>
+                            <span class="font-semibold text-red-600">-${formatCurrency(data.taxasCartao || 0)}</span>
+                        </div>
+                        <div class="flex justify-between pt-2 border-t">
+                            <span class="font-bold">Lucro Líquido:</span>
+                            <span class="font-bold text-green-600">${formatCurrency(data.lucro)}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 bg-blue-50 p-3 rounded-lg">
+                    <p class="text-sm text-blue-700">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        <strong>Margem Real:</strong> ${((data.lucro / data.vendas) * 100).toFixed(1)}% 
+                        (após dedução das taxas de cartão)
+                    </p>
+                </div>
+            `;
+        default:
+            return `
+                <div class="text-center py-8">
+                    <i class="fas fa-chart-bar text-4xl text-gray-400 mb-4"></i>
+                    <p class="text-gray-600">Detalhes em desenvolvimento</p>
+                </div>
+            `;
+    }
+}
 
             function showAlertModal(alerta) {
                 const modal = document.getElementById('alertModal');

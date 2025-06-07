@@ -1686,3 +1686,36 @@ header h1:hover {
     background: #F97316;
     border-radius: 10px;
 }
+
+.price-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.price-input-wrapper .currency-wrapper {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    pointer-events: none;
+}
+
+.price-input-wrapper input[type="number"] {
+    padding-left: 3.5rem !important;
+    padding-right: 2.5rem !important;
+}
+
+.price-input-wrapper .check-wrapper {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.price-input-wrapper .check-wrapper.show {
+    opacity: 1;
+}
