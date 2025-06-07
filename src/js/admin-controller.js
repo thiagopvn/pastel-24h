@@ -1809,7 +1809,6 @@ if (toggleInactive) {
 }
 
 window.UserManager = UserManager;
-window.CashControlManager = CashControlManager;
 
     // Gerenciador de Abas
     class TabManager {
@@ -2427,9 +2426,12 @@ window.CashControlManager = CashControlManager;
         setTimeout(() => {
             alert.remove();
         }, 5000);
-        window.CashControlManager = CashControlManager;
+
     }
 }
+}
+
+window.CashControlManager = CashControlManager;
 
 CashControlManager.prototype.load = async function() {
     console.log("🔄 Iniciando carregamento do controle de caixa...");
