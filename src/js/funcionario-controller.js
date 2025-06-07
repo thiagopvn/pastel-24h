@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const caixaDiferencaInput = document.getElementById('caixaDiferenca');
     const caixaDiferencaContainer = document.getElementById('caixaDiferencaContainer'); 
     const divergenciaCaixaAlertaP = document.getElementById('divergenciaCaixaAlerta');
+    const observacoesTurnoTextarea = document.getElementById('observacoesTurno');
     const fechamentoDivergenciaAlertaGeralDiv = document.getElementById('fechamentoDivergenciaAlertaGeral');
 
     let currentTurnoId = localStorage.getItem('currentTurnoId');
@@ -1460,6 +1461,7 @@ window.removerItemConsumo = function(itemId) {
         if (containerFuncionarios) { containerFuncionarios.innerHTML = ''; }
         document.querySelectorAll('.alerta-estoque-baixo').forEach(alerta => { alerta.remove(); });
         calculateAll();
+        if (observacoesTurnoTextarea) observacoesTurnoTextarea.value = '';
     }
     
     function populateTurnoDetails(aberturaData) {
@@ -1727,10 +1729,20 @@ window.removerItemConsumo = function(itemId) {
                 const dados = turnoDoc.data();
                 console.log(`✅ Turno anterior encontrado: ${turnoDoc.id} (fechado em: ${dados.fechamento?.hora || 'N/A'})`);
                 const estoqueFinal = { 
-                    itens: {}, gelo: {}, turnoId: turnoDoc.id, caixaFinal: null, caixaFinalDinheiro: null, caixaFinalMoedas: null,
-                    formasPagamento: dados.formasPagamento || {}, trocaGas: dados.trocaGas || 'nao',
-                    totalVendidoCalculado: dados.totalVendidoCalculadoFinal, totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
-                    diferencaCaixa: dados.diferencaCaixaFinal, fechamentoData: dados.fechamento || {}, fechamentoTimestamp: dados.closedAt || null
+                    itens: {}, 
+                    gelo: {}, 
+                    turnoId: turnoDoc.id, 
+                    caixaFinal: null, 
+                    caixaFinalDinheiro: null, 
+                    caixaFinalMoedas: null,
+                    formasPagamento: dados.formasPagamento || {}, 
+                    trocaGas: dados.trocaGas || 'nao',
+                    totalVendidoCalculado: dados.totalVendidoCalculadoFinal, 
+                    totalRegistradoPagamentos: dados.totalRegistradoPagamentosFinal,
+                    diferencaCaixa: dados.diferencaCaixaFinal, 
+                    fechamentoData: dados.fechamento || {}, 
+                    fechamentoTimestamp: dados.closedAt || null,
+                    observacoes: dados.observacoes || ''
                 };
                 if (dados.itens) {
                     Object.keys(dados.itens).forEach(cat => {
@@ -1844,6 +1856,18 @@ window.removerItemConsumo = function(itemId) {
             }
             colDireita.appendChild(diferencaCaixa);
         }
+
+        if (estoqueAnterior.observacoes) {
+                const observacoesDiv = document.createElement('div');
+                observacoesDiv.className = 'mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200';
+                observacoesDiv.innerHTML = `
+                    <p class="text-sm font-semibold text-yellow-800 mb-1">
+                        <i class="fas fa-comment-alt mr-1"></i>Observações do Turno Anterior:
+                    </p>
+                    <p class="text-sm text-gray-700 whitespace-pre-wrap">${estoqueAnterior.observacoes}</p>
+                `;
+                detalhes.appendChild(observacoesDiv);
+            }
         if (estoqueAnterior.formasPagamento && Object.keys(estoqueAnterior.formasPagamento).length > 0) {
             const pagamentos = document.createElement('div');
             pagamentos.className = 'mt-2 bg-white bg-opacity-50 p-2 rounded';
@@ -2010,6 +2034,7 @@ window.removerItemConsumo = function(itemId) {
                     totalRegistradoPagamentosFinal: totalPagamentos,
                     diferencaCaixaFinal: caixaDiferencaVal,
                     funcionariosColaboradores: dadosFuncionariosColaboradores,
+                    observacoes: observacoesTurno,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                     closedAt: firebase.firestore.FieldValue.serverTimestamp()
                 };
@@ -2021,6 +2046,7 @@ window.removerItemConsumo = function(itemId) {
             if (dadosFuncionariosColaboradores.length > 0) {
                 await salvarDadosFuncionariosColaboradores(currentTurnoId, dadosFuncionariosColaboradores);
             }
+            const observacoesTurno = observacoesTurnoTextarea?.value?.trim() || '';
             
             if (turnoIdParaMensagem) {
                 const partes = turnoIdParaMensagem.split('_');
@@ -2490,6 +2516,9 @@ window.removerItemConsumo = function(itemId) {
                 const valorTotal = turnoData.caixaFinalContado || 0;
                 if (caixaFinalDinheiroInput) { caixaFinalDinheiroInput.value = formatToBRL(valorTotal * 0.9); }
                 if (caixaFinalMoedasInput) { caixaFinalMoedasInput.value = formatToBRL(valorTotal * 0.1); }
+            }
+            if (turnoData.observacoes && observacoesTurnoTextarea) {
+                observacoesTurnoTextarea.value = turnoData.observacoes;
             }
         }
         calculateAll();
