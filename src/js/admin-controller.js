@@ -1996,7 +1996,6 @@ window.UserManager = UserManager;
                 }
             });
         });
-        window.cashControlManager = cashControlManager;
     }
     
     async load() {
