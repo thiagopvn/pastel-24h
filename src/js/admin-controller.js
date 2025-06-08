@@ -1996,6 +1996,7 @@ window.UserManager = UserManager;
                 }
             });
         });
+        window.cashControlManager = cashControlManager;
     }
     
     async load() {
@@ -2431,8 +2432,6 @@ window.UserManager = UserManager;
     
 }
 
-window.CashControlManager = CashControlManager;
-
 CashControlManager.prototype.load = async function() {
     console.log("🔄 Iniciando carregamento do controle de caixa...");
     
@@ -2587,7 +2586,7 @@ CashControlManager.prototype.load = async function() {
         }
     }
 };
-
+window.cashControlManager = cashControlManager;
 // Adicionar o método prepararAjusteCaixa
 CashControlManager.prototype.prepararAjusteCaixa = function(turnoId) {
     const turno = window.turnosAtivos.find(t => t.id === turnoId);
