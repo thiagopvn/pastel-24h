@@ -2427,7 +2427,9 @@ window.UserManager = UserManager;
         setTimeout(() => {
             alert.remove();
         }, 5000);
+        window.cashControlManager = cashControlManager;
     }
+    
 }
 
 window.CashControlManager = CashControlManager;
