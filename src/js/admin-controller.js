@@ -1,3 +1,4 @@
+window.cashControlManager = cashControlManager;
 document.addEventListener('DOMContentLoaded', async () => {
 
     // Garantir função formatCurrency global
@@ -1996,7 +1997,6 @@ window.UserManager = UserManager;
                 }
             });
         });
-        window.cashControlManager = cashControlManager;
     }
     
     async load() {
@@ -2427,10 +2427,10 @@ window.UserManager = UserManager;
         setTimeout(() => {
             alert.remove();
         }, 5000);
-        window.cashControlManager = cashControlManager;
     }
-    
 }
+
+window.CashControlManager = CashControlManager;
 
 CashControlManager.prototype.load = async function() {
     console.log("🔄 Iniciando carregamento do controle de caixa...");
@@ -2586,7 +2586,7 @@ CashControlManager.prototype.load = async function() {
         }
     }
 };
-window.cashControlManager = cashControlManager;
+
 // Adicionar o método prepararAjusteCaixa
 CashControlManager.prototype.prepararAjusteCaixa = function(turnoId) {
     const turno = window.turnosAtivos.find(t => t.id === turnoId);
