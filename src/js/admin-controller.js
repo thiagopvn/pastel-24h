@@ -2430,7 +2430,6 @@ window.UserManager = UserManager;
     }
 }
 
-window.CashControlManager = CashControlManager;
 
 CashControlManager.prototype.load = async function() {
     console.log("🔄 Iniciando carregamento do controle de caixa...");
