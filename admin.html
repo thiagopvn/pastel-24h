@@ -614,6 +614,153 @@
                 </div>
             </div>
 
+<div class="glass-effect rounded-2xl p-6 mb-6">
+    <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-semibold text-gray-800">
+            <i class="fas fa-money-check-alt mr-2 text-primary-500"></i>
+            Fluxo Financeiro - Impacto das Taxas
+        </h3>
+        <button onclick="loadDashboardData()" class="text-gray-500 hover:text-gray-700">
+            <i class="fas fa-sync-alt"></i>
+        </button>
+    </div>
+    
+    <div id="financialFlowContainer" class="space-y-4">
+        <!-- Este conteúdo será preenchido via JavaScript -->
+    </div>
+</div>
+
+<script>
+// Função para atualizar o card de fluxo financeiro
+function updateFinancialFlowCard() {
+    const container = document.getElementById('financialFlowContainer');
+    if (!container || !currentData.vendas) return;
+    
+    // Calcular valores
+    const vendasBrutas = currentData.vendas || 0;
+    const vendasDinheiroPix = (currentData.vendasPorFormaPagamento?.dinheiro || 0) + 
+                              (currentData.vendasPorFormaPagamento?.pixManual || 0);
+    const vendasCartoes = (currentData.vendasPorFormaPagamento?.stoneDCV || 0) +
+                          (currentData.vendasPorFormaPagamento?.stoneVoucher || 0) +
+                          (currentData.vendasPorFormaPagamento?.pagbankDCV || 0);
+    const taxasCartao = currentData.taxasCartao || 0;
+    const margemBruta = vendasBrutas * 0.35;
+    const lucroLiquido = margemBruta - taxasCartao;
+    
+    container.innerHTML = `
+        <!-- Vendas Brutas -->
+        <div class="bg-gradient-to-r from-blue-50 to-blue-100 p-4 rounded-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-600">1. Vendas Brutas (Total)</h4>
+                    <p class="text-2xl font-bold text-blue-800 mt-1">${formatCurrency(vendasBrutas)}</p>
+                </div>
+                <div class="text-4xl text-blue-200">
+                    <i class="fas fa-cash-register"></i>
+                </div>
+            </div>
+            <div class="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div class="bg-white bg-opacity-50 p-2 rounded">
+                    <span class="text-gray-600">Dinheiro/PIX:</span>
+                    <span class="font-semibold ml-1">${formatCurrency(vendasDinheiroPix)}</span>
+                </div>
+                <div class="bg-white bg-opacity-50 p-2 rounded">
+                    <span class="text-gray-600">Cartões:</span>
+                    <span class="font-semibold ml-1">${formatCurrency(vendasCartoes)}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Flecha -->
+        <div class="text-center text-gray-400">
+            <i class="fas fa-arrow-down text-2xl"></i>
+        </div>
+        
+        <!-- Margem Bruta -->
+        <div class="bg-gradient-to-r from-green-50 to-green-100 p-4 rounded-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-600">2. Margem Bruta (35%)</h4>
+                    <p class="text-2xl font-bold text-green-800 mt-1">${formatCurrency(margemBruta)}</p>
+                    <p class="text-xs text-gray-500 mt-1">Vendas × 35% = Lucro bruto antes das taxas</p>
+                </div>
+                <div class="text-4xl text-green-200">
+                    <i class="fas fa-percentage"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Flecha -->
+        <div class="text-center text-gray-400">
+            <i class="fas fa-arrow-down text-2xl"></i>
+        </div>
+        
+        <!-- Dedução de Taxas -->
+        <div class="bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-lg">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-600">3. Dedução: Taxas de Cartão</h4>
+                    <p class="text-2xl font-bold text-red-600 mt-1">-${formatCurrency(taxasCartao)}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        ${taxasCartao > 0 ? 
+                            `${((taxasCartao / vendasCartoes) * 100).toFixed(2)}% sobre ${formatCurrency(vendasCartoes)} em cartões` : 
+                            'Nenhuma venda em cartão no período'
+                        }
+                    </p>
+                </div>
+                <div class="text-4xl text-red-200">
+                    <i class="fas fa-credit-card"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Flecha -->
+        <div class="text-center text-gray-400">
+            <i class="fas fa-arrow-down text-2xl"></i>
+        </div>
+        
+        <!-- Lucro Líquido -->
+        <div class="bg-gradient-to-r from-amber-50 to-amber-100 p-4 rounded-lg border-2 border-amber-300">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h4 class="text-sm font-medium text-gray-600">4. Lucro Líquido Atual</h4>
+                    <p class="text-2xl font-bold text-amber-800 mt-1">${formatCurrency(lucroLiquido)}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Margem bruta - Taxas de cartão = Lucro real
+                    </p>
+                </div>
+                <div class="text-4xl text-amber-200">
+                    <i class="fas fa-coins"></i>
+                </div>
+            </div>
+            <div class="mt-3 bg-white bg-opacity-70 p-3 rounded">
+                <p class="text-sm text-gray-700">
+                    <i class="fas fa-info-circle text-amber-600 mr-1"></i>
+                    <strong>Importante:</strong> Quando você aumenta as taxas de cartão, 
+                    o valor de <span class="font-semibold">Vendas Brutas permanece o mesmo</span>, 
+                    mas o <span class="font-semibold text-amber-700">Lucro Líquido diminui</span> 
+                    porque você paga mais taxas às operadoras.
+                </p>
+            </div>
+        </div>
+    `;
+}
+
+// Chamar a função após carregar os dados
+const originalLoadDashboardData = loadDashboardData;
+loadDashboardData = async function(...args) {
+    await originalLoadDashboardData(...args);
+    setTimeout(updateFinancialFlowCard, 100);
+};
+
+// Atualizar também quando salvar taxas
+const originalSaveTaxConfig = document.getElementById('saveTaxConfig').onclick;
+document.getElementById('saveTaxConfig').onclick = async function(e) {
+    if (originalSaveTaxConfig) await originalSaveTaxConfig(e);
+    setTimeout(updateFinancialFlowCard, 2000);
+};
+</script>
+
             <div class="glass-effect rounded-2xl p-6 mb-6">
                 <div class="flex items-center justify-between mb-4">
                     <h3 class="text-lg font-semibold text-gray-800">Configuração de Taxas</h3>
@@ -2018,6 +2165,7 @@ document.getElementById('saveTaxConfig').addEventListener('click', async () => {
 
 loadTaxConfig();
 
+
 async function updateKPIs(turnos, turnosAnteriores = []) {
     let totalVendas = 0;
     let totalPedidos = turnos.length;
@@ -2031,6 +2179,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         pagbankDCV: 0
     };
     
+    // Primeiro, carregar as taxas atuais do banco
     let taxasCartao = {
         stoneDCV: 2.99,
         stoneVoucher: 2.99,
@@ -2040,12 +2189,19 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     try {
         const taxasDoc = await db.collection('config').doc('taxas_cartao').get();
         if (taxasDoc.exists) {
-            taxasCartao = { ...taxasCartao, ...taxasDoc.data() };
+            const taxasData = taxasDoc.data();
+            taxasCartao = { 
+                stoneDCV: taxasData.stoneDCV || 2.99,
+                stoneVoucher: taxasData.stoneVoucher || 2.99,
+                pagbankDCV: taxasData.pagbankDCV || 2.49
+            };
+            console.log('✅ Taxas carregadas:', taxasCartao);
         }
     } catch (error) {
         console.error('Erro ao carregar taxas:', error);
     }
     
+    // Buscar caixa físico atual
     const turnosAtivosSnapshot = await db.collection('turnos')
         .where('status', '==', 'aberto')
         .get();
@@ -2058,6 +2214,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         caixaFisicoAtual += (dinheiro + moedas);
     });
     
+    // Processar turnos e calcular vendas
     turnos.forEach(turno => {
         totalVendas += turno.totalVendidoCalculadoFinal || 0;
         
@@ -2072,10 +2229,22 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         }
     });
     
-    totalTaxasCartao = (vendasPorFormaPagamento.stoneDCV * (taxasCartao.stoneDCV / 100)) +
-                       (vendasPorFormaPagamento.stoneVoucher * (taxasCartao.stoneVoucher / 100)) +
-                       (vendasPorFormaPagamento.pagbankDCV * (taxasCartao.pagbankDCV / 100));
+    // Calcular taxas de cartão com as novas porcentagens
+    console.log('📊 Vendas por forma de pagamento:', vendasPorFormaPagamento);
     
+    const taxaStoneDCV = vendasPorFormaPagamento.stoneDCV * (taxasCartao.stoneDCV / 100);
+    const taxaStoneVoucher = vendasPorFormaPagamento.stoneVoucher * (taxasCartao.stoneVoucher / 100);
+    const taxaPagbankDCV = vendasPorFormaPagamento.pagbankDCV * (taxasCartao.pagbankDCV / 100);
+    
+    totalTaxasCartao = taxaStoneDCV + taxaStoneVoucher + taxaPagbankDCV;
+    
+    console.log('💳 Cálculo de taxas:');
+    console.log(`  Stone D/C/V: R$ ${vendasPorFormaPagamento.stoneDCV.toFixed(2)} × ${taxasCartao.stoneDCV}% = R$ ${taxaStoneDCV.toFixed(2)}`);
+    console.log(`  Stone Voucher: R$ ${vendasPorFormaPagamento.stoneVoucher.toFixed(2)} × ${taxasCartao.stoneVoucher}% = R$ ${taxaStoneVoucher.toFixed(2)}`);
+    console.log(`  PagBank D/C/V: R$ ${vendasPorFormaPagamento.pagbankDCV.toFixed(2)} × ${taxasCartao.pagbankDCV}% = R$ ${taxaPagbankDCV.toFixed(2)}`);
+    console.log(`  Total de taxas: R$ ${totalTaxasCartao.toFixed(2)}`);
+    
+    // Processar período anterior para comparação
     let totalVendasAnterior = 0;
     let totalPedidosAnterior = turnosAnteriores.length;
     let totalTaxasCartaoAnterior = 0;
@@ -2099,6 +2268,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
                                (vendasPorFormaPagamentoAnterior.stoneVoucher * (taxasCartao.stoneVoucher / 100)) +
                                (vendasPorFormaPagamentoAnterior.pagbankDCV * (taxasCartao.pagbankDCV / 100));
     
+    // Cálculos finais
     const ticketMedio = totalPedidos > 0 ? totalVendas / totalPedidos : 0;
     const ticketMedioAnterior = totalPedidosAnterior > 0 ? totalVendasAnterior / totalPedidosAnterior : 0;
     
@@ -2106,6 +2276,13 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const lucroEstimado = (totalVendas * margemLucro) - totalTaxasCartao;
     const lucroEstimadoAnterior = (totalVendasAnterior * margemLucro) - totalTaxasCartaoAnterior;
     
+    console.log('💰 Cálculo do lucro:');
+    console.log(`  Vendas totais: R$ ${totalVendas.toFixed(2)}`);
+    console.log(`  Margem bruta (35%): R$ ${(totalVendas * margemLucro).toFixed(2)}`);
+    console.log(`  Taxas de cartão: -R$ ${totalTaxasCartao.toFixed(2)}`);
+    console.log(`  Lucro estimado: R$ ${lucroEstimado.toFixed(2)}`);
+    
+    // Projeção
     const horasRestantes = new Date().getHours() < 23 ? 23 - new Date().getHours() : 0;
     const mediaHoraria = totalVendas / (new Date().getHours() || 1);
     const projecaoVendas = totalVendas + (mediaHoraria * horasRestantes);
@@ -2114,6 +2291,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const projecaoTaxas = totalTaxasCartao * taxaProjecao;
     const lucroProjetado = (projecaoVendas * margemLucro) - projecaoTaxas;
     
+    // Cálculo de tendências
     const calcularTendencia = (atual, anterior) => {
         if (anterior === 0) return atual > 0 ? 100 : 0;
         return ((atual - anterior) / anterior) * 100;
@@ -2123,6 +2301,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     const tendenciaTicket = calcularTendencia(ticketMedio, ticketMedioAnterior);
     const tendenciaLucro = calcularTendencia(lucroEstimado, lucroEstimadoAnterior);
     
+    // Atualizar interface
     document.getElementById('kpiVendas').textContent = formatCurrency(totalVendas);
     document.getElementById('kpiTicket').textContent = formatCurrency(ticketMedio);
     document.getElementById('kpiCaixa').textContent = formatCurrency(caixaFisicoAtual);
@@ -2135,7 +2314,7 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
     updateTrendIndicator('kpiTicketTrend', tendenciaTicket);
     updateTrendIndicator('kpiLucroTrend', tendenciaLucro);
     
-    currentData = {
+       currentData = {
         vendas: totalVendas,
         ticket: ticketMedio,
         caixa: caixaFisicoAtual,
@@ -2146,7 +2325,185 @@ async function updateKPIs(turnos, turnosAnteriores = []) {
         pedidos: totalPedidos,
         vendasPorFormaPagamento: vendasPorFormaPagamento
     };
+
 }
+
+function addTaxIndicatorToCards() {
+    // Adicionar um indicador de taxas no card de vendas
+    const vendasCard = document.querySelector('[data-kpi="vendas"]');
+    if (vendasCard && currentData.taxasCartao) {
+        const existingIndicator = vendasCard.querySelector('.tax-indicator');
+        if (!existingIndicator) {
+            const cardBody = vendasCard.querySelector('.flex-1');
+            if (cardBody) {
+                const taxIndicator = document.createElement('div');
+                taxIndicator.className = 'tax-indicator mt-3 pt-3 border-t border-green-200';
+                taxIndicator.innerHTML = `
+                    <div class="flex justify-between items-center text-xs">
+                        <span class="text-gray-600">
+                            <i class="fas fa-credit-card mr-1"></i>Taxas de cartão:
+                        </span>
+                        <span class="font-bold text-red-600">-${formatCurrency(currentData.taxasCartao)}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        <i class="fas fa-info-circle mr-1"></i>
+                        ${((currentData.taxasCartao / currentData.vendas) * 100).toFixed(2)}% das vendas totais
+                    </div>
+                `;
+                cardBody.appendChild(taxIndicator);
+            }
+        } else {
+            // Atualizar valores se já existir
+            existingIndicator.innerHTML = `
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-gray-600">
+                        <i class="fas fa-credit-card mr-1"></i>Taxas de cartão:
+                    </span>
+                    <span class="font-bold text-red-600">-${formatCurrency(currentData.taxasCartao)}</span>
+                </div>
+                <div class="text-xs text-gray-500 mt-1">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    ${((currentData.taxasCartao / currentData.vendas) * 100).toFixed(2)}% das vendas totais
+                </div>
+            `;
+        }
+    }
+    
+    // Adicionar breakdown no card de lucro
+    const lucroCard = document.querySelector('[data-kpi="lucro"]');
+    if (lucroCard && currentData.lucroAtual !== undefined) {
+        const existingBreakdown = lucroCard.querySelector('.profit-breakdown');
+        if (!existingBreakdown) {
+            const cardBody = lucroCard.querySelector('.flex-1');
+            if (cardBody) {
+                const breakdownDiv = document.createElement('div');
+                breakdownDiv.className = 'profit-breakdown mt-3 pt-3 border-t border-amber-200 text-xs space-y-1';
+                breakdownDiv.innerHTML = `
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Lucro atual:</span>
+                        <span class="font-semibold">${formatCurrency(currentData.lucroAtual)}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-gray-600">Projeção dia:</span>
+                        <span class="font-semibold">${formatCurrency(currentData.lucro)}</span>
+                    </div>
+                    <button onclick="showTaxDetailsModal()" 
+                            class="w-full mt-2 bg-amber-200 hover:bg-amber-300 text-amber-800 py-1 px-2 rounded text-xs transition-all">
+                        <i class="fas fa-calculator mr-1"></i>Ver detalhes das taxas
+                    </button>
+                `;
+                cardBody.appendChild(breakdownDiv);
+            }
+        } else {
+            // Atualizar valores se já existir
+            const spans = existingBreakdown.querySelectorAll('span.font-semibold');
+            if (spans[0]) spans[0].textContent = formatCurrency(currentData.lucroAtual);
+            if (spans[1]) spans[1].textContent = formatCurrency(currentData.lucro);
+        }
+    }
+}
+
+// Modificar a função updateKPIs para chamar addTaxIndicatorToCards no final
+const originalUpdateKPIs = updateKPIs;
+updateKPIs = async function(turnos, turnosAnteriores = []) {
+    await originalUpdateKPIs(turnos, turnosAnteriores);
+    
+    // Adicionar indicadores de taxas aos cards
+    setTimeout(() => {
+        addTaxIndicatorToCards();
+    }, 100);
+};
+
+// Adicionar notificação visual quando as taxas são alteradas
+document.getElementById('saveTaxConfig').addEventListener('click', async function() {
+    // Capturar valores antes de salvar
+    const oldStoneDCV = parseFloat(document.getElementById('taxaStoneDCV').dataset.originalValue || 2.99);
+    const oldStoneVoucher = parseFloat(document.getElementById('taxaStoneVoucher').dataset.originalValue || 2.99);
+    const oldPagbankDCV = parseFloat(document.getElementById('taxaPagbankDCV').dataset.originalValue || 2.49);
+    
+    const newStoneDCV = parseFloat(document.getElementById('taxaStoneDCV').value);
+    const newStoneVoucher = parseFloat(document.getElementById('taxaStoneVoucher').value);
+    const newPagbankDCV = parseFloat(document.getElementById('taxaPagbankDCV').value);
+    
+    // Verificar se houve mudança significativa
+    const hasSignificantChange = 
+        Math.abs(newStoneDCV - oldStoneDCV) > 0.1 ||
+        Math.abs(newStoneVoucher - oldStoneVoucher) > 0.1 ||
+        Math.abs(newPagbankDCV - oldPagbankDCV) > 0.1;
+    
+    if (hasSignificantChange) {
+        // Adicionar efeito visual nos cards afetados
+        setTimeout(() => {
+            const lucroCard = document.querySelector('[data-kpi="lucro"]');
+            const vendasCard = document.querySelector('[data-kpi="vendas"]');
+            
+            if (lucroCard) {
+                lucroCard.classList.add('animate-pulse', 'ring-4', 'ring-amber-400');
+                setTimeout(() => {
+                    lucroCard.classList.remove('animate-pulse', 'ring-4', 'ring-amber-400');
+                }, 3000);
+            }
+            
+            if (vendasCard) {
+                const taxIndicator = vendasCard.querySelector('.tax-indicator');
+                if (taxIndicator) {
+                    taxIndicator.classList.add('animate-pulse', 'bg-red-100');
+                    setTimeout(() => {
+                        taxIndicator.classList.remove('animate-pulse', 'bg-red-100');
+                    }, 3000);
+                }
+            }
+            
+            // Mostrar notificação detalhada
+            showToast(
+                `Taxas atualizadas! O impacto será refletido no lucro. ` +
+                `Clique no card "Lucro Estimado" para ver os detalhes.`,
+                'warning',
+                8000
+            );
+        }, 1500);
+    }
+    
+    // Salvar valores originais para próxima comparação
+    document.getElementById('taxaStoneDCV').dataset.originalValue = newStoneDCV;
+    document.getElementById('taxaStoneVoucher').dataset.originalValue = newStoneVoucher;
+    document.getElementById('taxaPagbankDCV').dataset.originalValue = newPagbankDCV;
+});
+
+// Inicializar valores originais ao carregar a página
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const taxasDoc = await db.collection('config').doc('taxas_cartao').get();
+        if (taxasDoc.exists) {
+            const taxas = taxasDoc.data();
+            document.getElementById('taxaStoneDCV').dataset.originalValue = taxas.stoneDCV || 2.99;
+            document.getElementById('taxaStoneVoucher').dataset.originalValue = taxas.stoneVoucher || 2.99;
+            document.getElementById('taxaPagbankDCV').dataset.originalValue = taxas.pagbankDCV || 2.49;
+        }
+    } catch (error) {
+        console.error('Erro ao carregar valores originais das taxas:', error);
+    }
+});
+
+// Adicionar botão para ver detalhes das taxas no card de lucro
+document.addEventListener('DOMContentLoaded', () => {
+    // Adicionar evento de clique no card de lucro para mostrar detalhes
+    const lucroCard = document.querySelector('[data-kpi="lucro"]');
+    if (lucroCard) {
+        lucroCard.addEventListener('click', showTaxDetailsModal);
+    }
+    
+    // Adicionar botão de detalhes na seção de configuração de taxas
+    const taxConfigSection = document.querySelector('#saveTaxConfig').parentElement;
+    if (taxConfigSection && !document.getElementById('viewTaxDetails')) {
+        const detailsBtn = document.createElement('button');
+        detailsBtn.id = 'viewTaxDetails';
+        detailsBtn.className = 'bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-all text-sm ml-2';
+        detailsBtn.innerHTML = '<i class="fas fa-info-circle mr-2"></i>Ver Impacto';
+        detailsBtn.onclick = showTaxDetailsModal;
+        taxConfigSection.appendChild(detailsBtn);
+    }
+});
 
 function updateTrendIndicator(elementId, percentChange, isStatus = false) {
     const element = document.getElementById(elementId);
@@ -3061,6 +3418,8 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
                     <p class="text-gray-600">Detalhes em desenvolvimento</p>
                 </div>
             `;
+        
+
     }
 }
 
