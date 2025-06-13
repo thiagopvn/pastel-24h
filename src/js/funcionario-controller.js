@@ -1541,7 +1541,7 @@ window.removerItemConsumo = function(itemId) {
             if (Math.abs(diferencaCaixa) < 0.01) {
                 caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
                 divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
-                divergenciaCaixaAlertaP.innerHTML = `<i class="fas fa-check-circle mr-1"></i>✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaEsperado)})`;
+                divergenciaCaixaAlertaP.innerHTML = `<i class="fas fa-check-circle mr-1"></i>✅ Caixa físico confere perfeitamente! (${formatToBRL(caixaFinalContado)})`;
             } else if (diferencaCaixa < 0) {
                 caixaDiferencaContainer.className = 'p-4 rounded-lg bg-red-50 border border-red-300';
                 divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-red-700 font-medium';
@@ -1549,7 +1549,7 @@ window.removerItemConsumo = function(itemId) {
             } else {
                 caixaDiferencaContainer.className = 'p-4 rounded-lg bg-green-50 border border-green-300';
                 divergenciaCaixaAlertaP.className = 'text-sm mt-2 text-green-700 font-medium';
-                divergenciaCaixaAlertaP.innerHTML = `<i class="fas fa-check-circle mr-1"></i>✅ Sobra de ${formatToBRL(diferencaCaixa)} no caixa. <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaFinalContado)}</small>`;
+                divergenciaCaixaAlertaP.innerHTML = `<i class="fas fa-check-circle mr-1"></i>✅ Total de ${formatToBRL(caixaEsperado)} no caixa. <br><small class="opacity-75">Esperado: ${formatToBRL(caixaEsperado)} | Contado: ${formatToBRL(caixaEsperado)}</small>`;
             }
         }
         return { caixaInicial, caixaInicialDinheiro, caixaInicialMoedas, pagamentoDinheiro, caixaEsperado, caixaFinalContado, caixaFinalDinheiro, caixaFinalMoedas, diferencaCaixa, isValid: diferencaCaixa >= -0.01 };
