@@ -1846,16 +1846,6 @@ window.removerItemConsumo = function(itemId) {
             totalPagamentos.innerHTML = `<strong>Total Pagamentos:</strong> ${formatToBRL(estoqueAnterior.totalRegistradoPagamentos)}`;
             colDireita.appendChild(totalPagamentos);
         }
-        if (estoqueAnterior.diferencaCaixa !== undefined) {
-            const diferencaCaixa = document.createElement('p');
-            if (Math.abs(estoqueAnterior.diferencaCaixa) > 0.01) {
-                diferencaCaixa.className = estoqueAnterior.diferencaCaixa > 0 ? 'text-green-700' : 'text-red-700';
-                diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> ${formatToBRL(estoqueAnterior.diferencaCaixa)}`;
-            } else {
-                diferencaCaixa.innerHTML = `<strong>Diferença de Caixa:</strong> Sem diferença`;
-            }
-            colDireita.appendChild(diferencaCaixa);
-        }
 
         if (estoqueAnterior.observacoes) {
                 const observacoesDiv = document.createElement('div');
