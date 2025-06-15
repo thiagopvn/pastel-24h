@@ -1850,3 +1850,59 @@ header h1:hover {
     margin-left: 0 !important;
     margin-right: 0 !important;
 }
+
+/* ===== FORÇA CORRETA DO FUNDO BRANCO ===== */
+
+/* Container principal das seções */
+.bg-white.rounded-xl.shadow-card .p-8,
+.bg-white.rounded-xl.shadow-card .p-10 {
+    overflow: visible !important;
+}
+
+/* Força que fieldsets não cortem o conteúdo */
+fieldset {
+    overflow: visible !important;
+    position: relative;
+}
+
+/* Garante que a área de formulário não interfira */
+#formTurno {
+    overflow: visible !important;
+}
+
+/* Força o wrapper da tabela */
+.scrollable-table-wrapper {
+    background-color: #FFFFFF !important;
+    border: 2px solid #FFE4B5 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: relative !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Força a tabela */
+.scrollable-table {
+    min-width: 900px !important;
+    width: max-content !important;
+    table-layout: auto !important;
+    background-color: transparent !important;
+    margin: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
+}
+
+/* Força container */
+.table-scroll-container {
+    position: relative !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}

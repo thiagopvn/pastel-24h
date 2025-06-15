@@ -42,58 +42,123 @@
     </script>
 </head>
 <style>
-/* Fix para scroll horizontal funcionar */
-
-
+/* ===== CORREÇÃO DEFINITIVA PARA TABELAS ===== */
 
 .table-scroll-container {
+    position: relative;
     width: 100%;
-    overflow: visible;
+    max-width: 100%;
+    overflow: visible !important;
     margin: 0;
     padding: 0;
 }
 
 .scrollable-table-wrapper {
-    width: 100%;
-    max-width: 100%;
+    /* FUNDO BRANCO que acompanha a tabela */
+    background-color: #FFFFFF !important;
+    border: 2px solid #FFE4B5 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    
+    /* Scroll horizontal controlado */
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
-    border: 2px solid #FFE4B5;
-    border-radius: 12px;
-    display: block;
+    scroll-behavior: smooth;
+    
+    /* Layout que se adapta ao conteúdo */
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: relative;
 }
 
 .scrollable-table {
+    /* Mantém o tamanho atual da tabela */
     min-width: 900px !important;
     width: max-content !important;
     table-layout: auto !important;
+    
+    /* Remove qualquer fundo para usar o do wrapper */
+    background-color: transparent !important;
+    margin: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
 }
 
-/* Força scrollbar visível */
+/* Primeira coluna fixa */
+.scrollable-table th:first-child,
+.scrollable-table td:first-child {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 10 !important;
+    background-color: #FFFFFF !important;
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05) !important;
+}
+
+.scrollable-table thead th:first-child {
+    z-index: 11 !important;
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
+}
+
+/* Scrollbar personalizada */
 .scrollable-table-wrapper::-webkit-scrollbar {
-    height: 14px !important;
-    display: block !important;
+    height: 12px !important;
+    background-color: #F3F4F6 !important;
+    border-radius: 0 0 10px 10px !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-track {
-    background: #FFE4B5 !important;
-    border-radius: 7px;
+    background-color: #F3F4F6 !important;
+    border-radius: 0 0 10px 10px !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-thumb {
-    background: #FFA500 !important;
-    border-radius: 7px;
-    border: 2px solid #FFE4B5;
+    background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%) !important;
+    border-radius: 6px !important;
+    border: 2px solid #F3F4F6 !important;
 }
 
-/* Remove qualquer table-layout fixed */
-table.custom-table {
-    table-layout: auto !important;
+.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%) !important;
 }
 
+/* Firefox */
+.scrollable-table-wrapper {
+    scrollbar-width: thin !important;
+    scrollbar-color: #FFA500 #F3F4F6 !important;
+}
 
+/* Garante que fieldsets não interfiram */
 .item-section {
+    overflow: visible !important;
+}
+
+.item-section fieldset {
+    overflow: visible !important;
+    padding: 1.5rem !important;
+    margin-bottom: 2rem !important;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+    .scrollable-table-wrapper {
+        border-width: 1px !important;
+        border-radius: 8px !important;
+    }
+    
+    .scrollable-table {
+        font-size: 0.875rem !important;
+    }
+    
+    .scrollable-table th,
+    .scrollable-table td {
+        padding: 0.5rem 0.25rem !important;
+    }
+}
+
+/* Remove overflow do container principal */
+.bg-white.rounded-xl.shadow-card {
     overflow: visible !important;
 }
 </style>
@@ -657,27 +722,48 @@ table.custom-table {
         });
     </script>
     <script>
-// Força scroll em todas as tabelas após carregamento
+
 window.addEventListener('load', function() {
     // Remove overflow hidden de todos containers
     document.querySelectorAll('.overflow-hidden').forEach(el => {
         el.classList.remove('overflow-hidden');
     });
     
-    // Força overflow correto nas wrappers
+    // Força configurações corretas para o fundo branco
     document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
+        wrapper.style.backgroundColor = '#FFFFFF';
         wrapper.style.overflowX = 'auto';
         wrapper.style.overflowY = 'visible';
         wrapper.style.width = '100%';
         wrapper.style.display = 'block';
+        wrapper.style.position = 'relative';
+        wrapper.style.border = '2px solid #FFE4B5';
+        wrapper.style.borderRadius = '12px';
+        wrapper.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
     });
     
-    // Garante largura mínima nas tabelas
+    // Garante configurações da tabela
     document.querySelectorAll('.scrollable-table').forEach(table => {
         table.style.minWidth = '900px';
         table.style.width = 'max-content';
         table.style.tableLayout = 'auto';
+        table.style.backgroundColor = 'transparent';
+        table.style.margin = '0';
+        table.style.borderCollapse = 'separate';
+        table.style.borderSpacing = '0';
     });
+    
+    // Força o fundo branco da primeira coluna
+    document.querySelectorAll('.scrollable-table th:first-child, .scrollable-table td:first-child').forEach(cell => {
+        cell.style.backgroundColor = '#FFFFFF';
+    });
+    
+    // Força o fundo do header da primeira coluna
+    document.querySelectorAll('.scrollable-table thead th:first-child').forEach(headerCell => {
+        headerCell.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
+    });
+    
+    console.log('✅ Configurações de tabela aplicadas com sucesso!');
 });
 </script>
 </body>
