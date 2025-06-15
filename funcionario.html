@@ -42,58 +42,63 @@
     </script>
 </head>
 <style>
-/* ===== CORREÇÃO DEFINITIVA PARA TABELAS - DESKTOP E MOBILE ===== */
+/* ===== CORREÇÃO DEFINITIVA PARA TABELAS ===== */
 
 .table-scroll-container {
     position: relative;
     width: 100%;
     max-width: 100%;
+    overflow: visible !important;
     margin: 0;
     padding: 0;
-    overflow: visible !important; /* Sem scroll aqui */
 }
 
 .scrollable-table-wrapper {
-    /* Wrapper com scroll e visual */
-    position: relative;
-    width: 100%;
+    /* FUNDO BRANCO que acompanha a tabela */
+    background-color: #FFFFFF !important;
+    border: 2px solid #FFE4B5 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    
+    /* Scroll horizontal controlado */
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
     
-    /* Visual do container */
-    background-color: #FFFFFF !important;
-    border: 2px solid #FFE4B5 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    /* Layout que se adapta ao conteúdo */
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    position: relative;
 }
 
-/* Container interno que expande com a tabela */
+/* TRUQUE: Div interna que tem a largura da tabela */
 .scrollable-table-wrapper::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
-    right: 0;
-    bottom: 0;
+    width: 900px; /* Mesma largura mínima da tabela */
+    height: 100%;
     background-color: #FFFFFF;
-    min-width: 100%;
-    width: max-content;
-    z-index: -1;
+    z-index: 0;
+    border-radius: 10px;
 }
 
 .scrollable-table {
-    /* Tabela mantém seu tamanho */
+    /* Mantém o tamanho atual da tabela */
     min-width: 900px !important;
     width: max-content !important;
     table-layout: auto !important;
+    
+    /* Fica acima do fundo */
+    position: relative;
+    z-index: 1;
     background-color: transparent !important;
     margin: 0 !important;
     border-collapse: separate !important;
     border-spacing: 0 !important;
-    position: relative;
-    z-index: 1;
 }
 
 /* Primeira coluna fixa */
@@ -113,146 +118,30 @@
 
 /* Scrollbar personalizada */
 .scrollable-table-wrapper::-webkit-scrollbar {
-    height: 10px !important;
+    height: 12px !important;
     background-color: #F3F4F6 !important;
+    border-radius: 0 0 10px 10px !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-track {
     background-color: #F3F4F6 !important;
-    border-radius: 0 0 8px 8px !important;
+    border-radius: 0 0 10px 10px !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-thumb {
-    background: #FFA500 !important;
-    border-radius: 5px !important;
+    background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%) !important;
+    border-radius: 6px !important;
+    border: 2px solid #F3F4F6 !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: #FF8C00 !important;
+    background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%) !important;
 }
 
 /* Firefox */
 .scrollable-table-wrapper {
     scrollbar-width: thin !important;
     scrollbar-color: #FFA500 #F3F4F6 !important;
-}
-
-/* ===== MOBILE ESPECÍFICO ===== */
-@media (max-width: 768px) {
-    .table-scroll-container {
-        /* Remove margens em mobile */
-        margin-left: -1rem !important;
-        margin-right: -1rem !important;
-        padding: 0 !important;
-        width: calc(100% + 2rem) !important;
-        max-width: calc(100% + 2rem) !important;
-    }
-    
-    .scrollable-table-wrapper {
-        /* Ajustes visuais para mobile */
-        border-radius: 0 !important;
-        border-left: none !important;
-        border-right: none !important;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-        
-        /* Garante scroll suave */
-        -webkit-overflow-scrolling: touch !important;
-        overflow-x: scroll !important;
-        overflow-y: hidden !important;
-    }
-    
-    /* Hack para forçar fundo branco em toda área scrollável no mobile */
-    .scrollable-table-wrapper::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 200%; /* Muito maior que o necessário */
-        height: 100%;
-        background-color: #FFFFFF;
-        z-index: -1;
-        pointer-events: none;
-    }
-    
-    .scrollable-table {
-        /* Em mobile, tabela tem largura mínima fixa */
-        min-width: 800px !important;
-        font-size: 0.75rem !important;
-    }
-    
-    .scrollable-table th,
-    .scrollable-table td {
-        padding: 0.4rem 0.3rem !important;
-        font-size: 0.7rem !important;
-    }
-    
-    .scrollable-table input[type="number"],
-    .scrollable-table input[type="text"] {
-        min-width: 45px !important;
-        font-size: 0.7rem !important;
-        padding: 0.2rem !important;
-        height: 28px !important;
-    }
-    
-    /* Header da tabela em mobile */
-    .custom-table thead th {
-        font-size: 0.65rem !important;
-        padding: 10px 4px !important;
-        letter-spacing: 0.3px !important;
-    }
-    
-    /* Scrollbar mais fina em mobile */
-    .scrollable-table-wrapper::-webkit-scrollbar {
-        height: 6px !important;
-    }
-    
-    /* Indicador de scroll em mobile */
-    .scrollable-table-wrapper.can-scroll::before {
-        content: '👉';
-        position: fixed;
-        right: 10px;
-        top: 50%;
-        transform: translateY(-50%);
-        background: rgba(255, 152, 0, 0.9);
-        color: white;
-        width: 35px;
-        height: 35px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        z-index: 100;
-        animation: slideInOut 3s ease-in-out;
-        pointer-events: none;
-    }
-}
-
-/* Animação do indicador */
-@keyframes slideInOut {
-    0% { opacity: 0; right: -40px; }
-    20% { opacity: 1; right: 10px; }
-    80% { opacity: 1; right: 10px; }
-    100% { opacity: 0; right: -40px; }
-}
-
-/* ===== AJUSTES PARA iPHONE ===== */
-@media (max-width: 414px) {
-    .scrollable-table {
-        min-width: 700px !important;
-    }
-    
-    .scrollable-table th,
-    .scrollable-table td {
-        font-size: 0.65rem !important;
-        padding: 0.3rem 0.2rem !important;
-    }
-    
-    .scrollable-table input[type="number"],
-    .scrollable-table input[type="text"] {
-        min-width: 40px !important;
-        font-size: 0.65rem !important;
-    }
 }
 
 /* Garante que fieldsets não interfiram */
@@ -266,26 +155,31 @@
     margin-bottom: 2rem !important;
 }
 
-/* Em mobile, ajusta padding dos fieldsets */
+/* Responsividade */
 @media (max-width: 768px) {
-    .item-section fieldset {
-        padding: 1rem 0 !important;
-        margin-bottom: 1.5rem !important;
+    .scrollable-table-wrapper {
+        border-width: 1px !important;
+        border-radius: 8px !important;
+    }
+    
+    /* IMPORTANTE: Em mobile o fundo também precisa ter 900px */
+    .scrollable-table-wrapper::before {
+        width: 900px !important;
+    }
+    
+    .scrollable-table {
+        font-size: 0.875rem !important;
+    }
+    
+    .scrollable-table th,
+    .scrollable-table td {
+        padding: 0.5rem 0.25rem !important;
     }
 }
 
 /* Remove overflow do container principal */
 .bg-white.rounded-xl.shadow-card {
     overflow: visible !important;
-}
-
-/* Força fundo branco no corpo da tabela */
-.scrollable-table tbody {
-    background-color: #FFFFFF !important;
-}
-
-.scrollable-table tfoot {
-    background-color: #FFFFFF !important;
 }
 </style>
 <body class="bg-pattern min-h-screen">
@@ -855,35 +749,7 @@ window.addEventListener('load', function() {
         el.classList.remove('overflow-hidden');
     });
     
-    // Detecta se pode fazer scroll e adiciona classe
-    function checkScroll() {
-        document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
-            if (wrapper.scrollWidth > wrapper.clientWidth) {
-                wrapper.classList.add('can-scroll');
-                
-                // Em mobile, mostra indicador temporariamente
-                if (window.innerWidth <= 768) {
-                    setTimeout(() => {
-                        wrapper.classList.remove('can-scroll');
-                    }, 3000);
-                }
-            }
-        });
-    }
-    
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-    
-    // Fix específico para iOS
-    if (/iPhone|iPad|iPod/.test(navigator.userAgent)) {
-        document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
-            wrapper.style.webkitOverflowScrolling = 'touch';
-            
-            wrapper.style.transform = 'translateZ(0)';
-        });
-    }
-    
-    console.log('✅ Configurações de tabela mobile aplicadas!');
+    console.log('✅ Configurações de tabela aplicadas com sucesso!');
 });
 </script>
 </body>
