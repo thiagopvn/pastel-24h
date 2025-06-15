@@ -42,143 +42,69 @@
     </script>
 </head>
 <style>
-/* ===== CORREÇÃO DEFINITIVA PARA TABELAS ===== */
+/* Fix para scroll horizontal funcionar */
+
+
+.p-6 {
+    overflow: visible !important;
+}
+
+.space-y-8 {
+    overflow: visible !important;
+}
 
 .table-scroll-container {
-    position: relative;
     width: 100%;
-    max-width: 100%;
-    overflow: visible !important;
+    overflow: visible;
     margin: 0;
     padding: 0;
 }
 
 .scrollable-table-wrapper {
-    /* FUNDO BRANCO que acompanha a tabela */
-    background-color: #FFFFFF !important;
-    border: 2px solid #FFE4B5 !important;
-    border-radius: 12px !important;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-    
-    /* Scroll horizontal controlado */
+    width: 100%;
+    max-width: 100%;
     overflow-x: auto !important;
     overflow-y: visible !important;
     -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    
-    /* Layout que se adapta ao conteúdo */
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
-    position: relative;
-}
-
-/* TRUQUE: Div interna que tem a largura da tabela */
-.scrollable-table-wrapper::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 1200px; /* Mesma largura mínima da tabela */
-    height: 100%;
-    background-color: #FFFFFF;
-    z-index: 0;
-    border-radius: 10px;
+    border: 2px solid #FFE4B5;
+    border-radius: 12px;
+    display: block;
 }
 
 .scrollable-table {
-    /* Mantém o tamanho atual da tabela */
     min-width: 900px !important;
     width: max-content !important;
     table-layout: auto !important;
-    
-    /* Fica acima do fundo */
-    position: relative;
-    z-index: 1;
-    background-color: transparent !important;
-    margin: 0 !important;
-    border-collapse: separate !important;
-    border-spacing: 0 !important;
 }
 
-/* Primeira coluna fixa */
-.scrollable-table th:first-child,
-.scrollable-table td:first-child {
-    position: sticky !important;
-    left: 0 !important;
-    z-index: 10 !important;
-    background-color: #FFFFFF !important;
-    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05) !important;
-}
-
-.scrollable-table thead th:first-child {
-    z-index: 11 !important;
-    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
-}
-
-/* Scrollbar personalizada */
+/* Força scrollbar visível */
 .scrollable-table-wrapper::-webkit-scrollbar {
-    height: 12px !important;
-    background-color: #F3F4F6 !important;
-    border-radius: 0 0 10px 10px !important;
+    height: 14px !important;
+    display: block !important;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-track {
-    background-color: #F3F4F6 !important;
-    border-radius: 0 0 10px 10px !important;
+    background: #FFE4B5 !important;
+    border-radius: 7px;
 }
 
 .scrollable-table-wrapper::-webkit-scrollbar-thumb {
-    background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%) !important;
-    border-radius: 6px !important;
-    border: 2px solid #F3F4F6 !important;
+    background: #FFA500 !important;
+    border-radius: 7px;
+    border: 2px solid #FFE4B5;
 }
 
-.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%) !important;
+/* Remove qualquer table-layout fixed */
+table.custom-table {
+    table-layout: auto !important;
 }
 
-/* Firefox */
-.scrollable-table-wrapper {
-    scrollbar-width: thin !important;
-    scrollbar-color: #FFA500 #F3F4F6 !important;
+/* Garante que fieldsets não cortem conteúdo */
+fieldset {
+    overflow: visible !important;
 }
 
-/* Garante que fieldsets não interfiram */
 .item-section {
-    overflow: visible !important;
-}
-
-.item-section fieldset {
-    overflow: visible !important;
-    padding: 1.5rem !important;
-    margin-bottom: 2rem !important;
-}
-
-/* Responsividade */
-@media (max-width: 768px) {
-    .scrollable-table-wrapper {
-        border-width: 1px !important;
-        border-radius: 8px !important;
-    }
-    
-    /* IMPORTANTE: Em mobile o fundo também precisa ter 900px */
-    .scrollable-table-wrapper::before {
-        width: 1200px !important;
-    }
-    
-    .scrollable-table {
-        font-size: 0.875rem !important;
-    }
-    
-    .scrollable-table th,
-    .scrollable-table td {
-        padding: 0.5rem 0.25rem !important;
-    }
-}
-
-/* Remove overflow do container principal */
-.bg-white.rounded-xl.shadow-card {
     overflow: visible !important;
 }
 </style>
@@ -292,8 +218,8 @@
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-utensils mr-2"></i>Pastéis
                         </legend>
-                       <div class="table-scroll-container">
-    <div class="scrollable-table-wrapper">
+                       <div class="table-scroll-container -mx-4 sm:-mx-6 lg:-mx-8">
+    <div class="scrollable-table-wrapper mx-4 sm:mx-6 lg:mx-8">
                                 <table class="scrollable-table min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
                                     <thead>
                                         <tr>
@@ -347,8 +273,8 @@
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-glass-whiskey mr-2"></i>Caldo de Cana
                         </legend>
-                       <div class="table-scroll-container">
-    <div class="scrollable-table-wrapper">
+                       <div class="table-scroll-container -mx-4 sm:-mx-6 lg:-mx-8">
+    <div class="scrollable-table-wrapper mx-4 sm:mx-6 lg:mx-8">
                                 <table class="scrollable-table min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
                                     <thead>
                                         <tr>
@@ -383,8 +309,8 @@
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-bottle-water mr-2"></i>Refrigerantes e Bebidas
                         </legend>
-                     <div class="table-scroll-container">
-    <div class="scrollable-table-wrapper">
+                      <div class="table-scroll-container -mx-4 sm:-mx-6 lg:-mx-8">
+    <div class="scrollable-table-wrapper mx-4 sm:mx-6 lg:mx-8">
                                 <table class="scrollable-table min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
                                     <thead>
                                         <tr>
@@ -419,8 +345,8 @@
                         <legend class="text-lg font-semibold text-pastel-orange-600 px-2 bg-white">
                             <i class="fas fa-cube mr-2"></i>Gelo
                         </legend>
-                       <div class="table-scroll-container">
-    <div class="scrollable-table-wrapper">
+                       <div class="table-scroll-container -mx-4 sm:-mx-6 lg:-mx-8">
+    <div class="scrollable-table-wrapper mx-4 sm:mx-6 lg:mx-8">
                                 <table class="scrollable-table min-w-full divide-y divide-gray-200 custom-table sm:text-sm text-xs">
                                     <thead>
                                         <tr>
@@ -741,15 +667,28 @@
             }, 100);
         });
     </script>
-
-<script>
+    <script>
+// Força scroll em todas as tabelas após carregamento
 window.addEventListener('load', function() {
     // Remove overflow hidden de todos containers
     document.querySelectorAll('.overflow-hidden').forEach(el => {
         el.classList.remove('overflow-hidden');
     });
     
-    console.log('✅ Configurações de tabela aplicadas com sucesso!');
+    // Força overflow correto nas wrappers
+    document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
+        wrapper.style.overflowX = 'auto';
+        wrapper.style.overflowY = 'visible';
+        wrapper.style.width = '100%';
+        wrapper.style.display = 'block';
+    });
+    
+    // Garante largura mínima nas tabelas
+    document.querySelectorAll('.scrollable-table').forEach(table => {
+        table.style.minWidth = '900px';
+        table.style.width = 'max-content';
+        table.style.tableLayout = 'auto';
+    });
 });
 </script>
 </body>
