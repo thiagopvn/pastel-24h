@@ -1323,24 +1323,46 @@ input[type="number"].at-limit {
     width: 100%;
     max-width: 100%;
     overflow: visible;
+ 
+    margin: 0;
+    padding: 0;
 }
 
 .scrollable-table-wrapper {
+
+    background-color: #FFFFFF;
     border: 2px solid #FFE4B5;
     border-radius: 12px;
-    overflow-x: auto !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    
+
+    overflow-x: auto;
     overflow-y: visible;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    
+ 
     display: block;
     width: 100%;
     max-width: 100%;
+    
+
+    position: relative;
 }
 
 .scrollable-table {
-    min-width: 900px !important;
+
+    min-width: 900px;
     width: max-content;
     table-layout: auto;
+    
+
+    background-color: transparent;
+    
+  
+    margin: 0;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 @media screen and (max-width: 920px) {
@@ -1440,7 +1462,8 @@ input[type="number"].at-limit {
 }
 
 .custom-table thead th:first-child {
-    border-top-left-radius: 8px;
+    z-index: 11;
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
 }
 
 .custom-table thead th:last-child {
@@ -1718,4 +1741,112 @@ header h1:hover {
 
 .price-input-wrapper .check-wrapper.show {
     opacity: 1;
+}
+
+/* ===== CORREÇÃO PARA FUNDO BRANCO DAS TABELAS ===== */
+
+/* Garante que o fieldset não interfira no layout */
+.item-section fieldset {
+    overflow: visible !important;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+    /* Remove qualquer padding lateral que possa interferir */
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+/* Ajustes para scrollbar mais elegante */
+.scrollable-table-wrapper::-webkit-scrollbar {
+    height: 12px;
+    background-color: #F3F4F6;
+    border-radius: 0 0 10px 10px;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-track {
+    background-color: #F3F4F6;
+    border-radius: 0 0 10px 10px;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%);
+    border-radius: 6px;
+    border: 2px solid #F3F4F6;
+}
+
+.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%);
+}
+
+/* Para Firefox */
+.scrollable-table-wrapper {
+    scrollbar-width: thin;
+    scrollbar-color: #FFA500 #F3F4F6;
+}
+
+/* Primeira coluna fixa melhorada */
+.scrollable-table th:first-child,
+.scrollable-table td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: #FFFFFF;
+    /* Sombra sutil para destacar a coluna fixa */
+    box-shadow: 2px 0 4px rgba(0, 0, 0, 0.05);
+}
+
+.scrollable-table thead th:first-child {
+    z-index: 11;
+    /* Mantém o fundo do header */
+    background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%);
+}
+
+/* Indicador visual de scroll disponível */
+.scrollable-table-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(to left, rgba(255,255,255,0.8), transparent);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.scrollable-table-wrapper:hover::after {
+    opacity: 1;
+}
+
+/* Responsividade para dispositivos menores */
+@media (max-width: 768px) {
+    .item-section fieldset {
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .scrollable-table-wrapper {
+        border-width: 1px;
+        border-radius: 8px;
+    }
+    
+    .scrollable-table {
+        font-size: 0.875rem;
+    }
+    
+    .scrollable-table th,
+    .scrollable-table td {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+/* Garante que o container principal não tenha overflow */
+.bg-white.rounded-xl.shadow-card {
+    overflow: visible !important;
+}
+
+/* Remove qualquer margem negativa que possa estar interferindo */
+.item-section .table-scroll-container {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
