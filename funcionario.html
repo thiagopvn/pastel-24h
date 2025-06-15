@@ -48,35 +48,44 @@
     position: relative;
     width: 100%;
     max-width: 100%;
-    overflow: visible !important;
+    overflow-x: auto !important; /* Container agora tem o scroll */
+    overflow-y: visible !important;
     margin: 0;
     padding: 0;
-}
-
-.scrollable-table-wrapper {
-    /* FUNDO BRANCO que acompanha a tabela */
-    background-color: #FFFFFF !important;
+    -webkit-overflow-scrolling: touch;
+    
+    /* Fundo cinza claro para a área de scroll */
+    background-color: #F3F4F6;
+    
+    /* Borda e sombra movidas para cá */
     border: 2px solid #FFE4B5 !important;
     border-radius: 12px !important;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-    
-    /* Scroll horizontal controlado */
-    overflow-x: auto !important;
-    overflow-y: visible !important;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    
-    /* Layout que se adapta ao conteúdo */
-    display: block !important;
-    width: 100% !important;
-    max-width: 100% !important;
+}
+
+.scrollable-table-wrapper {
+    /* Wrapper agora expande com o conteúdo */
+    display: inline-block !important;
+    min-width: 100% !important;
+    width: auto !important;
     position: relative;
+    
+    /* FUNDO BRANCO que acompanha toda a tabela */
+    background-color: #FFFFFF !important;
+    border-radius: 10px !important; /* Ligeiramente menor que o container */
+    
+    /* Remove bordas e sombras (já estão no container) */
+    border: none !important;
+    box-shadow: none !important;
+    
+    /* Sem overflow aqui */
+    overflow: visible !important;
 }
 
 .scrollable-table {
     /* Mantém o tamanho atual da tabela */
     min-width: 900px !important;
-    width: max-content !important;
+    width: 100% !important;
     table-layout: auto !important;
     
     /* Remove qualquer fundo para usar o do wrapper */
@@ -101,32 +110,32 @@
     background: linear-gradient(135deg, #FFA500 0%, #FF8C00 100%) !important;
 }
 
-/* Scrollbar personalizada */
-.scrollable-table-wrapper::-webkit-scrollbar {
+/* Scrollbar personalizada no container */
+.table-scroll-container::-webkit-scrollbar {
     height: 12px !important;
-    background-color: #F3F4F6 !important;
+    background-color: #FFE4B5 !important;
     border-radius: 0 0 10px 10px !important;
 }
 
-.scrollable-table-wrapper::-webkit-scrollbar-track {
-    background-color: #F3F4F6 !important;
+.table-scroll-container::-webkit-scrollbar-track {
+    background-color: #FFE4B5 !important;
     border-radius: 0 0 10px 10px !important;
 }
 
-.scrollable-table-wrapper::-webkit-scrollbar-thumb {
+.table-scroll-container::-webkit-scrollbar-thumb {
     background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%) !important;
     border-radius: 6px !important;
-    border: 2px solid #F3F4F6 !important;
+    border: 2px solid #FFE4B5 !important;
 }
 
-.scrollable-table-wrapper::-webkit-scrollbar-thumb:hover {
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
     background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%) !important;
 }
 
 /* Firefox */
-.scrollable-table-wrapper {
+.table-scroll-container {
     scrollbar-width: thin !important;
-    scrollbar-color: #FFA500 #F3F4F6 !important;
+    scrollbar-color: #FFA500 #FFE4B5 !important;
 }
 
 /* Garante que fieldsets não interfiram */
@@ -142,24 +151,65 @@
 
 /* Responsividade */
 @media (max-width: 768px) {
-    .scrollable-table-wrapper {
+    .table-scroll-container {
         border-width: 1px !important;
         border-radius: 8px !important;
     }
     
+    .scrollable-table-wrapper {
+        border-radius: 6px !important;
+    }
+    
     .scrollable-table {
         font-size: 0.875rem !important;
+        min-width: 100% !important; /* Em mobile, tabela usa largura disponível */
     }
     
     .scrollable-table th,
     .scrollable-table td {
         padding: 0.5rem 0.25rem !important;
+        min-width: auto !important;
+        font-size: 0.75rem !important;
+    }
+    
+    /* Ajusta inputs em mobile */
+    .scrollable-table input[type="number"],
+    .scrollable-table input[type="text"] {
+        min-width: 50px !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem !important;
     }
 }
 
 /* Remove overflow do container principal */
 .bg-white.rounded-xl.shadow-card {
     overflow: visible !important;
+}
+
+/* Indicador de scroll disponível */
+.table-scroll-container.has-scroll::after {
+    content: '→';
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 152, 0, 0.1);
+    color: #FF8C00;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+    pointer-events: none;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.6; transform: translateY(-50%) scale(1); }
+    50% { opacity: 1; transform: translateY(-50%) scale(1.1); }
+    100% { opacity: 0.6; transform: translateY(-50%) scale(1); }
 }
 </style>
 <body class="bg-pattern min-h-screen">
@@ -721,46 +771,26 @@
             }, 100);
         });
     </script>
-    <script>
 
+<script>
 window.addEventListener('load', function() {
     // Remove overflow hidden de todos containers
     document.querySelectorAll('.overflow-hidden').forEach(el => {
         el.classList.remove('overflow-hidden');
     });
     
-    // Força configurações corretas para o fundo branco
-    document.querySelectorAll('.scrollable-table-wrapper').forEach(wrapper => {
-        wrapper.style.backgroundColor = '#FFFFFF';
-        wrapper.style.overflowX = 'auto';
-        wrapper.style.overflowY = 'visible';
-        wrapper.style.width = '100%';
-        wrapper.style.display = 'block';
-        wrapper.style.position = 'relative';
-        wrapper.style.border = '2px solid #FFE4B5';
-        wrapper.style.borderRadius = '12px';
-        wrapper.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)';
-    });
-    
-    // Garante configurações da tabela
-    document.querySelectorAll('.scrollable-table').forEach(table => {
-        table.style.minWidth = '900px';
-        table.style.width = 'max-content';
-        table.style.tableLayout = 'auto';
-        table.style.backgroundColor = 'transparent';
-        table.style.margin = '0';
-        table.style.borderCollapse = 'separate';
-        table.style.borderSpacing = '0';
-    });
-    
-    // Força o fundo branco da primeira coluna
-    document.querySelectorAll('.scrollable-table th:first-child, .scrollable-table td:first-child').forEach(cell => {
-        cell.style.backgroundColor = '#FFFFFF';
-    });
-    
-    // Força o fundo do header da primeira coluna
-    document.querySelectorAll('.scrollable-table thead th:first-child').forEach(headerCell => {
-        headerCell.style.background = 'linear-gradient(135deg, #FFA500 0%, #FF8C00 100%)';
+    // Detecta se a tabela precisa de scroll e adiciona classe
+    document.querySelectorAll('.table-scroll-container').forEach(container => {
+        const checkScroll = () => {
+            if (container.scrollWidth > container.clientWidth) {
+                container.classList.add('has-scroll');
+            } else {
+                container.classList.remove('has-scroll');
+            }
+        };
+        
+        checkScroll();
+        window.addEventListener('resize', checkScroll);
     });
     
     console.log('✅ Configurações de tabela aplicadas com sucesso!');

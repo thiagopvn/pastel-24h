@@ -1318,52 +1318,97 @@ input[type="number"].at-limit {
     20%, 40%, 60%, 80% { transform: translateX(5px); }
 }
 
+/* ===== CORREÇÃO DEFINITIVA PARA TABELAS ===== */
+
 .table-scroll-container {
     position: relative;
     width: 100%;
     max-width: 100%;
-    overflow: visible;
- 
+    overflow-x: auto !important;
+    overflow-y: visible !important;
     margin: 0;
     padding: 0;
+    -webkit-overflow-scrolling: touch;
+    background-color: #F3F4F6;
+    border: 2px solid #FFE4B5 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
 }
 
 .scrollable-table-wrapper {
-
-    background-color: #FFFFFF;
-    border: 2px solid #FFE4B5;
-    border-radius: 12px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    
-
-    overflow-x: auto;
-    overflow-y: visible;
-    -webkit-overflow-scrolling: touch;
-    scroll-behavior: smooth;
-    
- 
-    display: block;
-    width: 100%;
-    max-width: 100%;
-    
-
+    display: inline-block !important;
+    min-width: 100% !important;
+    width: auto !important;
     position: relative;
+    background-color: #FFFFFF !important;
+    border-radius: 10px !important;
+    border: none !important;
+    box-shadow: none !important;
+    overflow: visible !important;
 }
 
 .scrollable-table {
-
-    min-width: 900px;
-    width: max-content;
-    table-layout: auto;
-    
-
-    background-color: transparent;
-    
-  
-    margin: 0;
-    border-collapse: separate;
-    border-spacing: 0;
+    min-width: 900px !important;
+    width: 100% !important;
+    table-layout: auto !important;
+    background-color: transparent !important;
+    margin: 0 !important;
+    border-collapse: separate !important;
+    border-spacing: 0 !important;
 }
+
+/* Responsividade melhorada */
+@media screen and (max-width: 920px) {
+    .table-scroll-container {
+        border-radius: 8px !important;
+    }
+    
+    .scrollable-table {
+        min-width: 100% !important;
+    }
+    
+    .scrollable-table th,
+    .scrollable-table td {
+        padding: 0.5rem 0.25rem !important;
+        min-width: auto !important;
+        font-size: 0.75rem !important;
+    }
+    
+    .scrollable-table input[type="number"],
+    .scrollable-table input[type="text"] {
+        min-width: 50px !important;
+        font-size: 0.75rem !important;
+        padding: 0.25rem !important;
+    }
+}
+
+/* Scrollbar no container correto */
+.table-scroll-container::-webkit-scrollbar {
+    height: 12px !important;
+    background-color: #FFE4B5 !important;
+    border-radius: 0 0 10px 10px !important;
+}
+
+.table-scroll-container::-webkit-scrollbar-track {
+    background-color: #FFE4B5 !important;
+    border-radius: 0 0 10px 10px !important;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb {
+    background: linear-gradient(90deg, #FFA500 0%, #FF8C00 100%) !important;
+    border-radius: 6px !important;
+    border: 2px solid #FFE4B5 !important;
+}
+
+.table-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(90deg, #FF8C00 0%, #FF7F50 100%) !important;
+}
+
+.table-scroll-container {
+    scrollbar-width: thin !important;
+    scrollbar-color: #FFA500 #FFE4B5 !important;
+}
+
 
 @media screen and (max-width: 920px) {
     .scrollable-table-wrapper {
