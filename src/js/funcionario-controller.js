@@ -1754,25 +1754,34 @@ window.selecionarTurno = async function(turnoId) {
 }
 
     if (btnAbrirTurno) {
-        btnAbrirTurno.addEventListener('click', async () => {
-            clearError();
-            const caixaInicialDinheiro = parseCurrencyToNumber(caixaInicialDinheiroInput?.value || '0');
-            const caixaInicialMoedas = parseCurrencyToNumber(caixaInicialMoedasInput?.value || '0');
-            if (isNaN(caixaInicialDinheiro) || caixaInicialDinheiro < 0) {
-                showError("Valor de dinheiro inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
-                caixaInicialDinheiroInput?.focus(); caixaInicialDinheiroInput?.classList.add('border-red-500'); return;
-            }
-            if (isNaN(caixaInicialMoedas) || caixaInicialMoedas < 0) {
-                showError("Valor de moedas inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
-                caixaInicialMoedasInput?.focus(); caixaInicialMoedasInput?.classList.add('border-red-500'); return;
-            }
-            caixaInicialDinheiroInput?.classList.remove('border-red-500');
-            caixaInicialMoedasInput?.classList.remove('border-red-500');
-            const dataAtual = getFormattedDate();
-            const periodoSelecionado = turnoPeriodoSelect.value;
-            const turnoIdProposto = await gerarTurnoIdUnico(dataAtual, periodoSelecionado, user.uid);
-            showLoadingState(true, "Abrindo turno...");
-            try {
+         btnAbrirTurno.addEventListener('click', async () => {
+        clearError();
+        
+        // VERIFICAR USUÁRIO PRIMEIRO
+        const user = auth.currentUser;
+        if (!user) {
+            showError("Usuário não logado. Faça login novamente.");
+            btnAbrirTurno.disabled = false;
+            return;
+        }
+        
+        const caixaInicialDinheiro = parseCurrencyToNumber(caixaInicialDinheiroInput?.value || '0');
+        const caixaInicialMoedas = parseCurrencyToNumber(caixaInicialMoedasInput?.value || '0');
+        if (isNaN(caixaInicialDinheiro) || caixaInicialDinheiro < 0) {
+            showError("Valor de dinheiro inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
+            caixaInicialDinheiroInput?.focus(); caixaInicialDinheiroInput?.classList.add('border-red-500'); return;
+        }
+        if (isNaN(caixaInicialMoedas) || caixaInicialMoedas < 0) {
+            showError("Valor de moedas inicial inválido. Por favor, insira um valor numérico positivo ou zero.");
+            caixaInicialMoedasInput?.focus(); caixaInicialMoedasInput?.classList.add('border-red-500'); return;
+        }
+        caixaInicialDinheiroInput?.classList.remove('border-red-500');
+        caixaInicialMoedasInput?.classList.remove('border-red-500');
+        const dataAtual = getFormattedDate();
+        const periodoSelecionado = turnoPeriodoSelect.value;
+        const turnoIdProposto = await gerarTurnoIdUnico(dataAtual, periodoSelecionado, user.uid); // AGORA user está definido
+        showLoadingState(true, "Abrindo turno...");
+        try {
                 const user = auth.currentUser;
                 if (!user) {
                     showError("Usuário não logado. Faça login novamente.");
