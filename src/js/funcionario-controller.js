@@ -1017,17 +1017,20 @@ window.removerItemConsumo = function(itemId) {
 
 
         async function checkOpenTurnoInFirestore() {
-        try {
-            const user = auth.currentUser;
-            if (!user) {
-                showError("Usuário não autenticado. Faça login novamente.");
-                return;
-            }
-            const turnosQuery = await db.collection('turnos')
-                .where('status', '==', 'aberto')
-                .where('abertura.responsavelId', '==', user.uid)
-                .get();
-            if (!turnosQuery.empty) {
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            showError("Usuário não autenticado. Faça login novamente.");
+            return;
+        }
+        const turnosQuery = await db.collection('turnos')
+            .where('status', '==', 'aberto')
+            .where('abertura.responsavelId', '==', user.uid)
+            .get();
+            
+        if (!turnosQuery.empty) {
+            if (turnosQuery.docs.length === 1) {
+                // Apenas um turno aberto - carregar diretamente
                 const turnoDoc = turnosQuery.docs[0];
                 const turnoData = turnoDoc.data();
                 currentTurnoId = turnoDoc.id;
@@ -1036,18 +1039,149 @@ window.removerItemConsumo = function(itemId) {
                 populateTurnoDetails(turnoData.abertura);
                 btnAbrirTurno.disabled = true;
                 btnFecharTurno.disabled = false;
-                turnoStatusP.textContent = `Turno ${turnoDoc.id.split('_')[1]} de ${turnoDoc.id.split('_')[0]} está aberto.`;
+                const turnoDisplayName = formatarNomeTurno(turnoDoc.id);
+                turnoStatusP.textContent = `Turno ${turnoDisplayName} está aberto.`;
                 turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
                 turnoAbertoLocalmente = true;
                 toggleFormInputs(true);
             } else {
-                resetFormAndState("Nenhum turno aberto encontrado.");
+                // Múltiplos turnos abertos - mostrar seletor
+                mostrarSeletorTurnos(turnosQuery.docs);
             }
-        } catch (error) {
-            console.error("Erro ao verificar turnos abertos no Firestore:", error);
-            resetFormAndState("Erro ao verificar turnos abertos. Verifique sua conexão.");
+        } else {
+            resetFormAndState("Nenhum turno aberto encontrado.");
         }
+    } catch (error) {
+        console.error("Erro ao verificar turnos abertos no Firestore:", error);
+        resetFormAndState("Erro ao verificar turnos abertos. Verifique sua conexão.");
     }
+}
+
+function formatarNomeTurno(turnoId) {
+    const partes = turnoId.split('_');
+    if (partes.length >= 4) {
+        const data = partes[0];
+        const periodo = partes[1];
+        const userId = partes[2];
+        const contador = partes[3];
+        return `${periodo} de ${data} (#${contador})`;
+    }
+    return turnoId;
+}
+
+function mostrarSeletorTurnos(turnosDocs) {
+    // Remover seletor existente se houver
+    const seletorExistente = document.getElementById('seletorTurnos');
+    if (seletorExistente) {
+        seletorExistente.remove();
+    }
+    
+    const seletorContainer = document.createElement('div');
+    seletorContainer.id = 'seletorTurnos';
+    seletorContainer.className = 'bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6';
+    
+    seletorContainer.innerHTML = `
+        <div class="text-center mb-4">
+            <h3 class="text-lg font-semibold text-blue-700 mb-2">
+                <i class="fas fa-list mr-2"></i>Você possui ${turnosDocs.length} turnos abertos
+            </h3>
+            <p class="text-sm text-blue-600">Selecione qual turno deseja continuar editando:</p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="listaTurnos">
+        </div>
+        <div class="text-center mt-4">
+            <button type="button" id="btnNovoTurno" 
+                    class="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-all duration-300">
+                <i class="fas fa-plus mr-2"></i>Abrir Novo Turno
+            </button>
+        </div>
+    `;
+    
+    const formTurno = document.getElementById('formTurno');
+    formTurno.insertBefore(seletorContainer, formTurno.firstChild);
+    
+    const listaTurnos = document.getElementById('listaTurnos');
+    
+    turnosDocs.forEach((doc, index) => {
+        const turnoData = doc.data();
+        const turnoDisplayName = formatarNomeTurno(doc.id);
+        
+        const cardTurno = document.createElement('div');
+        cardTurno.className = 'bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer';
+        
+        cardTurno.innerHTML = `
+            <div class="text-center">
+                <div class="font-semibold text-gray-800 mb-2">${turnoDisplayName}</div>
+                <div class="text-sm text-gray-600 mb-3">
+                    <div>Aberto: ${turnoData.abertura?.hora || 'N/A'}</div>
+                    <div>Por: ${turnoData.abertura?.responsavelNome || 'N/A'}</div>
+                </div>
+                <button type="button" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 px-3 rounded text-sm transition-colors"
+                        onclick="selecionarTurno('${doc.id}')">
+                    Continuar Este Turno
+                </button>
+            </div>
+        `;
+        
+        listaTurnos.appendChild(cardTurno);
+    });
+    
+    // Configurar botão novo turno
+    document.getElementById('btnNovoTurno').addEventListener('click', () => {
+        seletorContainer.remove();
+        btnAbrirTurno.disabled = false;
+        btnFecharTurno.disabled = true;
+        resetFormAndState("Pronto para abrir novo turno.");
+    });
+    
+    // Desabilitar botões principais
+    btnAbrirTurno.disabled = true;
+    btnFecharTurno.disabled = true;
+    
+    turnoStatusP.textContent = `${turnosDocs.length} turnos abertos encontrados. Selecione um para continuar.`;
+    turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+}
+
+window.selecionarTurno = async function(turnoId) {
+    try {
+        showLoadingState(true, "Carregando turno selecionado...");
+        
+        const turnoDoc = await db.collection('turnos').doc(turnoId).get();
+        if (turnoDoc.exists && turnoDoc.data().status === 'aberto') {
+            const turnoData = turnoDoc.data();
+            currentTurnoId = turnoDoc.id;
+            saveTurnoLocal({ id: turnoDoc.id, ...turnoData });
+            loadTurnoDataToForm(turnoData);
+            populateTurnoDetails(turnoData.abertura);
+            
+            btnAbrirTurno.disabled = true;
+            btnFecharTurno.disabled = false;
+            
+            const turnoDisplayName = formatarNomeTurno(turnoDoc.id);
+            turnoStatusP.textContent = `Turno ${turnoDisplayName} está aberto.`;
+            turnoStatusP.className = 'text-center text-blue-600 font-semibold mb-4';
+            
+            turnoAbertoLocalmente = true;
+            toggleFormInputs(true);
+            
+            // Remover seletor
+            const seletor = document.getElementById('seletorTurnos');
+            if (seletor) {
+                seletor.remove();
+            }
+            
+            setupTurnoListener();
+        } else {
+            showError("Turno não encontrado ou já foi fechado.");
+            await checkOpenTurnoInFirestore();
+        }
+    } catch (error) {
+        console.error("Erro ao selecionar turno:", error);
+        showError("Erro ao carregar turno selecionado.");
+    } finally {
+        showLoadingState(false);
+    }
+};
 
     async function checkOpenTurno() {
         showLoadingState(true, "Verificando turno...");
@@ -1599,6 +1733,26 @@ window.removerItemConsumo = function(itemId) {
         });
     }
 
+    async function gerarTurnoIdUnico(data, periodo, userId) {
+    const baseId = `${data}_${periodo}_${userId.substring(0, 8)}`;
+    let contador = 1;
+    let turnoId = `${baseId}_${contador}`;
+    
+    try {
+        while (true) {
+            const turnoDoc = await db.collection('turnos').doc(turnoId).get();
+            if (!turnoDoc.exists) {
+                return turnoId;
+            }
+            contador++;
+            turnoId = `${baseId}_${contador}`;
+        }
+    } catch (error) {
+        console.error("Erro ao gerar ID único:", error);
+        return `${baseId}_${Date.now()}`;
+    }
+}
+
     if (btnAbrirTurno) {
         btnAbrirTurno.addEventListener('click', async () => {
             clearError();
@@ -1616,23 +1770,15 @@ window.removerItemConsumo = function(itemId) {
             caixaInicialMoedasInput?.classList.remove('border-red-500');
             const dataAtual = getFormattedDate();
             const periodoSelecionado = turnoPeriodoSelect.value;
-            const turnoIdProposto = `${dataAtual}_${periodoSelecionado}`;
+            const turnoIdProposto = await gerarTurnoIdUnico(dataAtual, periodoSelecionado, user.uid);
             showLoadingState(true, "Abrindo turno...");
             try {
-                await db.runTransaction(async (transaction) => {
-                    const turnoRef = db.collection('turnos').doc(turnoIdProposto);
-                    const turnoDoc = await transaction.get(turnoRef);
-                    if (turnoDoc.exists) { throw new Error(`Já existe um turno (${periodoSelecionado}) registrado para hoje (${dataAtual}).`); }
-                    const user = auth.currentUser;
-                    if (!user) { throw new Error("Usuário não logado. Faça login novamente."); }
-                    const turnosQuery = await db.collection('turnos').where('status', '==', 'aberto').where('abertura.responsavelId', '==', user.uid).get();
-                    if (!turnosQuery.empty) { throw new Error("Você já possui um turno aberto. Feche-o antes de abrir um novo."); }
-                    return true;
-                });
                 const user = auth.currentUser;
                 if (!user) {
                     showError("Usuário não logado. Faça login novamente.");
-                    showLoadingState(false); btnAbrirTurno.disabled = false; return;
+                    showLoadingState(false); 
+                    btnAbrirTurno.disabled = false; 
+                    return;
                 }
                 const responsavelNome = localStorage.getItem('userName') || user.displayName || user.email;
                 const aberturaDataObj = { mes: getCurrentMonth(), data: dataAtual, responsavelId: user.uid, responsavelNome: responsavelNome, hora: getFormattedTime(), periodo: periodoSelecionado };
@@ -1689,7 +1835,8 @@ window.removerItemConsumo = function(itemId) {
                 await db.collection('turnos').doc(turnoIdProposto).set(turnoDataToSave);
                 saveTurnoLocal({ id: turnoIdProposto, ...turnoDataToSave });
                 turnoAbertoLocalmente = true; btnAbrirTurno.disabled = true; btnFecharTurno.disabled = false;
-                let statusMsg = `Turno ${periodoSelecionado} de ${dataAtual} aberto com sucesso!`;
+                const turnoDisplayName = formatarNomeTurno(turnoIdProposto);
+                let statusMsg = `Turno ${turnoDisplayName} aberto com sucesso!`;
                 if (itensTransferidosCount > 0 || estoqueAnterior.caixaFinal !== undefined) {
                     statusMsg += ` Dados transferidos: ${itensTransferidosCount} item(ns)`;
                     if (estoqueAnterior.caixaFinal !== undefined) {
