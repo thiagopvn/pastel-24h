@@ -1,4 +1,3 @@
-window.cashControlManager = cashControlManager;
 document.addEventListener('DOMContentLoaded', async () => {
 
     // Garantir função formatCurrency global
@@ -2871,39 +2870,21 @@ async function migrateExistingTurnos() {
         throw error;
     }
 }
-
-// Função de inicialização
-function initialize() {
-    console.log("🚀 Inicializando o sistema administrativo...");
-    
-    try {
-        // Executar migração de dados se necessário (apenas para administradores)
-        migrateExistingTurnos()
-            .then(count => {
-                if (count > 0) {
-                    notifications.showMessage(`Migração concluída: ${count} turnos atualizados para a nova estrutura de caixa separado.`, "success", 8000);
-                }
-            })
-            .catch(error => {
-                console.error("Erro na migração:", error);
-            });
-            
-        // Inicializar gerenciador de abas
-        const tabManager = new TabManager();
-        window.tabManager = tabManager;
-        
-        // Resto do código de inicialização...
-    } catch (error) {
-        console.error("❌ Erro na inicialização:", error);
-        notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
-    }
-}
-
     // Inicialização
     function initialize() {
         console.log("🚀 Inicializando o sistema administrativo...");
-        
         try {
+            // Executar migração de dados se necessário (apenas para administradores)
+            migrateExistingTurnos()
+                .then(count => {
+                    if (count > 0) {
+                        notifications.showMessage(`Migração concluída: ${count} turnos atualizados para a nova estrutura de caixa separado.`, "success", 8000);
+                    }
+                })
+                .catch(error => {
+                    console.error("Erro na migração:", error);
+                });
+
             // Inicializar gerenciador de abas
             const tabManager = new TabManager();
             window.tabManager = tabManager;
@@ -2926,12 +2907,6 @@ function initialize() {
             console.error("❌ Erro na inicialização:", error);
             notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
         }
-    }
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initialize, 0);
-    } else {
-        document.addEventListener('DOMContentLoaded', initialize);
     }
     initialize();
 });
