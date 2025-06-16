@@ -63,7 +63,7 @@ exports.deleteUserAuth = functions.https.onCall(async (data, context) => {
         console.log(`Usuário ${uid} deletado do Authentication`);
 
         // Deleta o documento do usuário no Firestore
-        await admin.firestore().collection('users').doc(uid).delete();
+        await admin.firestore().collection('usuarios').doc(uid).delete();
         console.log(`Documento do usuário ${uid} deletado do Firestore`);
 
         return { 
