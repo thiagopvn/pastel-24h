@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const notifications = new NotificationManager();
     window.notifications = notifications;
+    window.cashControlManager = new CashControlManager();
     
     const appState = {
         currentPrices: {},
@@ -1893,21 +1894,8 @@ window.UserManager = UserManager;
                 break;
                 
             case 'caixaControle':
-    console.log("🔄 Carregando controle de caixa...");
-    
-    // Verificar se existe a função global loadCashControlData (definida no HTML)
-    if (typeof window.loadCashControlData === 'function') {
-        await window.loadCashControlData();
-    } else if (window.cashControlManager) {
-        // Se já existe uma instância, usar ela
-        await window.cashControlManager.load();
-    } else {
-        // Criar nova instância do CashControlManager
-        const cashControlManager = new CashControlManager();
-        window.cashControlManager = cashControlManager;
-        await cashControlManager.load();
-    }
-    break;
+                await window.cashControlManager.load();
+                break;
                 
             case 'dashboard':
                 notifications.showMessage("Dashboard carregado", "success");
