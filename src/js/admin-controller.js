@@ -1,4 +1,3 @@
-window.cashControlManager = cashControlManager;
 document.addEventListener('DOMContentLoaded', async () => {
 
     // Garantir função formatCurrency global
@@ -69,7 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     console.error("❌ Usuário não é admin");
                     alert("Acesso negado. Apenas administradores podem acessar esta página.");
                     window.location.href = 'funcionario.html';
-                    return;
+                    return;Vo
                 }
             } else {
                 console.warn("⚠️ Documento do usuário não encontrado em 'usuarios'");
@@ -1000,45 +999,36 @@ class UserManager {
     }
 
     async fetchUsers() {
-    if (!auth.currentUser) {
-        throw new Error("Usuário não autenticado");
-    }
-    
-    try {
-        const snapshot = await db.collection('usuarios').get();
-        const users = [];
-        
-        snapshot.forEach(doc => {
-            const userData = doc.data();
+        if (!auth.currentUser) {
+            throw new Error("Usuário não autenticado");
+        }
+
+        try {
+            const snapshot = await db.collection('usuarios').get();
+            const users = [];
             
-            const isInactive = userData.status === 'inativo' || 
-                               userData.active === false || 
-                               userData.deletedAt !== undefined;
-            
-            // CORREÇÃO: Sempre pular usuários inativos por padrão
-            // a menos que showInactive seja explicitamente true
-            if (isInactive && !this.showInactive) {
-                return; // pula este usuário
-            }
-            
-            users.push({
-                id: doc.id,
-                nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
-                email: userData.email || 'Sem email',
-                role: userData.role || 'funcionario',
-                status: userData.status || (isInactive ? 'inativo' : 'ativo'),
-                createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
-                deletedAt: userData.deletedAt || null
+            snapshot.forEach(doc => {
+                const userData = doc.data();
+                const isInactive = userData.status === 'inativo' || userData.active === false || userData.deletedAt;
+
+                users.push({
+                    id: doc.id,
+                    nome: userData.nome || userData.displayName || userData.name || 'Sem nome',
+                    email: userData.email || 'Sem email',
+                    role: userData.role || 'funcionario',
+                    status: userData.status || (isInactive ? 'inativo' : 'ativo'),
+                    createdAt: userData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                    deletedAt: userData.deletedAt || null
+                });
             });
-        });
-        
-        users.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-        return users;
-        
-    } catch (error) {
-        throw error;
+
+            users.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+            return users;
+
+        } catch (error) {
+            throw error;
+        }
     }
-}
 
     async reactivateUser(userId) {
         try {
@@ -2871,39 +2861,21 @@ async function migrateExistingTurnos() {
         throw error;
     }
 }
-
-// Função de inicialização
-function initialize() {
-    console.log("🚀 Inicializando o sistema administrativo...");
-    
-    try {
-        // Executar migração de dados se necessário (apenas para administradores)
-        migrateExistingTurnos()
-            .then(count => {
-                if (count > 0) {
-                    notifications.showMessage(`Migração concluída: ${count} turnos atualizados para a nova estrutura de caixa separado.`, "success", 8000);
-                }
-            })
-            .catch(error => {
-                console.error("Erro na migração:", error);
-            });
-            
-        // Inicializar gerenciador de abas
-        const tabManager = new TabManager();
-        window.tabManager = tabManager;
-        
-        // Resto do código de inicialização...
-    } catch (error) {
-        console.error("❌ Erro na inicialização:", error);
-        notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
-    }
-}
-
     // Inicialização
     function initialize() {
         console.log("🚀 Inicializando o sistema administrativo...");
-        
         try {
+            // Executar migração de dados se necessário (apenas para administradores)
+            migrateExistingTurnos()
+                .then(count => {
+                    if (count > 0) {
+                        notifications.showMessage(`Migração concluída: ${count} turnos atualizados para a nova estrutura de caixa separado.`, "success", 8000);
+                    }
+                })
+                .catch(error => {
+                    console.error("Erro na migração:", error);
+                });
+
             // Inicializar gerenciador de abas
             const tabManager = new TabManager();
             window.tabManager = tabManager;
@@ -2926,12 +2898,6 @@ function initialize() {
             console.error("❌ Erro na inicialização:", error);
             notifications.showMessage(`Erro na inicialização: ${error.message}`, "error");
         }
-    }
-
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-        setTimeout(initialize, 0);
-    } else {
-        document.addEventListener('DOMContentLoaded', initialize);
     }
     initialize();
 });
