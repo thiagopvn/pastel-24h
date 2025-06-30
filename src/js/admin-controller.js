@@ -2068,14 +2068,14 @@ window.UserManager = UserManager;
                     <div class="mt-2 flex gap-4 text-sm">
                         <span class="text-gray-700">
                             <i class="fas fa-money-bill-wave mr-1 text-green-500"></i>
-                            Dinheiro: ${this.formatCurrency(caixaDinheiro)}
+                            Dinheiro: ${formatCurrency(caixaDinheiro)}
                         </span>
                         <span class="text-gray-700">
                             <i class="fas fa-coins mr-1 text-yellow-500"></i>
-                            Moedas: ${this.formatCurrency(caixaMoedas)}
+                            Moedas: ${formatCurrency(caixaMoedas)}
                         </span>
                         <span class="font-semibold text-primary-700">
-                            Total: ${this.formatCurrency(caixaTotal)}
+                            Total: ${formatCurrency(caixaTotal)}
                         </span>
                     </div>
                 </div>
