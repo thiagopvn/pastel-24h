@@ -1921,6 +1921,7 @@ window.UserManager = UserManager;
     }
 
     class CashControlManager {
+    
     constructor() {
         this.turnosAtivosContainer = document.getElementById('turnosAtivosContainer');
         this.caixaAjusteContainer = document.getElementById('caixaAjusteContainer');
