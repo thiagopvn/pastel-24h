@@ -1368,30 +1368,7 @@ function getFormattedDate() {
                 }, duration);
             }
 
-            function setupTabs() {
-                const tabButtons = document.querySelectorAll('.tab-button');
-                const tabContents = document.querySelectorAll('.tab-content');
-                
-                document.getElementById('btnTabDashboard').addEventListener('click', () => {
-                    switchTab(document.getElementById('btnTabDashboard'), document.getElementById('tabContentDashboard'));
-                    loadDashboardData();
-                });
-                
-                document.getElementById('btnTabPrecos').addEventListener('click', () => {
-                    switchTab(document.getElementById('btnTabPrecos'), document.getElementById('tabContentPrecos'));
-                    loadPricesData();
-                });
-                
-                document.getElementById('btnTabUsuarios').addEventListener('click', () => {
-                    switchTab(document.getElementById('btnTabUsuarios'), document.getElementById('tabContentUsuarios'));
-                    loadUsersData();
-                });
-            }
-
-document.getElementById('btnTabCaixaControle').addEventListener('click', () => {
-    switchTab(document.getElementById('btnTabCaixaControle'), document.getElementById('tabContentCaixaControle'));
-    loadCashControlData();
-});
+            
 
 
 
@@ -3650,7 +3627,7 @@ async function updateSalesHoursChartWithPeriod(startDate, endDate) {
 
             
 
-            setupTabs();
+            
             setupPeriodFilters();
             setupKPIModals();
             setupEventListeners();
