@@ -1,14 +1,23 @@
 services:
   - type: web
-    name: pastelaria-24h
+    name: pastel-24h
     runtime: node
-    buildCommand: npm install && npm run build && npm run db:push
-    startCommand: npm run start
+    plan: free
+    buildCommand: npm ci && npm run build
+    startCommand: node dist/index.js
     envVars:
-      - key: NODE_ENV
-        value: production
+      - key: NODE_VERSION
+        value: 20.9.0
+      - key: NODE_OPTIONS
+        value: "--dns-result-order=ipv4first"
       - key: DATABASE_URL
-        value: postgresql://postgres:Pastel24h%21%40%23%24@db.axmbupauzyommvlxabop.supabase.co:6543/postgres
+        value: "postgresql://postgres:Pastel24h%21%40%23%24@aws-0-sa-east-1.pooler.supabase.com:5432/postgres?sslmode=require"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: "https://axmbupauzyommvlxabop.supabase.co"
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
     autoDeploy: true
