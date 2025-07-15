@@ -1,0 +1,24 @@
+# — dependências —
+node_modules/
+
+# — builds / saídas —
+dist/
+.next/
+.out/
+
+# — artefatos temporários —
+*.log
+*.tar.gz
+
+# — arquivos de configuração específicos do Replit —
+.replit
+replit.nix
+replit.*
+
+# — variáveis de ambiente —
+.env
+.env.*
+!.env.example      # (mantenha se usar um modelo sem dados sensíveis)
+
+# — arquivos do sistema —
+.DS_Store
