@@ -5,10 +5,12 @@ node_modules/
 dist/
 .next/
 .out/
+.vite/
 
 # — artefatos temporários —
 *.log
 *.tar.gz
+*.local
 
 # — arquivos de configuração específicos do Replit —
 .replit

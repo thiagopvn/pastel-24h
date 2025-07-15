@@ -27,11 +27,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    minify: false,
+    sourcemap: false,
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: undefined,
-      }
-    }
+        compact: true,
+      },
+      maxParallelFileOps: 1,
+    },
   },
   server: {
     fs: {
