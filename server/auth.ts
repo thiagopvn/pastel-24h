@@ -51,13 +51,9 @@ async function comparePasswords(supplied: string, stored: string) {
     try {
       // Use Node.js scrypt with the same parameters and key length as stored hash
       const keyLength = parsed.hash.length;
-      const derivedKey = await scryptAsync(supplied, parsed.salt, keyLength, {
-        N: parsed.N,
-        r: parsed.r,
-        p: parsed.p
-      });
+      const derivedKey = await scryptAsync(supplied, parsed.salt, keyLength) as Buffer;
       
-      return timingSafeEqual(parsed.hash, derivedKey as Buffer);
+      return timingSafeEqual(parsed.hash, derivedKey);
     } catch (error) {
       return false;
     }
