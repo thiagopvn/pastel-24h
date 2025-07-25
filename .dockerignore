@@ -1,0 +1,20 @@
+# Git
+.git
+.gitignore
+
+# Node
+node_modules
+npm-debug.log
+
+# Build output
+dist
+
+# Environment
+.env
+.env.*
+
+# OS / Editor specific
+.DS_Store
+Thumbs.db
+*.code-workspace
+.vscode

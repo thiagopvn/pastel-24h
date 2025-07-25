@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: pastel24h_app
+    ports:
+      - "5000:5000"
+    # volumes:
+    #   # Descomente esta linha se quiser que os dados persistam na sua máquina local
+    #   - ./data:/app/data
+    env_file:
+      # Carrega as variáveis de ambiente do seu arquivo .env
+      - ./.env
+    restart: unless-stopped

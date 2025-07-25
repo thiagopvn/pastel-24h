@@ -1,0 +1,22 @@
+# Dependências
+node_modules
+
+# Saída de Build
+dist
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+
+# Banco de dados local
+/data/
+
+# Variáveis de Ambiente
+.env
+.env.*
+!.env.example
+
+# Arquivos de Sistema/Editor
+.DS_Store
+.vscode/
