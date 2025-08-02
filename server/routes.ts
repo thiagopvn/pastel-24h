@@ -37,9 +37,18 @@ export function registerRoutes(app: Express): Server {
   };
 
   const requireAdmin = (req: any, res: any, next: any) => {
-    if (!req.isAuthenticated() || req.user.role !== 'admin') {
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+    
+    if (!req.user) {
+      return res.status(401).json({ message: "User not found in request" });
+    }
+    
+    if (req.user.role !== 'admin') {
       return res.status(403).json({ message: "Admin access required" });
     }
+    
     next();
   };
 
@@ -457,6 +466,23 @@ export function registerRoutes(app: Express): Server {
       console.error('Error checking users:', error);
       res.status(500).json({ message: 'Failed to check users' });
     }
+  });
+
+  // Temporary session diagnostic endpoint - REMOVE IN PRODUCTION
+  app.get("/api/debug/session", (req, res) => {
+    res.json({
+      isAuthenticated: req.isAuthenticated(),
+      user: req.user ? {
+        id: req.user.id,
+        email: req.user.email,
+        role: req.user.role
+      } : null,
+      sessionId: req.sessionID,
+      session: req.session ? {
+        cookie: req.session.cookie,
+        passport: (req.session as any).passport
+      } : null
+    });
   });
 
   app.get("/api/shift-records", requireAuth, async (req, res) => {
@@ -913,7 +939,7 @@ export function registerRoutes(app: Express): Server {
       }
       
       // Handle duplicate email error
-      if (error.message && error.message.includes('UNIQUE constraint failed: users.email')) {
+      if (error instanceof Error && error.message && error.message.includes('UNIQUE constraint failed: users.email')) {
         return res.status(400).json({ 
           message: "Email já está em uso", 
           errors: [{ path: ['email'], message: "Este email já está cadastrado no sistema" }] 
@@ -965,7 +991,7 @@ export function registerRoutes(app: Express): Server {
       console.error("Error deleting user:", error);
       
       // Return specific error message if it's a constraint violation
-      if (error.message && error.message.includes("Não é possível excluir")) {
+      if (error instanceof Error && error.message && error.message.includes("Não é possível excluir")) {
         return res.status(400).json({ message: error.message });
       }
       
