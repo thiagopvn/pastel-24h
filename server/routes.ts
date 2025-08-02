@@ -917,20 +917,31 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "ID de usuário inválido" });
+      }
 
       if (id === req.user?.id) {
-        return res.status(400).json({ message: "Cannot delete your own account" });
+        return res.status(400).json({ message: "Não é possível excluir sua própria conta" });
       }
 
       const success = await storage.deleteUser(id);
 
       if (!success) {
-        return res.status(404).json({ message: "User not found" });
+        return res.status(404).json({ message: "Usuário não encontrado" });
       }
 
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ message: "Failed to delete user" });
+      console.error("Error deleting user:", error);
+      
+      // Return specific error message if it's a constraint violation
+      if (error.message && error.message.includes("Não é possível excluir")) {
+        return res.status(400).json({ message: error.message });
+      }
+      
+      res.status(500).json({ message: "Falha ao excluir usuário" });
     }
   });
 

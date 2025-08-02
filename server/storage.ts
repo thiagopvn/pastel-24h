@@ -164,8 +164,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: number): Promise<boolean> {
-    const result = await db.delete(users).where(eq(users.id, id));
-    return (result.changes ?? 0) > 0;
+    try {
+      // Check if user has any shifts
+      const userShifts = await db.select({ id: shifts.id }).from(shifts).where(eq(shifts.userId, id)).limit(1);
+      if (userShifts.length > 0) {
+        throw new Error("Não é possível excluir usuário que possui turnos registrados");
+      }
+
+      // Check if user is a collaborator in any shifts
+      const collaborations = await db.select({ id: shiftCollaborators.id }).from(shiftCollaborators).where(eq(shiftCollaborators.userId, id)).limit(1);
+      if (collaborations.length > 0) {
+        throw new Error("Não é possível excluir usuário que é colaborador em turnos");
+      }
+
+      // Check if user has timeline entries
+      const timelineEntries = await db.select({ id: timeline.id }).from(timeline).where(eq(timeline.userId, id)).limit(1);
+      if (timelineEntries.length > 0) {
+        throw new Error("Não é possível excluir usuário que possui histórico no sistema");
+      }
+
+      // Check if user has cash adjustments
+      const adjustments = await db.select({ id: cashAdjustments.id }).from(cashAdjustments).where(eq(cashAdjustments.userId, id)).limit(1);
+      if (adjustments.length > 0) {
+        throw new Error("Não é possível excluir usuário que possui ajustes de caixa registrados");
+      }
+
+      // Check if user closed any shifts
+      const closedShifts = await db.select({ id: shifts.id }).from(shifts).where(eq(shifts.closedBy, id)).limit(1);
+      if (closedShifts.length > 0) {
+        throw new Error("Não é possível excluir usuário que fechou turnos no sistema");
+      }
+
+      // Check if user has shift signatures
+      const signatures = await db.select({ id: shiftSignatures.id }).from(shiftSignatures).where(eq(shiftSignatures.userId, id)).limit(1);
+      if (signatures.length > 0) {
+        throw new Error("Não é possível excluir usuário que possui assinaturas de turnos");
+      }
+
+      // If no related data found, proceed with deletion
+      const result = await db.delete(users).where(eq(users.id, id));
+      return (result.changes ?? 0) > 0;
+    } catch (error) {
+      throw error;
+    }
   }
 
   async getProduct(id: number): Promise<Product | undefined> {
