@@ -854,15 +854,45 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/admin/users", requireAdmin, async (req, res) => {
     try {
+      // Validate and parse user data
       const userData = insertUserSchema.parse(req.body);
+      
+      // Additional backend validation
+      if (!userData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
+        return res.status(400).json({ 
+          message: "Email inválido", 
+          errors: [{ path: ['email'], message: "Email deve ter um formato válido" }] 
+        });
+      }
+
+      if (!userData.role || !['admin', 'employee'].includes(userData.role)) {
+        return res.status(400).json({ 
+          message: "Papel inválido", 
+          errors: [{ path: ['role'], message: "Papel deve ser 'admin' ou 'employee'" }] 
+        });
+      }
+
       const user = await storage.createUser(userData);
       res.status(201).json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error creating user:", error);
       if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+        const firstError = error.errors[0];
+        return res.status(400).json({ 
+          message: firstError.message || "Dados inválidos", 
+          errors: error.errors 
+        });
       }
-      res.status(500).json({ message: "Failed to create user" });
+      
+      // Handle duplicate email error
+      if (error.message && error.message.includes('UNIQUE constraint failed: users.email')) {
+        return res.status(400).json({ 
+          message: "Email já está em uso", 
+          errors: [{ path: ['email'], message: "Este email já está cadastrado no sistema" }] 
+        });
+      }
+      
+      res.status(500).json({ message: "Falha ao criar usuário" });
     }
   });
 

@@ -8,7 +8,7 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull(),
-  role: text("role").notNull().default("employee"),
+  role: text("role", { enum: ["admin", "employee"] }).notNull().default("employee"),
   transportType: text("transport_type"),
   transportModeId: integer("transport_mode_id").references(() => transportModes.id),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
@@ -236,6 +236,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
   transportType: true,
   transportModeId: true,
+}).extend({
+  email: z.string().email("Email deve ter um formato válido"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
+  role: z.enum(["admin", "employee"], { errorMap: () => ({ message: "Papel deve ser 'admin' ou 'employee'" }) }),
 });
 
 export const insertTransportModeSchema = createInsertSchema(transportModes).pick({

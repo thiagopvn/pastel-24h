@@ -145,10 +145,51 @@ export default function UserManagement() {
   const handleCreateUser = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const name = (formData.get("name") as string).trim();
+    const email = (formData.get("email") as string).trim();
+    const password = formData.get("password") as string;
+
+    // Frontend validation
+    if (name.length < 2) {
+      toast({
+        title: "Erro de Validação",
+        description: "Nome deve ter pelo menos 2 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({
+        title: "Erro de Validação",
+        description: "Email deve ter um formato válido",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      toast({
+        title: "Erro de Validação",
+        description: "Senha deve ter pelo menos 6 caracteres",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedRole || !['admin', 'employee'].includes(selectedRole)) {
+      toast({
+        title: "Erro de Validação",
+        description: "Selecione um papel válido (Administrador ou Funcionário)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const userData = {
-      name: formData.get("name") as string,
-      email: formData.get("email") as string,
-      password: formData.get("password") as string,
+      name,
+      email,
+      password,
       role: selectedRole,
       transportModeId: selectedTransportModeId,
     };
@@ -303,37 +344,39 @@ export default function UserManagement() {
           </DialogHeader>
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div>
-              <Label htmlFor="create-name">Nome</Label>
+              <Label htmlFor="create-name">Nome *</Label>
               <Input
                 id="create-name"
                 name="name"
                 required
-                placeholder="Digite o nome completo"
+                minLength={2}
+                placeholder="Digite o nome completo (mín. 2 caracteres)"
               />
             </div>
             <div>
-              <Label htmlFor="create-email">Email</Label>
+              <Label htmlFor="create-email">Email *</Label>
               <Input
                 id="create-email"
                 name="email"
                 type="email"
                 required
-                placeholder="Digite o email"
+                placeholder="Digite um email válido"
               />
             </div>
             <div>
-              <Label htmlFor="create-password">Senha</Label>
+              <Label htmlFor="create-password">Senha *</Label>
               <Input
                 id="create-password"
                 name="password"
                 type="password"
                 required
-                placeholder="Digite a senha"
+                minLength={6}
+                placeholder="Digite a senha (mín. 6 caracteres)"
               />
             </div>
             <div>
-              <Label htmlFor="create-role">Papel</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
+              <Label htmlFor="create-role">Papel *</Label>
+              <Select value={selectedRole} onValueChange={setSelectedRole} required>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o papel" />
                 </SelectTrigger>
@@ -369,7 +412,7 @@ export default function UserManagement() {
               <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={createUserMutation.isPending}>
+              <Button type="submit" disabled={createUserMutation.isPending || !selectedRole}>
                 {createUserMutation.isPending ? "Criando..." : "Criar Usuário"}
               </Button>
             </div>
