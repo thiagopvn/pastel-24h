@@ -437,6 +437,28 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Temporary diagnostic endpoint - REMOVE IN PRODUCTION
+  app.get("/api/debug/check-users", async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      const userInfo = allUsers.map(user => ({
+        email: user.email,
+        role: user.role,
+        passwordFormat: {
+          length: user.password.length,
+          isBcrypt: user.password.startsWith('$2b$'),
+          isScrypt: user.password.startsWith('$scrypt$'),
+          first10: user.password.substring(0, 10),
+          mightBePlainText: !user.password.startsWith('$') && user.password.length < 30
+        }
+      }));
+      res.json({ users: userInfo, count: userInfo.length });
+    } catch (error) {
+      console.error('Error checking users:', error);
+      res.status(500).json({ message: 'Failed to check users' });
+    }
+  });
+
   app.get("/api/shift-records", requireAuth, async (req, res) => {
     try {
       const { shiftId } = req.query;

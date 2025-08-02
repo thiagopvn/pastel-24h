@@ -80,6 +80,12 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
   };
 
   app.set("trust proxy", 1);
@@ -97,6 +103,14 @@ export function setupAuth(app: Express) {
         console.log('User not found');
         return done(null, false);
       }
+      
+      // Debug: check password format
+      console.log('Stored password format:', {
+        length: user.password.length,
+        startsWith$2b: user.password.startsWith('$2b$'),
+        startsWith$scrypt: user.password.startsWith('$scrypt$'),
+        first10chars: user.password.substring(0, 10)
+      });
       
       const passwordMatch = await comparePasswords(password, user.password);
       console.log('Password match:', passwordMatch);
