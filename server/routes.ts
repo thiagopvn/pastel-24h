@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
+import bcrypt from "bcrypt";
 import { 
   shifts, 
   shiftRecords, 
@@ -872,7 +873,12 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const user = await storage.createUser(userData);
+      // Hash the password before creating the user
+      const hashedPassword = await bcrypt.hash(userData.password, 12);
+      const user = await storage.createUser({
+        ...userData,
+        password: hashedPassword
+      });
       res.status(201).json({ ...user, password: undefined });
     } catch (error) {
       console.error("Error creating user:", error);
