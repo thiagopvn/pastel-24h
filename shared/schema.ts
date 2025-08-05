@@ -53,6 +53,16 @@ export const shifts = sqliteTable("shifts", {
   tempFinalCash: text("temp_final_cash"),
   tempFinalCoins: text("temp_final_coins"),
   tempGasExchange: integer("temp_gas_exchange", { mode: "boolean" }).default(false),
+  
+  // Novos campos para lógica de caixa independente
+  countedFinalCash: text("counted_final_cash"), // Valor total em notas contado no fechamento
+  countedFinalCoins: text("counted_final_coins"), // Valor total em moedas contado no fechamento
+  envelopeCash: text("envelope_cash"), // Valor em notas retirado para o envelope
+  envelopeCoins: text("envelope_coins"), // Valor em moedas retirado para o envelope
+  cashForNextShift: text("cash_for_next_shift"), // Valor em notas que fica para próximo turno
+  coinsForNextShift: text("coins_for_next_shift"), // Valor em moedas que fica para próximo turno
+  openingDiscrepancy: text("opening_discrepancy"), // Diferença entre esperado e informado na abertura
+  
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 

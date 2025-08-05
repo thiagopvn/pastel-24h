@@ -73,3 +73,30 @@ The application manages restaurant operations through interconnected tables:
 - Server state via TanStack Query with optimistic updates
 - Authentication context provides user state across components
 - Toast notifications for user feedback
+
+## API Architecture
+
+**Authentication Routes (`/api`):**
+- `POST /api/register` - Create new user account
+- `POST /api/login` - Authenticate user with email/password
+- `POST /api/logout` - End user session
+- `GET /api/user` - Get current authenticated user
+
+**Main Application Routes (`/api`):**
+- Products, shifts, users, transport modes, weekly reports
+- All routes require authentication except public endpoints
+- Admin routes require admin role for access
+
+**Middleware Stack:**
+- Session management with express-session and memorystore
+- Passport.js for authentication strategies
+- Role-based access control middleware (requireAuth, requireAdmin)
+- Request validation using Zod schemas
+
+## Testing & Quality Checks
+
+**Before committing code:**
+- Run `npm run check` to verify TypeScript types
+- Test authentication flows with both admin and employee roles
+- Verify database migrations with `npm run db:migrate`
+- Check API endpoints return proper status codes and error messages

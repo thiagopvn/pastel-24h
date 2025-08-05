@@ -22,20 +22,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, AlertTriangle, CheckCircle } from "lucide-react";
+import { AlertCircle, CheckCircle, Calculator } from "lucide-react";
 import type { Shift } from "@shared/schema";
 import { formatCurrency } from "@/lib/calculations";
-import { MIN_CASH_RECOMMENDED, MIN_COINS_RECOMMENDED, MAX_CASH_DIVERGENCE } from "@/lib/constants";
+import { MAX_CASH_DIVERGENCE } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
 
 const closeShiftSchema = z.object({
-  countedCash: z.string().min(1, "Informe o valor contado em dinheiro"),
-  countedCoins: z.string().min(1, "Informe o valor contado em moedas"),
+  countedFinalCash: z.string().min(1, "Informe o valor contado em dinheiro"),
+  countedFinalCoins: z.string().min(1, "Informe o valor contado em moedas"),
+  envelopeCash: z.string().min(1, "Informe o valor para o envelope em dinheiro"),
+  envelopeCoins: z.string().min(1, "Informe o valor para o envelope em moedas"),
   notes: z.string().optional(),
-  confirmLowCash: z.boolean().optional(),
-  confirmLowCoins: z.boolean().optional(),
 });
 
 type CloseShiftForm = z.infer<typeof closeShiftSchema>;
@@ -44,7 +43,7 @@ interface CloseShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   shift: Shift;
-  onConfirm: (data: CloseShiftForm) => void;
+  onConfirm: (data: any) => void;
   isClosing: boolean;
 }
 
@@ -56,24 +55,23 @@ export function CloseShiftModal({
   isClosing
 }: CloseShiftModalProps) {
   const [cashDivergence, setCashDivergence] = useState(0);
-  const [showWarnings, setShowWarnings] = useState(false);
 
   const form = useForm<CloseShiftForm>({
     resolver: zodResolver(closeShiftSchema),
     defaultValues: {
-      countedCash: shift.tempFinalCash || "",
-      countedCoins: shift.tempFinalCoins || "",
+      countedFinalCash: shift.tempFinalCash || "",
+      countedFinalCoins: shift.tempFinalCoins || "",
+      envelopeCash: "",
+      envelopeCoins: "",
       notes: "",
-      confirmLowCash: false,
-      confirmLowCoins: false,
     },
   });
 
   // Update form values when shift data changes
   useEffect(() => {
     if (shift.tempFinalCash && shift.tempFinalCoins) {
-      form.setValue("countedCash", shift.tempFinalCash);
-      form.setValue("countedCoins", shift.tempFinalCoins);
+      form.setValue("countedFinalCash", shift.tempFinalCash);
+      form.setValue("countedFinalCoins", shift.tempFinalCoins);
     }
   }, [shift.tempFinalCash, shift.tempFinalCoins, form]);
 
@@ -89,13 +87,15 @@ export function CloseShiftModal({
     enabled: isOpen,
   });
 
-  const countedCash = parseFloat(form.watch("countedCash") || "0");
-  const countedCoins = parseFloat(form.watch("countedCoins") || "0");
+  const countedFinalCash = parseFloat(form.watch("countedFinalCash") || "0");
+  const countedFinalCoins = parseFloat(form.watch("countedFinalCoins") || "0");
+  const envelopeCash = parseFloat(form.watch("envelopeCash") || "0");
+  const envelopeCoins = parseFloat(form.watch("envelopeCoins") || "0");
 
   // Calculate expected cash considering withdrawals
   const initialCash = parseFloat(shift.initialCash || "200.00");
   const initialCoins = parseFloat(shift.initialCoins || "50.00");
-  const cashSales = parseFloat(paymentData?.cash || "0");
+  const cashSales = parseFloat((paymentData as any)?.cash || "0");
 
   // Calculate total withdrawals made during this shift
   let totalWithdrawals = 0;
@@ -117,37 +117,24 @@ export function CloseShiftModal({
   // Total expected final = expected cash + initial coins (coins don't change during shift)
   const totalExpectedFinal = expectedCash + initialCoins;
 
+  // Calculate cash for next shift
+  const cashForNextShift = countedFinalCash - envelopeCash;
+  const coinsForNextShift = countedFinalCoins - envelopeCoins;
+  const totalForNextShift = cashForNextShift + coinsForNextShift;
+
   // Calculate divergence when counted cash changes
   useEffect(() => {
-    if (countedCash >= 0 && totalExpectedFinal >= 0) {
+    if (countedFinalCash >= 0 && totalExpectedFinal >= 0) {
       // Total contado = dinheiro contado + moedas contadas
-      const totalCounted = countedCash + countedCoins;
+      const totalCounted = countedFinalCash + countedFinalCoins;
       
       // Divergência total considerando dinheiro + moedas
       const divergence = totalCounted - totalExpectedFinal;
       setCashDivergence(divergence);
     }
-  }, [countedCash, countedCoins, totalExpectedFinal]);
+  }, [countedFinalCash, countedFinalCoins, totalExpectedFinal]);
 
   const handleSubmit = (data: CloseShiftForm) => {
-    // Check low cash/coins warnings
-    if (countedCash < MIN_CASH_RECOMMENDED || countedCoins < MIN_COINS_RECOMMENDED) {
-      if (!showWarnings) {
-        setShowWarnings(true);
-        return;
-      }
-
-      if (countedCash < MIN_CASH_RECOMMENDED && !data.confirmLowCash) {
-        form.setError("confirmLowCash", { message: "Confirmação obrigatória" });
-        return;
-      }
-
-      if (countedCoins < MIN_COINS_RECOMMENDED && !data.confirmLowCoins) {
-        form.setError("confirmLowCoins", { message: "Confirmação obrigatória" });
-        return;
-      }
-    }
-
     // Check cash divergence
     if (Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE && !data.notes) {
       form.setError("notes", { 
@@ -161,11 +148,11 @@ export function CloseShiftModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Fechamento de Turno</DialogTitle>
           <DialogDescription>
-            Conte o dinheiro físico e informe os valores finais do caixa.
+            Conte o dinheiro físico e informe os valores para fechamento.
           </DialogDescription>
         </DialogHeader>
 
@@ -208,7 +195,7 @@ export function CloseShiftModal({
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <h4 className="font-medium text-yellow-800 mb-2">Retiradas Durante o Turno</h4>
                 <div className="space-y-1">
-                  {cashAdjustments?.map((adjustment: any, index: number) => (
+                  {(cashAdjustments as any)?.map((adjustment: any, index: number) => (
                     <div key={index} className="text-sm text-yellow-700 flex justify-between">
                       <span>{adjustment.reason}</span>
                       <span className="font-medium">-{formatCurrency(parseFloat(adjustment.amount))}</span>
@@ -221,83 +208,179 @@ export function CloseShiftModal({
               </div>
             )}
 
-            {/* Step 1: Physical Count */}
+            {/* Step 1: Total Counted in Store */}
             <div className="space-y-4 border rounded-lg p-4">
               <h3 className="font-medium flex items-center gap-2">
                 <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm">
                   1
                 </span>
-                Contagem Física
+                Total Contado na Loja
               </h3>
 
-              <FormField
-                control={form.control}
-                name="countedCash"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      Dinheiro Final Contado (R$)
-                      {shift.tempFinalCash && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                          Carregado
-                        </span>
-                      )}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Conte todas as cédulas e informe o valor total
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="countedFinalCash"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        Cédulas (R$)
+                        {shift.tempFinalCash && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            Carregado
+                          </span>
+                        )}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Total em cédulas contado
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              <FormField
-                control={form.control}
-                name="countedCoins"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center gap-2">
-                      Moedas Finais Contadas (R$)
-                      {shift.tempFinalCoins && (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                          Carregado
-                        </span>
-                      )}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Conte todas as moedas e informe o valor total
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="countedFinalCoins"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        Moedas (R$)
+                        {shift.tempFinalCoins && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                            Carregado
+                          </span>
+                        )}
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Total em moedas contado
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="bg-gray-50 rounded p-3 text-sm">
+                <p className="font-medium">Total Contado: {formatCurrency(countedFinalCash + countedFinalCoins)}</p>
+              </div>
             </div>
 
-            {/* Step 2: Divergence Alert */}
-            {countedCash > 0 && expectedCash > 0 && (
+            {/* Step 2: Envelope Values */}
+            <div className="space-y-4 border rounded-lg p-4">
+              <h3 className="font-medium flex items-center gap-2">
+                <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm">
+                  2
+                </span>
+                Retirada para Envelope Administrativo
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="envelopeCash"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Cédulas para Envelope (R$)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Valor em cédulas para o envelope
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="envelopeCoins"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Moedas para Envelope (R$)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Valor em moedas para o envelope
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="bg-yellow-50 rounded p-3 text-sm">
+                <p className="font-medium">Total para Envelope: {formatCurrency(envelopeCash + envelopeCoins)}</p>
+              </div>
+            </div>
+
+            {/* Step 3: Cash for Next Shift */}
+            <div className="space-y-4 border rounded-lg p-4 bg-green-50">
+              <h3 className="font-medium flex items-center gap-2 text-green-800">
+                <Calculator className="h-5 w-5" />
+                Troco para Próximo Turno (Calculado Automaticamente)
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-gray-600">Cédulas</p>
+                  <p className="font-semibold text-green-700">
+                    {formatCurrency(cashForNextShift)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatCurrency(countedFinalCash)} - {formatCurrency(envelopeCash)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Moedas</p>
+                  <p className="font-semibold text-green-700">
+                    {formatCurrency(coinsForNextShift)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatCurrency(countedFinalCoins)} - {formatCurrency(envelopeCoins)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t pt-2">
+                <p className="font-medium text-green-800">
+                  Total para Próximo Turno: {formatCurrency(totalForNextShift)}
+                </p>
+              </div>
+            </div>
+
+            {/* Divergence Analysis */}
+            {countedFinalCash > 0 && expectedCash > 0 && (
               <div className="space-y-4 border rounded-lg p-4">
-                <h3 className="font-medium flex items-center gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-sm">
-                    2
-                  </span>
-                  Análise de Divergência
-                </h3>
+                <h3 className="font-medium">Análise de Divergência</h3>
 
                 {Math.abs(cashDivergence) <= MAX_CASH_DIVERGENCE ? (
                   <Alert>
@@ -332,62 +415,6 @@ export function CloseShiftModal({
                           />
                         </FormControl>
                         <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* Step 3: Low Cash/Coins Warning */}
-            {showWarnings && (countedCash < MIN_CASH_RECOMMENDED || countedCoins < MIN_COINS_RECOMMENDED) && (
-              <div className="space-y-4 border border-yellow-200 rounded-lg p-4 bg-yellow-50">
-                <h3 className="font-medium flex items-center gap-2 text-yellow-800">
-                  <AlertTriangle className="h-4 w-4" />
-                  Valores Abaixo do Recomendado
-                </h3>
-
-                {countedCash < MIN_CASH_RECOMMENDED && (
-                  <FormField
-                    control={form.control}
-                    name="confirmLowCash"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>
-                            Confirmo que retornei cédulas ao cofre (mínimo recomendado: {formatCurrency(MIN_CASH_RECOMMENDED)})
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                )}
-
-                {countedCoins < MIN_COINS_RECOMMENDED && (
-                  <FormField
-                    control={form.control}
-                    name="confirmLowCoins"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>
-                            Confirmo que retornei moedas ao cofre (mínimo recomendado: {formatCurrency(MIN_COINS_RECOMMENDED)})
-                          </FormLabel>
-                          <FormMessage />
-                        </div>
                       </FormItem>
                     )}
                   />

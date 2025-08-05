@@ -25,7 +25,7 @@ export interface IStorage {
   getCurrentShift(userId?: number): Promise<Shift | undefined>;
   getAllOpenShifts(): Promise<Shift[]>;
   getShift(shiftId: number): Promise<Shift | undefined>;
-  createShift(shift: InsertShift & { userId: number }): Promise<Shift>;
+  createShift(shift: InsertShift & { userId: number; openingDiscrepancy?: string | null }): Promise<Shift>;
   updateShift(shiftId: number, updates: Partial<Shift>): Promise<Shift | undefined>;
   closeShift(shiftId: number, closedBy: number, updates: Partial<Shift>): Promise<Shift | undefined>;
   getShiftsByDateRange(startDate: Date, endDate: Date): Promise<Shift[]>;
@@ -255,33 +255,20 @@ export class DatabaseStorage implements IStorage {
     return shift || undefined;
   }
 
-  async createShift(shift: InsertShift & { userId: number }): Promise<Shift> {
+  async createShift(shift: InsertShift & { userId: number; openingDiscrepancy?: string | null }): Promise<Shift> {
     const [lastClosedShift] = await db.select().from(shifts)
       .where(isNotNull(shifts.endTime))
       .orderBy(desc(shifts.endTime))
       .limit(1);
 
-    let inheritedCash = "200.00";
-    let inheritedCoins = "50.00";
     let inheritedFromShiftId = null;
 
     if (lastClosedShift) {
-      inheritedCash = lastClosedShift.finalCash || "200.00";
-      inheritedCoins = lastClosedShift.finalCoins || "50.00";
       inheritedFromShiftId = lastClosedShift.id;
-
-      const adjustedCashInfo = await this.getAdjustedInheritedCash(lastClosedShift);
-      inheritedCash = adjustedCashInfo.inheritedCash;
-
-      if (adjustedCashInfo.totalWithdrawals > 0) {
-        console.log(`Cash inheritance adjusted: Final cash reduced by R$ ${adjustedCashInfo.totalWithdrawals} due to withdrawals`);
-      }
     }
 
     const [newShift] = await db.insert(shifts).values({
       ...shift,
-      initialCash: inheritedCash,
-      initialCoins: inheritedCoins,
       inheritedFromShiftId,
       startTime: new Date(),
     }).returning();
@@ -318,36 +305,27 @@ export class DatabaseStorage implements IStorage {
         });
       }
 
+      // Criar snapshot sem valores de caixa herdados automaticamente
       await this.createShiftSnapshot({
         shiftId: newShift.id,
         lastShiftId: lastClosedShift.id,
-        carryCash: inheritedCash,
-        carryCoins: inheritedCoins,
+        carryCash: newShift.initialCash || "0",
+        carryCoins: newShift.initialCoins || "0",
         carryProducts,
       });
 
-      const pendingWithdrawals = await this.getPendingWithdrawals();
-      const totalWithdrawals = pendingWithdrawals.reduce((sum, withdrawal) => 
-        sum + parseFloat(withdrawal.amount), 0);
-
-      let description = `Turno aberto com herança automática: R$ ${inheritedCash} (caixa) + R$ ${inheritedCoins} (moedas) + ${carryProducts.length} tipos de produtos`;
-      if (totalWithdrawals > 0) {
-        description += ` - Retiradas pendentes descontadas: R$ ${totalWithdrawals.toFixed(2)}`;
-      }
-
+      // Log de abertura manual do turno
       await this.addTimelineEntry({
         userId: shift.userId,
-        action: "shift_inheritance",
-        description,
+        action: "shift_opened",
+        description: `Turno aberto manualmente com R$ ${newShift.initialCash} (caixa) + R$ ${newShift.initialCoins} (moedas)`,
         metadata: {
           shiftId: newShift.id,
           inheritedFromShiftId: lastClosedShift.id,
-          carryCash: inheritedCash,
-          carryCoins: inheritedCoins,
+          manualCash: newShift.initialCash,
+          manualCoins: newShift.initialCoins,
           carryProductsCount: carryProducts.length,
           carryProducts,
-          pendingWithdrawals: totalWithdrawals,
-          pendingWithdrawalsCount: pendingWithdrawals.length,
         },
       });
     }

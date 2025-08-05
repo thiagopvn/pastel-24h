@@ -40,6 +40,8 @@ export default function Timeline() {
         return 'bg-blue-500';
       case 'cash_divergence':
         return 'bg-red-500';
+      case 'opening_discrepancy':
+        return 'bg-orange-500';
       case 'cash_withdrawal':
         return 'bg-yellow-500';
       default:

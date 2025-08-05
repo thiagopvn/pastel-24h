@@ -77,8 +77,10 @@ export function registerRoutes(app: Express): Server {
 
         res.json({
           shift: lastClosedShift,
-          inheritedCash: adjustedCashInfo.inheritedCash,
-          inheritedCoins: lastClosedShift.finalCoins || "0",
+          inheritedCash: lastClosedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
+          inheritedCoins: lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "0",
+          cashForNextShift: lastClosedShift.cashForNextShift,
+          coinsForNextShift: lastClosedShift.coinsForNextShift,
           totalLeftovers,
           products: records.filter(r => (r.leftoverQty ?? 0) > 0),
           pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
@@ -113,10 +115,41 @@ export function registerRoutes(app: Express): Server {
         .filter(s => s.endTime !== null && s.status === 'closed')
         .sort((a, b) => new Date(b.endTime!).getTime() - new Date(a.endTime!).getTime())[0];
 
+      // Calcular valores esperados do último turno fechado
+      let expectedCash = "200.00";
+      let expectedCoins = "50.00";
+      
+      if (lastClosedShift) {
+        expectedCash = lastClosedShift.cashForNextShift || lastClosedShift.finalCash || "200.00";
+        expectedCoins = lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "50.00";
+      }
+
+      // Calcular discrepância
+      const informedTotal = parseFloat(shiftData.initialCash) + parseFloat(shiftData.initialCoins || "0");
+      const expectedTotal = parseFloat(expectedCash) + parseFloat(expectedCoins);
+      const openingDiscrepancy = informedTotal - expectedTotal;
+
+      // Criar turno com valores informados pelo usuário
       const shift = await storage.createShift({
         ...shiftData,
         userId: req.user!.id,
+        openingDiscrepancy: openingDiscrepancy !== 0 ? openingDiscrepancy.toFixed(2) : null,
       });
+
+      // Se houver discrepância, criar evento na timeline
+      if (openingDiscrepancy !== 0) {
+        await storage.addTimelineEntry({
+          userId: req.user!.id,
+          action: "opening_discrepancy",
+          description: `Discrepância na abertura do turno: ${openingDiscrepancy > 0 ? '+' : ''}R$ ${openingDiscrepancy.toFixed(2)}`,
+          metadata: {
+            shiftId: shift.id,
+            expected: { cash: expectedCash, coins: expectedCoins, total: expectedTotal.toFixed(2) },
+            informed: { cash: shiftData.initialCash, coins: shiftData.initialCoins || "0", total: informedTotal.toFixed(2) },
+            discrepancy: openingDiscrepancy.toFixed(2)
+          }
+        });
+      }
 
       const inheritanceInfo = {
         inheritedCash: shift.initialCash,
@@ -127,7 +160,12 @@ export function registerRoutes(app: Express): Server {
           shiftId: lastClosedShift.id,
           closedAt: lastClosedShift.endTime,
           closedBy: lastClosedShift.closedBy
-        } : null
+        } : null,
+        expectedValues: {
+          cash: expectedCash,
+          coins: expectedCoins,
+          total: expectedTotal.toFixed(2)
+        }
       };
 
       res.status(201).json({
@@ -245,7 +283,17 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/shifts/close", requireAuth, async (req, res) => {
     try {
-      const { shiftId, records, payments, notes, finalCash, finalCoins, gasExchange, countedCash, countedCoins } = req.body;
+      const { 
+        shiftId, 
+        records, 
+        payments, 
+        notes, 
+        gasExchange, 
+        countedFinalCash,
+        countedFinalCoins,
+        envelopeCash,
+        envelopeCoins
+      } = req.body;
 
       const shift = await storage.getShift(shiftId);
       if (!shift || shift.status !== 'open') {
@@ -285,14 +333,19 @@ export function registerRoutes(app: Express): Server {
         return sum;
       }, 0);
       
+      // Cálculos de divergência baseados nos novos campos
       const expectedCash = parseFloat(shift.initialCash) + totalCashSales - totalWithdrawals;
       const expectedCoins = parseFloat(shift.initialCoins || "0") || 0;
-      const actualCash = parseFloat(countedCash || finalCash) || 0;
-      const actualCoins = parseFloat(countedCoins || finalCoins || "0") || 0;
+      const actualCash = parseFloat(countedFinalCash) || 0;
+      const actualCoins = parseFloat(countedFinalCoins) || 0;
 
       const totalExpected = expectedCash + expectedCoins;
       const totalActual = actualCash + actualCoins;
       const cashDivergence = totalActual - totalExpected;
+
+      // Cálculo do troco para o próximo turno
+      const cashForNext = actualCash - (parseFloat(envelopeCash) || 0);
+      const coinsForNext = actualCoins - (parseFloat(envelopeCoins) || 0);
 
       console.log(`Cash calculation: Initial=${shift.initialCash}, Sales=${totalCashSales}, Withdrawals=${totalWithdrawals}, Expected=${expectedCash}, Actual=${actualCash}, Divergence=${cashDivergence}`);
 
@@ -311,10 +364,16 @@ export function registerRoutes(app: Express): Server {
       }
 
       const closedShift = await storage.closeShift(shiftId, req.user!.id, {
-        finalCash: countedCash || finalCash,
-        finalCoins: countedCoins || finalCoins,
-        countedCash: countedCash || finalCash,
-        countedCoins: countedCoins || finalCoins,
+        finalCash: actualCash.toFixed(2),
+        finalCoins: actualCoins.toFixed(2),
+        countedCash: actualCash.toFixed(2),
+        countedCoins: actualCoins.toFixed(2),
+        countedFinalCash: actualCash.toFixed(2),
+        countedFinalCoins: actualCoins.toFixed(2),
+        envelopeCash: (parseFloat(envelopeCash) || 0).toFixed(2),
+        envelopeCoins: (parseFloat(envelopeCoins) || 0).toFixed(2),
+        cashForNextShift: cashForNext.toFixed(2),
+        coinsForNextShift: coinsForNext.toFixed(2),
         gasExchange,
         notes,
         cashDivergence: cashDivergence.toString(),
@@ -336,11 +395,16 @@ export function registerRoutes(app: Express): Server {
       await storage.addTimelineEntry({
         userId: req.user!.id,
         action: "shift_closed",
-        description: `Turno fechado - Total vendas: R$ ${totalSales.toFixed(2)}`,
+        description: `Turno fechado - Total vendas: R$ ${totalSales.toFixed(2)} - Envelope: R$ ${((parseFloat(envelopeCash) || 0) + (parseFloat(envelopeCoins) || 0)).toFixed(2)}`,
         metadata: { 
           shiftId, 
           cashDivergence, 
-          finalCash,
+          countedFinalCash: actualCash.toFixed(2),
+          countedFinalCoins: actualCoins.toFixed(2),
+          envelopeCash: (parseFloat(envelopeCash) || 0).toFixed(2),
+          envelopeCoins: (parseFloat(envelopeCoins) || 0).toFixed(2),
+          cashForNextShift: cashForNext.toFixed(2),
+          coinsForNextShift: coinsForNext.toFixed(2),
           totalSales: totalSales.toFixed(2),
           cashSales: totalCashSales.toFixed(2)
         },

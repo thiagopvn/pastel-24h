@@ -40,11 +40,6 @@ export default function ShiftStatusCard() {
     enabled: !currentShift, // Only fetch when no current shift
   });
 
-  // Query para buscar retiradas pendentes que devem ser consideradas no próximo turno
-  const { data: pendingWithdrawals } = useQuery({
-    queryKey: ["/api/admin/pending-withdrawals"],
-    enabled: !currentShift, // Only when opening a new shift
-  });
 
   const form = useForm<ShiftForm>({
     resolver: zodResolver(insertShiftSchema),
@@ -56,40 +51,16 @@ export default function ShiftStatusCard() {
     },
   });
 
-  // Calculate initial cash considering withdrawals
-  const calculateInitialCash = () => {
-    if (!lastClosedShift) return "200.00"; // Default for first shift
-
-    let inheritedCash = parseFloat(lastClosedShift.inheritedCash || "200.00");
-
-    // Subtract pending withdrawals
-    if (pendingWithdrawals && Array.isArray(pendingWithdrawals)) {
-      const totalWithdrawals = pendingWithdrawals.reduce((total, withdrawal) => {
-        return total + parseFloat(withdrawal.amount || 0);
-      }, 0);
-      inheritedCash -= totalWithdrawals;
-    }
-
-    return Math.max(inheritedCash, 0).toFixed(2); // Ensure non-negative
+  // Calculate expected cash values (for reference only)
+  const calculateExpectedCash = () => {
+    if (!lastClosedShift || !lastClosedShift.shift) return "200.00"; // Default for first shift
+    return (lastClosedShift as any).cashForNextShift || (lastClosedShift as any).inheritedCash || "200.00";
   };
 
-  const calculateInitialCoins = () => {
-    if (!lastClosedShift) return "50.00"; // Default for first shift
-
-    let inheritedCoins = parseFloat(lastClosedShift.inheritedCoins || "50.00");
-    return Math.max(inheritedCoins, 0).toFixed(2); // Ensure non-negative
+  const calculateExpectedCoins = () => {
+    if (!lastClosedShift || !lastClosedShift.shift) return "50.00"; // Default for first shift
+    return (lastClosedShift as any).coinsForNextShift || (lastClosedShift as any).inheritedCoins || "50.00";
   };
-
-  // Update form values when data is available
-  useEffect(() => {
-    if (!currentShift) {
-      const adjustedCash = calculateInitialCash();
-      const adjustedCoins = calculateInitialCoins();
-
-      form.setValue("initialCash", adjustedCash);
-      form.setValue("initialCoins", adjustedCoins);
-    }
-  }, [lastClosedShift, pendingWithdrawals, currentShift]);
 
   const openShiftMutation = useMutation({
     mutationFn: async (data: ShiftForm) => {
@@ -103,7 +74,6 @@ export default function ShiftStatusCard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/current"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/last-closed"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/pending-withdrawals"] });
       toast({ title: "Turno aberto com sucesso!" });
       setIsOpenDialogOpen(false);
       form.reset();
@@ -202,8 +172,10 @@ export default function ShiftStatusCard() {
         records: records || [],
         payments: payments,
         notes: data.notes || "",
-        finalCash: data.countedCash, // Using counted value from form
-        finalCoins: data.countedCoins, // Using counted value from form
+        countedFinalCash: data.countedFinalCash,
+        countedFinalCoins: data.countedFinalCoins,
+        envelopeCash: data.envelopeCash,
+        envelopeCoins: data.envelopeCoins,
         gasExchange: false
       };
 
@@ -310,92 +282,70 @@ export default function ShiftStatusCard() {
                     </h4>
                     <div className="grid grid-cols-2 gap-3 text-xs">
                       <div>
-                        <span className="text-blue-700">Turno:</span> #{lastClosedShift.shift.id}
+                        <span className="text-blue-700">Turno:</span> #{(lastClosedShift as any).shift?.id}
                       </div>
                       <div>
-                        <span className="text-blue-700">Fechado em:</span> {new Date(lastClosedShift.shift.endTime).toLocaleString('pt-BR')}
+                        <span className="text-blue-700">Fechado em:</span> {new Date((lastClosedShift as any).shift?.endTime || Date.now()).toLocaleString('pt-BR')}
                       </div>
                       <div>
-                        <span className="text-blue-700">Caixa Final:</span> {formatCurrency(parseFloat(lastClosedShift.shift.finalCash || '0'))}
+                        <span className="text-blue-700">Envelope Caixa:</span> {formatCurrency(parseFloat((lastClosedShift as any).shift?.envelopeCash || '0'))}
                       </div>
                       <div>
-                        <span className="text-blue-700">Moedas Finais:</span> {formatCurrency(parseFloat(lastClosedShift.shift.finalCoins || '0'))}
+                        <span className="text-blue-700">Envelope Moedas:</span> {formatCurrency(parseFloat((lastClosedShift as any).shift?.envelopeCoins || '0'))}
                       </div>
-                      {lastClosedShift.shift.cashDivergence && parseFloat(lastClosedShift.shift.cashDivergence) !== 0 && (
+                      <div className="col-span-2 border-t pt-2">
+                        <span className="text-blue-700 font-medium">Troco para Próximo Turno:</span>
+                        <div className="flex gap-4 mt-1">
+                          <span>Caixa: {formatCurrency(parseFloat((lastClosedShift as any).shift?.cashForNextShift || '0'))}</span>
+                          <span>Moedas: {formatCurrency(parseFloat((lastClosedShift as any).shift?.coinsForNextShift || '0'))}</span>
+                        </div>
+                      </div>
+                      {(lastClosedShift as any).shift?.cashDivergence && parseFloat((lastClosedShift as any).shift.cashDivergence) !== 0 && (
                         <div className="col-span-2">
-                          <span className="text-red-700">⚠️ Divergência:</span> {formatCurrency(parseFloat(lastClosedShift.shift.cashDivergence))}
+                          <span className="text-red-700">⚠️ Divergência:</span> {formatCurrency(parseFloat((lastClosedShift as any).shift.cashDivergence))}
                         </div>
                       )}
                     </div>
                   </div>
                 )}
 
-                {/* Mostrar retiradas pendentes se houverem */}
-                {pendingWithdrawals && pendingWithdrawals.length > 0 && (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                    <h4 className="text-sm font-medium text-yellow-800 mb-2 flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4" />
-                      Retiradas Pendentes
-                    </h4>
-                    <div className="space-y-1">
-                      {pendingWithdrawals.map((withdrawal: any, index: number) => (
-                        <div key={index} className="text-xs text-yellow-700 flex justify-between">
-                          <span>{withdrawal.reason}</span>
-                          <span className="font-medium">-{formatCurrency(parseFloat(withdrawal.amount))}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-xs text-yellow-600 mt-2">
-                      Essas retiradas serão automaticamente deduzidas do caixa inicial
-                    </div>
-                  </div>
-                )}
 
                 <div>
-                  <Label htmlFor="initialCash" className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-blue-600" />
+                  <Label htmlFor="initialCash">
                     Caixa Inicial (R$)
-                    <Badge variant="secondary" className="text-xs">Automático</Badge>
                   </Label>
                   <Input
                     id="initialCash"
                     type="number"
                     step="0.01"
                     {...form.register("initialCash")}
-                    value={calculateInitialCash()}
-                    readOnly
-                    className="bg-blue-50 border-blue-200 cursor-not-allowed"
+                    placeholder="0.00"
+                    className="border-gray-300"
                   />
-                  <p className="text-xs text-blue-600 mt-1">
-                    {lastClosedShift 
-                      ? `Herdado do turno #${lastClosedShift.shift.id}`
-                      : "Primeiro turno - valor padrão R$ 200,00"
-                    }
-                    {pendingWithdrawals && pendingWithdrawals.length > 0 && 
-                      ` - descontadas ${pendingWithdrawals.length} retirada(s)`
+                  <p className="text-xs text-gray-600 mt-1">
+                    Valor esperado: {formatCurrency(parseFloat(calculateExpectedCash()))}
+                    {lastClosedShift && (lastClosedShift as any).cashForNextShift && 
+                      ` (Turno #${(lastClosedShift as any).shift?.id})`
                     }
                   </p>
                 </div>
 
                 <div>
-                  <Label htmlFor="initialCoins" className="flex items-center gap-2">
-                    <Lock className="h-4 w-4 text-blue-600" />
+                  <Label htmlFor="initialCoins">
                     Moedas Iniciais (R$)
-                    <Badge variant="secondary" className="text-xs">Automático</Badge>
                   </Label>
                   <Input
                     id="initialCoins"
                     type="number"
                     step="0.01"
                     {...form.register("initialCoins")}
-                    value={calculateInitialCoins()}
-                    readOnly
-                    className="bg-blue-50 border-blue-200 cursor-not-allowed"
+                    placeholder="0.00"
+                    className="border-gray-300"
                   />
-                  <p className="text-xs text-blue-600 mt-1">
-                    {lastClosedShift 
-                      ? `Herdado do turno #${lastClosedShift.shift.id}`
-                      : "Primeiro turno - valor padrão R$ 50,00"
+                  <p className="text-xs text-gray-600 mt-1">
+                    Valor esperado: {formatCurrency(parseFloat(calculateExpectedCoins()))}
+                    {lastClosedShift && (lastClosedShift as any).coinsForNextShift && 
+                      ` (Turno #${(lastClosedShift as any).shift?.id})`
                     }
                   </p>
                 </div>
