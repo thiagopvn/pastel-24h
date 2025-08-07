@@ -28,6 +28,11 @@ import type { Shift } from "@shared/schema";
 import { formatCurrency } from "@/lib/calculations";
 import { MAX_CASH_DIVERGENCE } from "@/lib/constants";
 import { useQuery } from "@tanstack/react-query";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { useAuth } from "@/hooks/use-auth";
 
 const closeShiftSchema = z.object({
   countedFinalCash: z.string().min(1, "Informe o valor contado em dinheiro"),
@@ -54,6 +59,7 @@ export function CloseShiftModal({
   onConfirm,
   isClosing
 }: CloseShiftModalProps) {
+  const { user } = useAuth();
   const [cashDivergence, setCashDivergence] = useState(0);
 
   const form = useForm<CloseShiftForm>({
@@ -84,6 +90,18 @@ export function CloseShiftModal({
   // Get cash adjustments/withdrawals from the current shift
   const { data: cashAdjustments } = useQuery({
     queryKey: ["/api/cash-adjustments", shift.id],
+    enabled: isOpen,
+  });
+
+  // Registros de produtos movimentados
+  const { data: shiftRecords } = useQuery<any[]>({
+    queryKey: [`/api/shift-records?shiftId=${shift.id}`],
+    enabled: isOpen,
+  });
+
+  // Colaboradores do turno
+  const { data: collaborators } = useQuery<any[]>({
+    queryKey: [`/api/shift-collaborators/${shift.id}`],
     enabled: isOpen,
   });
 
@@ -134,7 +152,178 @@ export function CloseShiftModal({
     }
   }, [countedFinalCash, countedFinalCoins, totalExpectedFinal]);
 
-  const handleSubmit = (data: CloseShiftForm) => {
+  const generateShiftClosurePDF = async (pdfData: any) => {
+    const { shift, formData, paymentData, shiftRecords, collaborators } = pdfData;
+
+    const doc = new jsPDF();
+    const now = new Date();
+    
+    // Helper para formatação de moeda
+    const formatCurrencyPDF = (value: string | number) => 
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
+
+    // Título
+    doc.setFontSize(18);
+    doc.text("Relatório de Fechamento de Turno", 105, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.text(`Gerado em: ${format(now, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}`, 105, 26, { align: "center" });
+
+    // Informações do Turno
+    autoTable(doc, {
+      startY: 35,
+      body: [
+        ["Turno ID:", `#${shift.id}`, "Funcionário:", user?.name || "N/A"],
+        ["Início:", format(new Date(shift.startTime), "dd/MM/yyyy HH:mm", { locale: ptBR }), 
+         "Fim:", format(now, "dd/MM/yyyy HH:mm", { locale: ptBR })],
+      ],
+      theme: 'plain',
+      styles: { fontSize: 10 },
+    });
+
+    // Resumo do Caixa
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(14);
+    doc.text("Resumo do Caixa", 14, finalY);
+
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [['Descrição', 'Valor (R$)']],
+      body: [
+        ['Caixa Inicial', formatCurrencyPDF(parseFloat(shift.initialCash) + parseFloat(shift.initialCoins))],
+        ['Vendas em Dinheiro', formatCurrencyPDF(paymentData?.cash || 0)],
+        ['Retiradas Administrativas', formatCurrencyPDF(totalWithdrawals)],
+        ['Caixa Esperado', formatCurrencyPDF(totalExpectedFinal)],
+        ['Caixa Final Contado', formatCurrencyPDF(parseFloat(formData.countedFinalCash) + parseFloat(formData.countedFinalCoins))],
+      ],
+      theme: 'grid',
+      foot: [
+        ['DIVERGÊNCIA', formatCurrencyPDF(cashDivergence)]
+      ],
+      didParseCell: function (data) {
+        if (data.row.section === 'foot') {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = cashDivergence < 0 ? [255, 0, 0] : [0, 128, 0];
+        }
+      }
+    });
+
+    // Retirada para Envelope e Troco
+    const envelopeTotal = parseFloat(formData.envelopeCash) + parseFloat(formData.envelopeCoins);
+    const trocoTotal = (parseFloat(formData.countedFinalCash) + parseFloat(formData.countedFinalCoins)) - envelopeTotal;
+    
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 5,
+      head: [['Retirada & Troco', 'Valor (R$)']],
+      body: [
+        ['Retirado para Envelope', formatCurrencyPDF(envelopeTotal)],
+        ['Troco para Próximo Turno', formatCurrencyPDF(trocoTotal)]
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [220, 220, 220], textColor: [0,0,0] },
+      foot: [
+        [`(Notas: ${formatCurrencyPDF(parseFloat(formData.countedFinalCash) - parseFloat(formData.envelopeCash))} / Moedas: ${formatCurrencyPDF(parseFloat(formData.countedFinalCoins) - parseFloat(formData.envelopeCoins))})`]
+      ],
+      footStyles: { fontStyle: 'italic', fontSize: 8, halign: 'right' }
+    });
+
+    // Vendas por Forma de Pagamento
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Vendas por Forma de Pagamento", 14, finalY);
+    
+    const paymentMethods = [
+      ['Dinheiro', formatCurrencyPDF(paymentData?.cash || 0)],
+      ['PIX', formatCurrencyPDF(paymentData?.pix || 0)],
+      ['Stone Cartão', formatCurrencyPDF(paymentData?.stoneCard || 0)],
+      ['Stone Voucher', formatCurrencyPDF(paymentData?.stoneVoucher || 0)],
+      ['PagBank Cartão', formatCurrencyPDF(paymentData?.pagBankCard || 0)],
+    ];
+    
+    const totalPayments = (paymentData?.cash || 0) + (paymentData?.pix || 0) + 
+                         (paymentData?.stoneCard || 0) + (paymentData?.stoneVoucher || 0) + 
+                         (paymentData?.pagBankCard || 0);
+    
+    autoTable(doc, {
+      startY: finalY + 5,
+      head: [['Forma de Pagamento', 'Valor']],
+      body: paymentMethods,
+      foot: [['TOTAL DE VENDAS', formatCurrencyPDF(totalPayments)]],
+      theme: 'grid',
+      footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] }
+    });
+
+    // Movimentação de Produtos
+    if (shiftRecords && shiftRecords.length > 0) {
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.text("Movimentação de Produtos", 14, finalY);
+      
+      const productRows = shiftRecords.map((record: any) => [
+        record.product?.name || 'N/A',
+        record.initialQuantity?.toString() || '0',
+        record.addedQuantity?.toString() || '0',
+        record.remainingQuantity?.toString() || '0',
+        record.discardedQuantity?.toString() || '0',
+        record.consumptionQuantity?.toString() || '0',
+        record.soldQuantity?.toString() || '0',
+        formatCurrencyPDF((record.soldQuantity || 0) * (record.product?.price || 0))
+      ]);
+      
+      const totalSoldQuantity = shiftRecords.reduce((sum: number, r: any) => sum + (r.soldQuantity || 0), 0);
+      const totalRevenue = shiftRecords.reduce((sum: number, r: any) => sum + ((r.soldQuantity || 0) * (r.product?.price || 0)), 0);
+      
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Produto', 'Inicial', 'Chegada', 'Sobra', 'Descarte', 'Consumo', 'Vendidos', 'Total (R$)']],
+        body: productRows,
+        foot: [['TOTAIS', '', '', '', '', '', totalSoldQuantity.toString(), formatCurrencyPDF(totalRevenue)]],
+        theme: 'grid',
+        headStyles: { fontSize: 9 },
+        bodyStyles: { fontSize: 9 },
+        footStyles: { fontStyle: 'bold', fillColor: [240, 240, 240] }
+      });
+    }
+
+    // Observações e Colaboradores
+    if (formData.notes || (collaborators && collaborators.length > 0)) {
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(12);
+      doc.text("Observações e Colaboradores", 14, finalY);
+      
+      const infoRows: string[][] = [];
+      
+      if (formData.notes) {
+        infoRows.push(['Observações:', formData.notes]);
+      }
+      
+      if (collaborators && collaborators.length > 0) {
+        const collabNames = collaborators.map((c: any) => c.user?.name || 'N/A').join(', ');
+        infoRows.push(['Colaboradores:', collabNames]);
+      }
+      
+      if (infoRows.length > 0) {
+        autoTable(doc, {
+          startY: finalY + 5,
+          body: infoRows,
+          theme: 'plain',
+          styles: { fontSize: 10 }
+        });
+      }
+    }
+
+    // Assinatura
+    const finalPageY = (doc as any).lastAutoTable?.finalY || 200;
+    doc.setFontSize(10);
+    doc.text("________________________________________", 105, finalPageY + 20, { align: "center" });
+    doc.text(user?.name || "Funcionário", 105, finalPageY + 26, { align: "center" });
+    doc.setFontSize(8);
+    doc.text("Assinatura do Responsável", 105, finalPageY + 30, { align: "center" });
+
+    // Salvar o PDF
+    doc.save(`fechamento_turno_${shift.id}_${(user?.name || 'funcionario').replace(/\s/g, '_')}_${format(now, 'ddMMyyyy_HHmmss')}.pdf`);
+  };
+
+  const handleSubmit = async (data: CloseShiftForm) => {
     // Check cash divergence
     if (Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE && !data.notes) {
       form.setError("notes", { 
@@ -143,7 +332,26 @@ export function CloseShiftModal({
       return;
     }
 
-    onConfirm(data);
+    try {
+      // Coleta todos os dados para o PDF
+      const pdfData = {
+        shift,
+        formData: data,
+        paymentData,
+        shiftRecords,
+        collaborators,
+      };
+      
+      // 1. Gera e baixa o PDF
+      await generateShiftClosurePDF(pdfData);
+
+      // 2. Continua com o fechamento do turno
+      onConfirm(data);
+    } catch (error) {
+      console.error('Erro ao gerar PDF:', error);
+      // Continua com o fechamento mesmo se o PDF falhar
+      onConfirm(data);
+    }
   };
 
   return (

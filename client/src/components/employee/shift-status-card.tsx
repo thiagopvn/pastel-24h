@@ -62,6 +62,23 @@ export default function ShiftStatusCard() {
     return (lastClosedShift as any).coinsForNextShift || (lastClosedShift as any).inheritedCoins || "50.00";
   };
 
+  // Este efeito só deve ser executado quando o modal for aberto.
+  useEffect(() => {
+    if (isOpenDialogOpen && !currentShift) {
+      const adjustedCash = calculateExpectedCash();
+      const adjustedCoins = calculateExpectedCoins();
+
+      // Usamos form.reset() para definir todos os valores iniciais do formulário de uma vez.
+      // Isso é mais seguro do que usar setValue repetidamente.
+      form.reset({
+        initialCash: adjustedCash,
+        initialCoins: adjustedCoins,
+        notes: "", // Garante que as observações também sejam limpas
+        gasExchange: false,
+      });
+    }
+  }, [isOpenDialogOpen, lastClosedShift, currentShift, form]); // As dependências garantem que o cálculo use os dados mais recentes ao abrir.
+
   const openShiftMutation = useMutation({
     mutationFn: async (data: ShiftForm) => {
       const res = await apiRequest("POST", "/api/shifts/open", data);
