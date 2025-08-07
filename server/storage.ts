@@ -477,7 +477,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getShiftRecords(shiftId: number): Promise<ShiftRecord[]> {
-    return await db.select().from(shiftRecords).where(eq(shiftRecords.shiftId, shiftId));
+    return await db.select({
+      id: shiftRecords.id,
+      shiftId: shiftRecords.shiftId,
+      productId: shiftRecords.productId,
+      entryQty: shiftRecords.entryQty,
+      arrivalQty: shiftRecords.arrivalQty,
+      leftoverQty: shiftRecords.leftoverQty,
+      discardQty: shiftRecords.discardQty,
+      consumedQty: shiftRecords.consumedQty,
+      soldQty: shiftRecords.soldQty,
+      priceSnapshot: shiftRecords.priceSnapshot,
+      itemTotal: shiftRecords.itemTotal,
+      product: products
+    }).from(shiftRecords)
+      .leftJoin(products, eq(shiftRecords.productId, products.id))
+      .where(eq(shiftRecords.shiftId, shiftId)) as any;
   }
 
   async updateShiftRecord(recordId: number, updates: Partial<ShiftRecord>): Promise<ShiftRecord | undefined> {

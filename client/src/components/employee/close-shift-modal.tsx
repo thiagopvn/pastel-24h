@@ -260,17 +260,17 @@ export function CloseShiftModal({
       
       const productRows = shiftRecords.map((record: any) => [
         record.product?.name || 'N/A',
-        record.initialQuantity?.toString() || '0',
-        record.addedQuantity?.toString() || '0',
-        record.remainingQuantity?.toString() || '0',
-        record.discardedQuantity?.toString() || '0',
-        record.consumptionQuantity?.toString() || '0',
-        record.soldQuantity?.toString() || '0',
-        formatCurrencyPDF((record.soldQuantity || 0) * (record.product?.price || 0))
+        record.entryQty?.toString() || '0',
+        record.arrivalQty?.toString() || '0',
+        record.leftoverQty?.toString() || '0',
+        record.discardQty?.toString() || '0',
+        record.consumedQty?.toString() || '0',
+        record.soldQty?.toString() || '0',
+        formatCurrencyPDF((record.soldQty || 0) * (parseFloat(record.product?.price) || 0))
       ]);
       
-      const totalSoldQuantity = shiftRecords.reduce((sum: number, r: any) => sum + (r.soldQuantity || 0), 0);
-      const totalRevenue = shiftRecords.reduce((sum: number, r: any) => sum + ((r.soldQuantity || 0) * (r.product?.price || 0)), 0);
+      const totalSoldQuantity = shiftRecords.reduce((sum: number, r: any) => sum + (r.soldQty || 0), 0);
+      const totalRevenue = shiftRecords.reduce((sum: number, r: any) => sum + ((r.soldQty || 0) * (parseFloat(r.product?.price) || 0)), 0);
       
       autoTable(doc, {
         startY: finalY + 5,
