@@ -37,8 +37,8 @@ export default function Charts({ period }: ChartsProps) {
       }));
     }
     return data.map(item => ({
-      hour: typeof item.hour === 'string' ? item.hour.padStart(2, '0') : item.hour.toString().padStart(2, '0'),
-      sales: parseFloat(item.sales) || 0
+      hour: typeof item.hour === 'string' ? item.hour.padStart(2, '0') : String(item.hour || 0).padStart(2, '0'),
+      sales: parseFloat(String(item.sales || 0)) || 0
     }));
   };
 
@@ -48,20 +48,25 @@ export default function Charts({ period }: ChartsProps) {
     staleTime: 0,
   });
 
-  const formatPaymentData = (stats: PaymentMethodStats) => {
+  const formatPaymentData = (stats: PaymentMethodStats | undefined) => {
     if (!stats) return [];
     
-    const cash = parseFloat(stats.cash.toString()) || 0;
-    const pix = parseFloat(stats.pix.toString()) || 0;
-    const stoneCard = parseFloat(stats.stoneCard.toString()) || 0;
-    const stoneVoucher = parseFloat(stats.stoneVoucher.toString()) || 0;
-    const pagBankCard = parseFloat(stats.pagBankCard.toString()) || 0;
+    const cash = parseFloat(stats.cash?.toString() || '0') || 0;
+    const pix = parseFloat(stats.pix?.toString() || '0') || 0;
+    const stoneCard = parseFloat(stats.stoneCard?.toString() || '0') || 0;
+    const stoneVoucher = parseFloat(stats.stoneVoucher?.toString() || '0') || 0;
+    const pagBankCard = parseFloat(stats.pagBankCard?.toString() || '0') || 0;
     
     const total = cash + pix + stoneCard + stoneVoucher + pagBankCard;
     if (total === 0) return [];
 
-    const formatCurrency = (value: number) => 
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    const formatCurrency = (value: number) => {
+      try {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+      } catch {
+        return `R$ ${value.toFixed(2)}`;
+      }
+    };
 
     return [
       { name: "Dinheiro", value: cash, percentage: ((cash / total) * 100).toFixed(1), display: formatCurrency(cash) },
@@ -69,7 +74,7 @@ export default function Charts({ period }: ChartsProps) {
       { name: "Stone D/C", value: stoneCard, percentage: ((stoneCard / total) * 100).toFixed(1), display: formatCurrency(stoneCard) },
       { name: "Stone Voucher", value: stoneVoucher, percentage: ((stoneVoucher / total) * 100).toFixed(1), display: formatCurrency(stoneVoucher) },
       { name: "PagBank D/C", value: pagBankCard, percentage: ((pagBankCard / total) * 100).toFixed(1), display: formatCurrency(pagBankCard) },
-    ].filter(item => item.value > 0);
+    ].filter(item => item.value > 0 && item.name);
   };
 
   const COLORS = ['hsl(207, 90%, 54%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(258, 90%, 66%)', 'hsl(14, 90%, 53%)'];
@@ -158,26 +163,29 @@ export default function Charts({ period }: ChartsProps) {
                         ))}
                       </Pie>
                       <Tooltip 
-                        formatter={(value, name) => [
-                          `${formatPaymentData(paymentStats!).find(item => item.name === name)?.display || value}`,
-                          name
-                        ]}
+                        formatter={(value, name) => {
+                          const formattedItem = formatPaymentData(paymentStats!).find(item => item.name === name);
+                          return [
+                            formattedItem?.display || `R$ ${Number(value).toFixed(2)}`,
+                            name || 'Desconhecido'
+                          ];
+                        }}
                       />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="mt-4 space-y-2">
                     {formattedData.map((entry, index) => (
-                      <div key={entry.name} className="flex items-center justify-between">
+                      <div key={entry.name || `item-${index}`} className="flex items-center justify-between">
                         <div className="flex items-center">
                           <div 
                             className="w-3 h-3 rounded-full mr-2" 
                             style={{ backgroundColor: COLORS[index % COLORS.length] }}
                           />
-                          <span className="text-sm text-gray-700">{entry.name}</span>
+                          <span className="text-sm text-gray-700">{entry.name || 'Sem nome'}</span>
                         </div>
                         <div className="text-right">
-                          <span className="text-sm font-medium text-gray-900">R$ {entry.value.toFixed(2)}</span>
-                          <span className="text-xs text-gray-500 block">{entry.percentage}%</span>
+                          <span className="text-sm font-medium text-gray-900">R$ {(entry.value || 0).toFixed(2)}</span>
+                          <span className="text-xs text-gray-500 block">{entry.percentage || '0'}%</span>
                         </div>
                       </div>
                     ))}

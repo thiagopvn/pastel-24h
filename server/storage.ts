@@ -634,16 +634,16 @@ export class DatabaseStorage implements IStorage {
     sales: number;
   }>> {
     const result = await db.select({
-      hour: sql<number>`EXTRACT(HOUR FROM ${shifts.startTime})`,
-      sales: sql<number>`SUM(${shiftRecords.itemTotal})`,
+      hour: sql<number>`CAST(strftime('%H', datetime(${shifts.startTime}/1000, 'unixepoch')) AS INTEGER)`,
+      sales: sql<number>`SUM(CAST(${shiftRecords.itemTotal} AS REAL))`,
     }).from(shiftRecords)
       .innerJoin(shifts, eq(shiftRecords.shiftId, shifts.id))
       .where(and(
         gte(shifts.startTime, startDate),
         lte(shifts.startTime, endDate)
       ))
-      .groupBy(sql`EXTRACT(HOUR FROM ${shifts.startTime})`)
-      .orderBy(sql`EXTRACT(HOUR FROM ${shifts.startTime})`);
+      .groupBy(sql`CAST(strftime('%H', datetime(${shifts.startTime}/1000, 'unixepoch')) AS INTEGER)`)
+      .orderBy(sql`CAST(strftime('%H', datetime(${shifts.startTime}/1000, 'unixepoch')) AS INTEGER)`);
 
     return result;
   }
