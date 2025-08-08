@@ -1,4 +1,4 @@
-import { users, products, shifts, shiftCollaborators, shiftRecords, shiftPayments, weeklyReports, timeline, config, paymentConfig, payrollConfig, shiftSignatures, cashAdjustments, shiftSnapshots, transportModes, type User, type InsertUser, type Product, type InsertProduct, type Shift, type InsertShift, type ShiftRecord, type InsertShiftRecord, type ShiftPayment, type InsertShiftPayment, type PaymentConfig, type InsertPaymentConfig, type PayrollConfig, type InsertPayrollConfig, type WeeklyReport, type Timeline, type ShiftSignature, type CashAdjustment, type ShiftSnapshot, type TransportMode, type InsertTransportMode } from "@shared/schema";
+import { users, products, shifts, shiftCollaborators, shiftRecords, shiftPayments, weeklyReports, timeline, config, paymentConfig, payrollConfig, shiftSignatures, cashAdjustments, shiftSnapshots, transportModes, corrections, type User, type InsertUser, type Product, type InsertProduct, type Shift, type InsertShift, type ShiftRecord, type InsertShiftRecord, type ShiftPayment, type InsertShiftPayment, type PaymentConfig, type InsertPaymentConfig, type PayrollConfig, type InsertPayrollConfig, type WeeklyReport, type Timeline, type ShiftSignature, type CashAdjustment, type ShiftSnapshot, type TransportMode, type InsertTransportMode, type Correction, type InsertCorrection } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, gte, lte, isNull, isNotNull, gt, sql } from "drizzle-orm";
 import session from "express-session";
@@ -121,6 +121,25 @@ export interface IStorage {
 
   getPendingWithdrawals(): Promise<CashAdjustment[]>;
   getAdjustedInheritedCash(lastClosedShift: any): Promise<{ inheritedCash: string; totalWithdrawals: number }>;
+
+  // Métodos para correções
+  createCorrection(correction: InsertCorrection & { createdByUserId: number }): Promise<Correction>;
+  getShiftCorrections(shiftId: number): Promise<Correction[]>;
+  getActiveCorrections(shiftId: number): Promise<Correction[]>;
+  revokeCorrection(correctionId: number, revokedByUserId: number, reason: string): Promise<Correction | undefined>;
+  getShiftDetailsWithCorrections(shiftId: number): Promise<{
+    shift: Shift & { user: User };
+    records: (ShiftRecord & { product: Product } & { 
+      correctedEntryQty?: number;
+      correctedSoldQty?: number;
+      correctedLeftoverQty?: number;
+      correctedTotal?: string;
+    })[];
+    payments: ShiftPayment | null;
+    correctedPayments?: Partial<ShiftPayment>;
+    collaborators: User[];
+    corrections: Correction[];
+  } | undefined>;
 
   sessionStore: session.Store;
 }
@@ -876,6 +895,105 @@ export class DatabaseStorage implements IStorage {
   async deleteTransportMode(id: number): Promise<boolean> {
     const result = await db.delete(transportModes).where(eq(transportModes.id, id));
     return (result.changes ?? 0) > 0;
+  }
+
+  // Métodos para correções
+  async createCorrection(correction: InsertCorrection & { createdByUserId: number }): Promise<Correction> {
+    const [created] = await db
+      .insert(corrections)
+      .values(correction)
+      .returning();
+    return created;
+  }
+
+  async getShiftCorrections(shiftId: number): Promise<Correction[]> {
+    return await db
+      .select()
+      .from(corrections)
+      .where(eq(corrections.shiftId, shiftId))
+      .orderBy(desc(corrections.appliedAt));
+  }
+
+  async getActiveCorrections(shiftId: number): Promise<Correction[]> {
+    return await db
+      .select()
+      .from(corrections)
+      .where(and(
+        eq(corrections.shiftId, shiftId),
+        isNull(corrections.revokedAt)
+      ))
+      .orderBy(desc(corrections.appliedAt));
+  }
+
+  async revokeCorrection(correctionId: number, revokedByUserId: number, reason: string): Promise<Correction | undefined> {
+    const [revoked] = await db
+      .update(corrections)
+      .set({
+        revokedAt: new Date(),
+        revokedByUserId,
+        revokeReason: reason
+      })
+      .where(eq(corrections.id, correctionId))
+      .returning();
+    return revoked || undefined;
+  }
+
+  async getShiftDetailsWithCorrections(shiftId: number): Promise<{
+    shift: Shift & { user: User };
+    records: (ShiftRecord & { product: Product } & { 
+      correctedEntryQty?: number;
+      correctedSoldQty?: number;
+      correctedLeftoverQty?: number;
+      correctedTotal?: string;
+    })[];
+    payments: ShiftPayment | null;
+    correctedPayments?: Partial<ShiftPayment>;
+    collaborators: User[];
+    corrections: Correction[];
+  } | undefined> {
+    const baseDetails = await this.getShiftDetails(shiftId);
+    if (!baseDetails) return undefined;
+
+    const activeCorrections = await this.getActiveCorrections(shiftId);
+    
+    // Aplicar correções aos dados
+    const correctedRecords = baseDetails.records.map(record => {
+      const recordCorrections = activeCorrections.filter(c => 
+        c.shiftRecordId === record.id || 
+        (c.productId === record.productId && c.correctionType === 'product_qty')
+      );
+      
+      let correctedRecord: any = { ...record };
+      recordCorrections.forEach(correction => {
+        if (correction.fieldName) {
+          const correctedFieldName = `corrected${correction.fieldName.charAt(0).toUpperCase()}${correction.fieldName.slice(1)}`;
+          correctedRecord[correctedFieldName] = 
+            correction.fieldName.includes('Qty') 
+              ? parseInt(correction.correctedValue) 
+              : correction.correctedValue;
+        }
+      });
+      
+      return correctedRecord;
+    });
+
+    // Aplicar correções aos pagamentos
+    let correctedPayments: Partial<ShiftPayment> = {};
+    if (baseDetails.payments) {
+      const paymentCorrections = activeCorrections.filter(c => c.correctionType === 'payment');
+      paymentCorrections.forEach(correction => {
+        if (correction.paymentMethod && correction.paymentMethod in baseDetails.payments) {
+          (correctedPayments as any)[correction.paymentMethod] = correction.correctedValue;
+        }
+      });
+    }
+
+    return {
+      ...baseDetails,
+      records: correctedRecords,
+      correctedPayments: Object.keys(correctedPayments).length > 0 ? correctedPayments : undefined,
+      corrections: activeCorrections
+    };
   }
 }
 

@@ -198,6 +198,38 @@ export const shiftSnapshots = sqliteTable("shift_snapshots", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
+export const corrections = sqliteTable("corrections", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").notNull().references(() => shifts.id),
+  createdByUserId: integer("created_by_user_id").notNull().references(() => users.id),
+  correctionType: text("correction_type", { enum: ["product_qty", "product_price", "payment", "cash_count"] }).notNull(),
+  
+  // Para correções de produtos
+  shiftRecordId: integer("shift_record_id").references(() => shiftRecords.id),
+  productId: integer("product_id").references(() => products.id),
+  fieldName: text("field_name"), // "entryQty", "soldQty", "leftoverQty", etc.
+  
+  // Para correções de pagamentos
+  paymentMethod: text("payment_method"), // "cash", "pix", "stoneCard", etc.
+  
+  // Para correções de contagem de caixa
+  cashType: text("cash_type"), // "countedFinalCash", "countedFinalCoins", "envelopeCash", etc.
+  
+  // Valores da correção
+  originalValue: text("original_value").notNull(),
+  correctedValue: text("corrected_value").notNull(),
+  
+  // Metadados
+  reason: text("reason").notNull(),
+  evidenceUrl: text("evidence_url"),
+  appliedAt: integer("applied_at", { mode: "timestamp_ms" }).default(new Date()),
+  
+  // Para soft delete/revogação
+  revokedAt: integer("revoked_at", { mode: "timestamp_ms" }),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id),
+  revokeReason: text("revoke_reason"),
+});
+
 export const usersRelations = relations(users, ({ many, one }) => ({
   shifts: many(shifts),
   shiftCollaborations: many(shiftCollaborators),
@@ -238,6 +270,28 @@ export const shiftPaymentsRelations = relations(shiftPayments, ({ one }) => ({
 export const timelineRelations = relations(timeline, ({ one }) => ({
   user: one(users, { fields: [timeline.userId], references: [users.id] }),
 }));
+
+export const correctionsRelations = relations(corrections, ({ one }) => ({
+  shift: one(shifts, { fields: [corrections.shiftId], references: [shifts.id] }),
+  createdByUser: one(users, { fields: [corrections.createdByUserId], references: [users.id] }),
+  revokedByUser: one(users, { fields: [corrections.revokedByUserId], references: [users.id] }),
+  shiftRecord: one(shiftRecords, { fields: [corrections.shiftRecordId], references: [shiftRecords.id] }),
+  product: one(products, { fields: [corrections.productId], references: [products.id] }),
+}));
+
+export const insertCorrectionSchema = createInsertSchema(corrections).pick({
+  shiftId: true,
+  correctionType: true,
+  shiftRecordId: true,
+  productId: true,
+  fieldName: true,
+  paymentMethod: true,
+  cashType: true,
+  originalValue: true,
+  correctedValue: true,
+  reason: true,
+  evidenceUrl: true,
+});
 
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -324,3 +378,5 @@ export type Timeline = typeof timeline.$inferSelect;
 export type ShiftSignature = typeof shiftSignatures.$inferSelect;
 export type CashAdjustment = typeof cashAdjustments.$inferSelect;
 export type ShiftSnapshot = typeof shiftSnapshots.$inferSelect;
+export type Correction = typeof corrections.$inferSelect;
+export type InsertCorrection = z.infer<typeof insertCorrectionSchema>;

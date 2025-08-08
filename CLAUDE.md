@@ -14,6 +14,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build:server` - Build only the Express backend with esbuild
 - `npm run start` - Start production server (requires build first)
 
+**Docker & Deployment:**
+- `docker build -t pastel24h .` - Build production Docker image
+- `docker-compose up` - Start containerized application
+- Vercel serverless deployment via `/api/index.js` endpoint
+
 **Database:**
 - `npm run db:generate` - Generate new database migrations with Drizzle Kit
 - `npm run db:migrate` - Run pending database migrations
@@ -31,15 +36,20 @@ This is a full-stack web application for restaurant shift management built with:
 **Frontend (React + Vite):**
 - React with TypeScript and Wouter for routing
 - TanStack Query for server state management
-- Shadcn/ui components with Tailwind CSS
+- Shadcn/ui components with Tailwind CSS and Framer Motion animations
+- Comprehensive UI library: Radix UI components, Recharts for data visualization
+- Export capabilities: PDF generation (jsPDF) and Excel export (xlsx)
+- Mobile-first responsive design with advanced navigation
 - Role-based protected routes and authentication context
 
 **Key Directories:**
 - `server/` - Express backend with authentication, routes, and database logic
 - `client/src/` - React frontend application
+- `client/src/lib/` - Business logic utilities (calculations, constants)
 - `shared/` - Shared TypeScript schemas and types
 - `data/` - SQLite database file location
 - `migrations/` - Drizzle database migration files
+- `api/` - Serverless deployment configuration (Vercel)
 
 ## Database Structure
 
@@ -58,6 +68,8 @@ The application manages restaurant operations through interconnected tables:
 - Requires `.env` file with `SESSION_SECRET` for session security
 - Database auto-initializes on first migration run
 - Development mode uses Vite middleware for frontend hot-reload
+- TypeScript path aliases configured: `@/*` for client, `@shared/*` for shared modules
+- Cross-platform environment variable support via cross-env
 
 **Authentication Flow:**
 - Passport local strategy with bcrypt password hashing
@@ -73,6 +85,12 @@ The application manages restaurant operations through interconnected tables:
 - Server state via TanStack Query with optimistic updates
 - Authentication context provides user state across components
 - Toast notifications for user feedback
+
+**Business Logic:**
+- Complex inventory calculations engine in `client/src/lib/calculations.ts`
+- Comprehensive business constants and rules in `client/src/lib/constants.ts`
+- Advanced cash divergence tracking and payment method handling
+- Automated report generation with PDF and Excel export capabilities
 
 ## API Architecture
 
@@ -91,7 +109,9 @@ The application manages restaurant operations through interconnected tables:
 - Session management with express-session and memorystore
 - Passport.js for authentication strategies
 - Role-based access control middleware (requireAuth, requireAdmin)
-- Request validation using Zod schemas
+- Request validation using Zod schemas with enhanced error handling
+- CORS configuration for production deployment
+- Health check endpoints for monitoring (`/api/health`)
 
 ## Testing & Quality Checks
 
@@ -100,3 +120,15 @@ The application manages restaurant operations through interconnected tables:
 - Test authentication flows with both admin and employee roles
 - Verify database migrations with `npm run db:migrate`
 - Check API endpoints return proper status codes and error messages
+
+## Deployment Options
+
+**Docker Containerization:**
+- Multi-stage Docker build with optimization for production
+- Database migrations run automatically during container startup
+- Docker Compose configuration available for local development
+
+**Serverless Deployment:**
+- Vercel-compatible serverless functions via `/api/index.js`
+- Automatic scaling and edge distribution support
+- Environment-specific configuration for production deployments

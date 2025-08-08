@@ -1283,7 +1283,7 @@ export function registerRoutes(app: Express): Server {
       }
 
       console.log("Buscando detalhes do turno:", shiftId);
-      const shiftDetails = await storage.getShiftDetails(shiftId);
+      const shiftDetails = await storage.getShiftDetailsWithCorrections(shiftId);
       console.log("Detalhes encontrados:", shiftDetails ? "sim" : "não");
 
       if (!shiftDetails) {
@@ -1295,6 +1295,97 @@ export function registerRoutes(app: Express): Server {
       console.error("Erro ao buscar detalhes do turno:", error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ message: "Failed to get shift details", error: message });
+    }
+  });
+
+  // Rotas para correções administrativas
+  app.get("/api/admin/shifts/:shiftId/corrections", requireAdmin, async (req, res) => {
+    try {
+      const shiftId = parseInt(req.params.shiftId);
+      if (isNaN(shiftId)) {
+        return res.status(400).json({ message: "Invalid shift ID" });
+      }
+
+      const corrections = await storage.getShiftCorrections(shiftId);
+      res.json(corrections);
+    } catch (error) {
+      console.error("Erro ao buscar correções:", error);
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ message: "Failed to get corrections", error: message });
+    }
+  });
+
+  app.post("/api/admin/shifts/:shiftId/corrections", requireAdmin, async (req, res) => {
+    try {
+      const shiftId = parseInt(req.params.shiftId);
+      if (isNaN(shiftId)) {
+        return res.status(400).json({ message: "Invalid shift ID" });
+      }
+
+      // Validar que o turno está fechado
+      const shift = await storage.getShift(shiftId);
+      if (!shift || shift.status !== 'closed') {
+        return res.status(400).json({ message: "Correções só podem ser aplicadas em turnos fechados" });
+      }
+
+      const correctionData = {
+        ...req.body,
+        shiftId,
+        createdByUserId: req.user!.id
+      };
+
+      const correction = await storage.createCorrection(correctionData);
+      
+      // Adicionar ao Timeline
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "correction_applied",
+        description: `Correção aplicada no turno #${shiftId}: ${correctionData.correctionType}`,
+        metadata: { correctionId: correction.id, ...correctionData }
+      });
+      
+      res.json(correction);
+    } catch (error) {
+      console.error("Erro ao criar correção:", error);
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ message: "Failed to create correction", error: message });
+    }
+  });
+
+  app.put("/api/admin/corrections/:correctionId/revoke", requireAdmin, async (req, res) => {
+    try {
+      const correctionId = parseInt(req.params.correctionId);
+      if (isNaN(correctionId)) {
+        return res.status(400).json({ message: "Invalid correction ID" });
+      }
+
+      const { reason } = req.body;
+      if (!reason) {
+        return res.status(400).json({ message: "Reason is required" });
+      }
+
+      const correction = await storage.revokeCorrection(
+        correctionId,
+        req.user!.id,
+        reason
+      );
+
+      if (!correction) {
+        return res.status(404).json({ message: "Correction not found" });
+      }
+      
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "correction_revoked",
+        description: `Correção #${correctionId} revogada`,
+        metadata: { correctionId, reason }
+      });
+      
+      res.json(correction);
+    } catch (error) {
+      console.error("Erro ao revogar correção:", error);
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ message: "Failed to revoke correction", error: message });
     }
   });
 

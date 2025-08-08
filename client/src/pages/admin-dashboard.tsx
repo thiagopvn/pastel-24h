@@ -10,6 +10,7 @@ import Alerts from "@/components/admin/alerts";
 import Timeline from "@/components/admin/timeline";
 import MobileNav from "@/components/navigation/mobile-nav";
 import { CashAdjustmentDialog } from "@/components/admin/cash-adjustment-dialog";
+import LastShiftInfo from "@/components/admin/last-shift-info";
 
 type Period = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -73,9 +74,10 @@ export default function AdminDashboard() {
         <StatsCards period={period} />
         <Charts period={period} />
         
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
           <PaymentBreakdown period={period} />
           <Alerts period={period} />
+          <LastShiftInfo />
         </div>
 
         <Timeline />
