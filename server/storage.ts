@@ -907,22 +907,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getShiftCorrections(shiftId: number): Promise<Correction[]> {
-    return await db
-      .select()
-      .from(corrections)
-      .where(eq(corrections.shiftId, shiftId))
-      .orderBy(desc(corrections.appliedAt));
+    // Usar query builder com relações para incluir os dados dos usuários
+    const result = await db.query.corrections.findMany({
+      where: eq(corrections.shiftId, shiftId),
+      with: {
+        createdByUser: true,
+        revokedByUser: true,
+        product: true
+      },
+      orderBy: [desc(corrections.appliedAt)]
+    });
+    return result;
   }
 
   async getActiveCorrections(shiftId: number): Promise<Correction[]> {
-    return await db
-      .select()
-      .from(corrections)
-      .where(and(
+    // Usar query builder com relações para incluir os dados dos usuários
+    const result = await db.query.corrections.findMany({
+      where: and(
         eq(corrections.shiftId, shiftId),
         isNull(corrections.revokedAt)
-      ))
-      .orderBy(desc(corrections.appliedAt));
+      ),
+      with: {
+        createdByUser: true,
+        revokedByUser: true,
+        product: true
+      },
+      orderBy: [desc(corrections.appliedAt)]
+    });
+    return result;
   }
 
   async revokeCorrection(correctionId: number, revokedByUserId: number, reason: string): Promise<Correction | undefined> {
@@ -951,20 +963,44 @@ export class DatabaseStorage implements IStorage {
     collaborators: User[];
     corrections: Correction[];
   } | undefined> {
-    const baseDetails = await this.getShiftDetails(shiftId);
-    if (!baseDetails) return undefined;
+    // Usar query builder para garantir que o usuário seja incluído
+    const shiftWithUser = await db.query.shifts.findFirst({
+      where: eq(shifts.id, shiftId),
+      with: {
+        user: true
+      }
+    });
+    
+    if (!shiftWithUser) return undefined;
 
+    // Buscar os registros com produtos
+    const recordsWithProducts = await db.query.shiftRecords.findMany({
+      where: eq(shiftRecords.shiftId, shiftId),
+      with: {
+        product: true
+      }
+    });
+
+    // Buscar pagamentos
+    const payments = await db.query.shiftPayments.findFirst({
+      where: eq(shiftPayments.shiftId, shiftId)
+    });
+
+    // Buscar colaboradores
+    const collaborators = await this.getShiftCollaborators(shiftId);
+
+    // Buscar correções ativas com relações
     const activeCorrections = await this.getActiveCorrections(shiftId);
     
     // Aplicar correções aos dados
-    const correctedRecords = baseDetails.records.map(record => {
-      const recordCorrections = activeCorrections.filter(c => 
+    const correctedRecords = recordsWithProducts.map(record => {
+      const recordCorrections = activeCorrections.filter((c: any) => 
         c.shiftRecordId === record.id || 
         (c.productId === record.productId && c.correctionType === 'product_qty')
       );
       
       let correctedRecord: any = { ...record };
-      recordCorrections.forEach(correction => {
+      recordCorrections.forEach((correction: any) => {
         if (correction.fieldName) {
           const correctedFieldName = `corrected${correction.fieldName.charAt(0).toUpperCase()}${correction.fieldName.slice(1)}`;
           correctedRecord[correctedFieldName] = 
@@ -979,19 +1015,21 @@ export class DatabaseStorage implements IStorage {
 
     // Aplicar correções aos pagamentos
     let correctedPayments: Partial<ShiftPayment> = {};
-    if (baseDetails.payments) {
-      const paymentCorrections = activeCorrections.filter(c => c.correctionType === 'payment');
-      paymentCorrections.forEach(correction => {
-        if (correction.paymentMethod && correction.paymentMethod in baseDetails.payments) {
+    if (payments) {
+      const paymentCorrections = activeCorrections.filter((c: any) => c.correctionType === 'payment');
+      paymentCorrections.forEach((correction: any) => {
+        if (correction.paymentMethod && correction.paymentMethod in payments) {
           (correctedPayments as any)[correction.paymentMethod] = correction.correctedValue;
         }
       });
     }
 
     return {
-      ...baseDetails,
+      shift: shiftWithUser as Shift & { user: User },
       records: correctedRecords,
+      payments: payments || null,
       correctedPayments: Object.keys(correctedPayments).length > 0 ? correctedPayments : undefined,
+      collaborators,
       corrections: activeCorrections
     };
   }

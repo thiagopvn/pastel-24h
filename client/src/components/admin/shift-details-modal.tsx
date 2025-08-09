@@ -182,8 +182,8 @@ export function ShiftDetailsModal({ isOpen, onClose, shiftId }: ShiftDetailsModa
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="font-medium">{shiftDetails.shift.user.name}</p>
-                <p className="text-sm text-gray-500">{shiftDetails.shift.user.email}</p>
+                <p className="font-medium">{shiftDetails.shift.user?.name ?? 'Funcionário não encontrado'}</p>
+                <p className="text-sm text-gray-500">{shiftDetails.shift.user?.email ?? 'Email não disponível'}</p>
               </CardContent>
             </Card>
 
@@ -316,9 +316,9 @@ export function ShiftDetailsModal({ isOpen, onClose, shiftId }: ShiftDetailsModa
                     <div key={record.id} className="border rounded-lg p-3">
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <p className="font-medium">{record.product.name}</p>
+                          <p className="font-medium">{record.product?.name ?? 'Produto não encontrado'}</p>
                           <Badge variant="outline" className="text-xs">
-                            {record.product.category}
+                            {record.product?.category ?? 'Sem categoria'}
                           </Badge>
                         </div>
                         <div className="text-right">

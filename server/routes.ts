@@ -74,9 +74,13 @@ export function registerRoutes(app: Express): Server {
         const totalLeftovers = records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
 
         const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastClosedShift);
+        
+        // Buscar o usuário do turno
+        const user = await storage.getUser(lastClosedShift.userId);
 
         res.json({
           shift: lastClosedShift,
+          user: user || null, // Incluir o usuário na resposta
           inheritedCash: lastClosedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
           inheritedCoins: lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "0",
           cashForNextShift: lastClosedShift.cashForNextShift,

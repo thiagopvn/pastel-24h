@@ -261,8 +261,8 @@ export default function ShiftCorrections() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">
-              Funcionário: {shiftDetails?.shift?.user?.name} | 
-              Data: {new Date(shiftDetails?.shift?.startTime).toLocaleDateString('pt-BR')}
+              Funcionário: {shiftDetails?.shift?.user?.name ?? 'Funcionário não encontrado'} | 
+              Data: {shiftDetails?.shift?.startTime ? new Date(shiftDetails.shift.startTime).toLocaleDateString('pt-BR') : 'Data não disponível'}
             </CardTitle>
           </CardHeader>
           
@@ -291,7 +291,7 @@ export default function ShiftCorrections() {
                     <TableBody>
                       {shiftDetails?.records?.map((record: any) => (
                         <TableRow key={record.id}>
-                          <TableCell className="font-medium">{record.product.name}</TableCell>
+                          <TableCell className="font-medium">{record.product?.name ?? 'Produto não encontrado'}</TableCell>
                           <TableCell>{renderCorrectedValue(record.entryQty, record.correctedEntryQty)}</TableCell>
                           <TableCell>{renderCorrectedValue(record.soldQty, record.correctedSoldQty)}</TableCell>
                           <TableCell>{renderCorrectedValue(record.leftoverQty, record.correctedLeftoverQty)}</TableCell>

@@ -5,23 +5,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Common Commands
 
 **Development:**
-- `npm run dev` - Start development server with hot-reload on port 5000
-- `npm run check` - Run TypeScript type checking
+- `npm run dev` - Start development server with hot-reload on port 5000 (Express + Vite middleware mode)
+- `npm run check` - Run TypeScript type checking (no build output)
 
 **Build & Production:**
 - `npm run build` - Build both client and server for production
-- `npm run build:client` - Build only the React frontend with Vite
-- `npm run build:server` - Build only the Express backend with esbuild
+- `npm run build:client` - Build only the React frontend with Vite (output to `dist/public`)
+- `npm run build:server` - Build only the Express backend with esbuild (output to `dist/index.js`)
 - `npm run start` - Start production server (requires build first)
 
 **Docker & Deployment:**
-- `docker build -t pastel24h .` - Build production Docker image
+- `docker build -t pastel24h .` - Build production Docker image (includes automatic database migration)
 - `docker-compose up` - Start containerized application
 - Vercel serverless deployment via `/api/index.js` endpoint
 
 **Database:**
-- `npm run db:generate` - Generate new database migrations with Drizzle Kit
-- `npm run db:migrate` - Run pending database migrations
+- `npm run db:generate` - Generate new database migrations with Drizzle Kit from schema changes
+- `npm run db:migrate` - Run pending database migrations (required on first run)
 
 ## Architecture Overview
 
@@ -46,8 +46,10 @@ This is a full-stack web application for restaurant shift management built with:
 - `server/` - Express backend with authentication, routes, and database logic
 - `client/src/` - React frontend application
 - `client/src/lib/` - Business logic utilities (calculations, constants)
-- `shared/` - Shared TypeScript schemas and types
-- `data/` - SQLite database file location
+- `client/src/components/` - UI components organized by feature (admin/, employee/, ui/)
+- `client/src/pages/` - Page components with route definitions
+- `shared/` - Shared TypeScript schemas and types between client and server
+- `data/` - SQLite database file location (local.db)
 - `migrations/` - Drizzle database migration files
 - `api/` - Serverless deployment configuration (Vercel)
 
@@ -66,10 +68,11 @@ The application manages restaurant operations through interconnected tables:
 
 **Environment Setup:**
 - Requires `.env` file with `SESSION_SECRET` for session security
-- Database auto-initializes on first migration run
-- Development mode uses Vite middleware for frontend hot-reload
+- Database location: `./data/local.db` (SQLite)
+- Development mode uses Vite middleware for frontend hot-reload (middlewareMode: true)
 - TypeScript path aliases configured: `@/*` for client, `@shared/*` for shared modules
 - Cross-platform environment variable support via cross-env
+- Port 5000 used for both development and production servers
 
 **Authentication Flow:**
 - Passport local strategy with bcrypt password hashing
@@ -113,6 +116,14 @@ The application manages restaurant operations through interconnected tables:
 - CORS configuration for production deployment
 - Health check endpoints for monitoring (`/api/health`)
 
+## Initial Setup
+
+**First-time setup requires:**
+1. Create `.env` file with `SESSION_SECRET` (use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` to generate)
+2. Run `npm install` to install all dependencies
+3. Run `npm run db:migrate` to create database tables (required - application will exit with error if not run)
+4. Start development with `npm run dev`
+
 ## Testing & Quality Checks
 
 **Before committing code:**
@@ -120,6 +131,7 @@ The application manages restaurant operations through interconnected tables:
 - Test authentication flows with both admin and employee roles
 - Verify database migrations with `npm run db:migrate`
 - Check API endpoints return proper status codes and error messages
+- Ensure no sensitive data in commits (passwords are hashed with bcrypt, rounds=12)
 
 ## Deployment Options
 
