@@ -1,4 +1,8 @@
-import { db } from "../db";
+import Database from 'better-sqlite3';
+
+// Get the raw SQLite instance for prepared statements
+const dbPath = process.env.DATABASE_PATH || './data/local.db';
+const sqlite = new Database(dbPath);
 
 /**
  * Função robusta usando SQL bruto para contornar problemas do Drizzle ORM
@@ -9,10 +13,9 @@ import { db } from "../db";
  */
 export async function getProcessedShiftById(shiftId: number) {
   try {
-    console.log('DEBUG: Buscando turno', shiftId);
 
     // 1. Buscar o turno com usuário usando SQL bruto
-    const shiftQuery = db.prepare(`
+    const shiftQuery = sqlite.prepare(`
       SELECT 
         s.*,
         u.id as user_id_ref,
@@ -24,17 +27,14 @@ export async function getProcessedShiftById(shiftId: number) {
       WHERE s.id = ?
     `);
     
-    const shift = shiftQuery.get(shiftId);
+    const shift = shiftQuery.get(shiftId) as any;
     
     if (!shift) {
-      console.log('DEBUG: Turno não encontrado');
       return null;
     }
 
-    console.log('DEBUG: Turno encontrado:', shift.id);
-
     // 2. Buscar registros de produtos
-    const recordsQuery = db.prepare(`
+    const recordsQuery = sqlite.prepare(`
       SELECT 
         sr.*,
         p.name as product_name,
@@ -45,17 +45,17 @@ export async function getProcessedShiftById(shiftId: number) {
       WHERE sr.shift_id = ?
     `);
     
-    const records = recordsQuery.all(shiftId);
+    const records = recordsQuery.all(shiftId) as any[];
 
     // 3. Buscar pagamentos
-    const paymentsQuery = db.prepare(`
+    const paymentsQuery = sqlite.prepare(`
       SELECT * FROM shift_payments WHERE shift_id = ?
     `);
     
-    const payments = paymentsQuery.get(shiftId);
+    const payments = paymentsQuery.get(shiftId) as any;
 
     // 4. Buscar colaboradores
-    const collaboratorsQuery = db.prepare(`
+    const collaboratorsQuery = sqlite.prepare(`
       SELECT 
         sc.*,
         u.name as user_name,
@@ -65,24 +65,22 @@ export async function getProcessedShiftById(shiftId: number) {
       WHERE sc.shift_id = ?
     `);
     
-    const collaborators = collaboratorsQuery.all(shiftId);
+    const collaborators = collaboratorsQuery.all(shiftId) as any[];
 
     // 5. Buscar correções ativas
-    const correctionsQuery = db.prepare(`
+    const correctionsQuery = sqlite.prepare(`
       SELECT * FROM corrections 
       WHERE shift_id = ? AND revoked_at IS NULL
     `);
     
-    const activeCorrections = correctionsQuery.all(shiftId);
+    const activeCorrections = correctionsQuery.all(shiftId) as any[];
 
     // 6. Buscar ajustes de caixa
-    const adjustmentsQuery = db.prepare(`
+    const adjustmentsQuery = sqlite.prepare(`
       SELECT * FROM cash_adjustments WHERE shift_id = ?
     `);
     
-    const cashAdjustments = adjustmentsQuery.all(shiftId);
-
-    console.log('DEBUG: Dados coletados - Records:', records.length, 'Corrections:', activeCorrections.length);
+    const cashAdjustments = adjustmentsQuery.all(shiftId) as any[];
 
     // 7. Construir objeto do turno processado
     const processedShift = {
@@ -91,6 +89,8 @@ export async function getProcessedShiftById(shiftId: number) {
       userId: shift.user_id,
       startTime: shift.start_time,
       endTime: shift.end_time,
+      openedAt: shift.start_time, // Adicionar alias openedAt para startTime
+      closedAt: shift.end_time,   // Adicionar alias closedAt para endTime
       initialCash: shift.initial_cash,
       initialCoins: shift.initial_coins,
       finalCash: shift.final_cash,
@@ -240,7 +240,6 @@ export async function getProcessedShiftById(shiftId: number) {
       totalWithdrawals: totalWithdrawals.toFixed(2)
     };
 
-    console.log('DEBUG: Turno processado com sucesso:', finalProcessedShift.id);
     return finalProcessedShift;
 
   } catch (error) {
@@ -254,23 +253,20 @@ export async function getProcessedShiftById(shiftId: number) {
  */
 export async function getLastClosedShift() {
   try {
-    console.log('DEBUG: Buscando último turno fechado com SQL bruto...');
     
-    const query = db.prepare(`
+    const query = sqlite.prepare(`
       SELECT id FROM shifts 
       WHERE status = 'closed' 
       ORDER BY end_time DESC 
       LIMIT 1
     `);
     
-    const lastShift = query.get();
+    const lastShift = query.get() as { id: number } | undefined;
     
     if (!lastShift) {
-      console.log('DEBUG: Nenhum turno fechado encontrado');
       return null;
     }
 
-    console.log('DEBUG: Último turno fechado ID:', lastShift.id);
     return await getProcessedShiftById(lastShift.id);
 
   } catch (error) {
