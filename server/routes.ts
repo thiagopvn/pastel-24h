@@ -34,6 +34,19 @@ import { eq, and, isNull, isNotNull, desc } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
+  
+  // Debug middleware to log all requests
+  app.use((req, res, next) => {
+    if (req.path.includes('shift-records') && req.method === 'POST') {
+      console.log(`=== SHIFT-RECORDS POST REQUEST ===`);
+      console.log(`Method: ${req.method}`);
+      console.log(`Path: ${req.path}`);
+      console.log(`URL: ${req.url}`);
+      console.log(`Authenticated:`, req.isAuthenticated ? req.isAuthenticated() : false);
+      console.log(`User:`, req.user);
+    }
+    next();
+  });
 
   const requireAuth = (req: any, res: any, next: any) => {
     console.log(`requireAuth - path: ${req.path}, isAuthenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}, user: ${req.user ? req.user.role : 'none'}`);

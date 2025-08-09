@@ -187,6 +187,7 @@ import { useParams } from 'wouter'; // This doesn't exist in wouter
 - Check API endpoints return proper status codes and error messages
 - Ensure no sensitive data in commits (passwords are hashed with bcrypt, rounds=12)
 - Verify all database queries include necessary relations when frontend expects nested data
+- Test responsive design on both desktop and mobile viewports
 
 ## Deployment Options
 
