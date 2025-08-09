@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
+import { notifyShiftClients } from "./ws";
 import { db } from "./db";
 import bcrypt from "bcrypt";
 import { applyCorrectionsToShiftData } from "./corrections-utils";
@@ -35,18 +36,26 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   const requireAuth = (req: any, res: any, next: any) => {
+    console.log(`requireAuth - path: ${req.path}, isAuthenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}, user: ${req.user ? req.user.role : 'none'}`);
     if (!req.isAuthenticated()) {
+      console.log("requireAuth - returning 401: not authenticated");
       return res.status(401).json({ message: "Authentication required" });
     }
     next();
   };
 
   const requireAdmin = (req: any, res: any, next: any) => {
+    console.log("requireAdmin - path:", req.path);
+    console.log("requireAdmin - isAuthenticated:", req.isAuthenticated ? req.isAuthenticated() : false);
+    console.log("requireAdmin - user:", req.user);
+    
     if (!req.isAuthenticated()) {
+      console.log("requireAdmin - returning 401: not authenticated");
       return res.status(401).json({ message: "Authentication required" });
     }
     
     if (!req.user) {
+      console.log("requireAdmin - returning 401: no user");
       return res.status(401).json({ message: "User not found in request" });
     }
     
@@ -614,11 +623,16 @@ export function registerRoutes(app: Express): Server {
   });
 
   app.post("/api/shift-records", requireAuth, async (req, res) => {
+    console.log("=== SHIFT RECORDS POST REQUEST ===");
+    console.log("User:", req.user);
+    console.log("Body:", req.body);
     try {
       const recordData = insertShiftRecordSchema.parse(req.body);
       const { shiftId } = req.body;
 
-      if (shiftId && recordData.entryQty !== undefined) {
+      // Only apply inheritance validation for non-admin users
+      console.log(`Shift records edit attempt - User role: ${req.user!.role}, shiftId: ${shiftId}, entryQty: ${recordData.entryQty}, productId: ${recordData.productId}`);
+      if (shiftId && recordData.entryQty !== undefined && req.user!.role !== 'admin') {
         const shift = await storage.getShift(shiftId);
         if (shift?.inheritedFromShiftId) {
           const snapshot = await storage.getShiftSnapshot(shiftId);
@@ -643,6 +657,13 @@ export function registerRoutes(app: Express): Server {
       }
 
       const record = await storage.upsertShiftRecord({ ...recordData, shiftId });
+      
+      // Notifica clientes WebSocket sobre a atualização
+      notifyShiftClients(shiftId, { 
+        type: 'RECORD_UPDATED',
+        record 
+      });
+      
       res.json(record);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -775,6 +796,30 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Erro no ajuste de caixa:", error);
       res.status(500).json({ message: "Failed to process cash adjustment" });
+    }
+  });
+
+  app.get("/api/admin/active-shifts", requireAdmin, async (req, res) => {
+    console.log("Active shifts route called");
+    try {
+      const activeShifts = await db.query.shifts.findMany({
+        where: isNull(shifts.endTime),
+        with: {
+          user: {
+            columns: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        },
+        orderBy: [desc(shifts.startTime)]
+      });
+
+      res.json(activeShifts);
+    } catch (error) {
+      console.error("Error fetching active shifts:", error);
+      res.status(500).json({ message: "Failed to get active shifts" });
     }
   });
 

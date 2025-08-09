@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -47,6 +47,69 @@ export default function ProductForm() {
       toast({ title: "Erro ao salvar registro", variant: "destructive" });
     },
   });
+
+  // WebSocket connection para receber atualizações em tempo real
+  useEffect(() => {
+    if (!currentShift?.id) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws-api?shiftId=${currentShift.id}`;
+    
+    console.log('Connecting to WebSocket:', wsUrl);
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+      console.log('WebSocket connected for shift:', currentShift.id);
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        console.log('WebSocket message received:', message);
+
+        if (message.type === 'SHIFT_DATA_UPDATED' && message.payload?.type === 'RECORD_UPDATED') {
+          const updatedRecord = message.payload.record;
+          
+          // Atualiza o cache do TanStack Query
+          queryClient.setQueryData(
+            ["/api/shift-records", currentShift.id], 
+            (old: ShiftRecord[] | undefined) => {
+              if (!old) return [updatedRecord];
+              
+              const existingIndex = old.findIndex(r => r.productId === updatedRecord.productId);
+              if (existingIndex >= 0) {
+                const newRecords = [...old];
+                newRecords[existingIndex] = updatedRecord;
+                return newRecords;
+              } else {
+                return [...old, updatedRecord];
+              }
+            }
+          );
+
+          toast({ 
+            title: "Dados atualizados!", 
+            description: "Um registro foi atualizado pelo administrador." 
+          });
+        }
+      } catch (error) {
+        console.error('Error parsing WebSocket message:', error);
+      }
+    };
+
+    socket.onclose = () => {
+      console.log('WebSocket disconnected for shift:', currentShift.id);
+    };
+
+    socket.onerror = (error) => {
+      console.error('WebSocket error:', error);
+    };
+
+    return () => {
+      console.log('Closing WebSocket connection');
+      socket.close();
+    };
+  }, [currentShift?.id, queryClient, toast]);
 
   const filteredProducts = products?.filter(p => p.category === activeCategory) || [];
 

@@ -11,6 +11,7 @@ import Timeline from "@/components/admin/timeline";
 import MobileNav from "@/components/navigation/mobile-nav";
 import { CashAdjustmentDialog } from "@/components/admin/cash-adjustment-dialog";
 import LastShiftInfo from "@/components/admin/last-shift-info";
+import ActiveShiftsMonitor from "@/components/admin/active-shifts-monitor";
 
 type Period = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -78,6 +79,10 @@ export default function AdminDashboard() {
           <PaymentBreakdown period={period} />
           <Alerts period={period} />
           <LastShiftInfo />
+        </div>
+
+        <div className="mb-8">
+          <ActiveShiftsMonitor />
         </div>
 
         <Timeline />

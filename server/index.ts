@@ -7,6 +7,7 @@ import { registerRoutes } from "./routes";
 import { log } from "./utils";
 import { db } from "./db";
 import { users } from "@shared/schema";
+import { initWebSocket } from "./ws";
  
 async function main() {
   const app = express();
@@ -46,6 +47,11 @@ async function main() {
 
   // Registra todas as rotas da API
   await registerRoutes(app);
+
+  // Inicializa o WebSocket server
+  log("Inicializando WebSocket server...");
+  initWebSocket(server);
+  log("WebSocket server inicializado!");
 
   // Em produção, serve os arquivos estáticos do React que foram buildados
   if (process.env.NODE_ENV === "production") {
