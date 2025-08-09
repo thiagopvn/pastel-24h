@@ -18,6 +18,12 @@ export interface ShiftWithCorrections {
  */
 export async function applyCorrectionsToShiftData(shiftId: number): Promise<ShiftWithCorrections | null> {
   try {
+    // Validar parâmetro de entrada
+    if (!shiftId || typeof shiftId !== 'number') {
+      console.warn("applyCorrectionsToShiftData: ID de turno inválido:", shiftId);
+      return null;
+    }
+
     // 1. Buscar dados originais do turno com todas as relações
     const shiftDetails = await db.query.shifts.findFirst({
       where: eq(shifts.id, shiftId),
@@ -33,6 +39,7 @@ export async function applyCorrectionsToShiftData(shiftId: number): Promise<Shif
     });
 
     if (!shiftDetails) {
+      console.warn(`applyCorrectionsToShiftData: Turno com ID ${shiftId} não encontrado`);
       return null;
     }
 

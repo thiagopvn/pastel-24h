@@ -25,7 +25,7 @@ import {
   insertTransportModeSchema
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, desc } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -64,15 +64,42 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/shifts/last-closed", requireAuth, async (req, res) => {
     try {
-      const lastShifts = await storage.getShiftsByDateRange(
-        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-        new Date()
-      );
-      const lastClosedShift = lastShifts.find(s => s.endTime !== null);
+      // Etapa 1: Busca inicial - buscar o último turno fechado do banco de dados
+      const lastOriginalShift = await db.query.shifts.findFirst({
+        where: eq(shifts.status, 'closed'),
+        orderBy: [desc(shifts.endTime)],
+        with: {
+          user: true,
+          records: {
+            with: {
+              product: true
+            }
+          },
+          payments: true
+        }
+      });
 
-      if (lastClosedShift) {
-        // Aplicar correções ao turno fechado para obter dados corretos
-        const correctedShiftData = await applyCorrectionsToShiftData(lastClosedShift.id);
+      // Etapa 2: Cenário 1 - Nenhum turno fechado encontrado
+      if (!lastOriginalShift) {
+        return res.json({ 
+          shift: null, 
+          user: null,
+          inheritedCash: "200.00", // Valor padrão inicial
+          inheritedCoins: "50.00",  // Valor padrão inicial
+          cashForNextShift: "200.00",
+          coinsForNextShift: "50.00",
+          totalLeftovers: 0,
+          products: [],
+          pendingWithdrawals: "0.00",
+          pendingWithdrawalsCount: 0,
+          message: "Nenhum turno fechado encontrado."
+        });
+      }
+
+      // Etapa 3: Cenário 2 - Existe um turno fechado, processar com correções
+      try {
+        // Aplicar correções e recalcular valores
+        const correctedShiftData = await applyCorrectionsToShiftData(lastOriginalShift.id);
         
         if (correctedShiftData) {
           // Usar dados corrigidos
@@ -82,41 +109,41 @@ export function registerRoutes(app: Express): Server {
           const totalLeftovers = correctedRecords.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
           const adjustedCashInfo = await storage.getAdjustedInheritedCash(correctedShift);
 
-          res.json({
+          return res.json({
             shift: correctedShift,
             user: correctedShiftData.user || null,
-            inheritedCash: correctedShift?.cashForNextShift || adjustedCashInfo.inheritedCash,
-            inheritedCoins: correctedShift?.coinsForNextShift || correctedShift?.finalCoins || "0",
-            cashForNextShift: correctedShift?.cashForNextShift,
-            coinsForNextShift: correctedShift?.coinsForNextShift,
+            inheritedCash: correctedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
+            inheritedCoins: correctedShift.coinsForNextShift || correctedShift.finalCoins || "50.00",
+            cashForNextShift: correctedShift.cashForNextShift,
+            coinsForNextShift: correctedShift.coinsForNextShift,
             totalLeftovers,
             products: correctedRecords.filter(r => (r.leftoverQty ?? 0) > 0),
             pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
             pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
           });
         } else {
-          // Fallback para dados originais se algo der errado
-          const records = await storage.getShiftRecords(lastClosedShift.id);
-          const totalLeftovers = records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
-          const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastClosedShift);
-          const user = await storage.getUser(lastClosedShift.userId);
+          // Fallback: usar dados originais se a aplicação de correções falhar
+          const totalLeftovers = lastOriginalShift.records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
+          const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastOriginalShift);
 
-          res.json({
-            shift: lastClosedShift,
-            user: user || null,
-            inheritedCash: lastClosedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
-            inheritedCoins: lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "0",
-            cashForNextShift: lastClosedShift.cashForNextShift,
-            coinsForNextShift: lastClosedShift.coinsForNextShift,
+          return res.json({
+            shift: lastOriginalShift,
+            user: lastOriginalShift.user || null,
+            inheritedCash: lastOriginalShift.cashForNextShift || adjustedCashInfo.inheritedCash,
+            inheritedCoins: lastOriginalShift.coinsForNextShift || lastOriginalShift.finalCoins || "50.00",
+            cashForNextShift: lastOriginalShift.cashForNextShift,
+            coinsForNextShift: lastOriginalShift.coinsForNextShift,
             totalLeftovers,
-            products: records.filter(r => (r.leftoverQty ?? 0) > 0),
+            products: lastOriginalShift.records.filter(r => (r.leftoverQty ?? 0) > 0),
             pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
             pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
           });
         }
-      } else {
-        res.json(null);
+      } catch (processingError) {
+        console.error("Erro ao processar o último turno fechado:", processingError);
+        return res.status(500).json({ message: "Falha ao processar dados do último turno." });
       }
+
     } catch (error) {
       console.error("Error getting last closed shift:", error);
       res.status(500).json({ message: "Failed to get last closed shift" });

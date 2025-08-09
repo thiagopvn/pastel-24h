@@ -301,16 +301,14 @@ export default function ShiftCorrections() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {Object.entries(shiftDetails?.payments || {}).map(([method, value]) => {
-                        // Só mostra métodos que têm valor ou são métodos principais
-                        const valueStr = String(value || "0");
-                        const showMethod = parseFloat(valueStr) > 0 || ['cash', 'pix'].includes(method);
-                        
-                        if (!showMethod) return null;
+                      {Object.entries(PAYMENT_METHODS).map(([method, methodLabel]) => {
+                        // Buscar o valor original do turno para este método
+                        const originalValue = shiftDetails?.payments?.[method] || "0";
+                        const valueStr = String(originalValue);
                         
                         return (
                           <TableRow key={method}>
-                            <TableCell>{PAYMENT_METHODS[method as keyof typeof PAYMENT_METHODS] || method}</TableCell>
+                            <TableCell>{methodLabel}</TableCell>
                             <TableCell>{formatCurrency(parseFloat(valueStr))}</TableCell>
                             <TableCell>
                               {shiftDetails?.correctedPayments?.[method] 

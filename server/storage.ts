@@ -827,10 +827,20 @@ export class DatabaseStorage implements IStorage {
 
   async getAdjustedInheritedCash(lastClosedShift: any): Promise<{ inheritedCash: string; totalWithdrawals: number }> {
     try {
-      // Handle case where lastClosedShift is null or undefined
-      if (!lastClosedShift) {
+      // Robustez: verificar se o objeto do turno é válido
+      if (!lastClosedShift || typeof lastClosedShift !== 'object') {
+        console.warn("getAdjustedInheritedCash: Turno inválido ou null, retornando valores padrão");
         return {
           inheritedCash: "200.00",
+          totalWithdrawals: 0
+        };
+      }
+
+      // Garantir que temos um ID válido para buscar retiradas
+      if (!lastClosedShift.id) {
+        console.warn("getAdjustedInheritedCash: Turno sem ID, retornando valores padrão");
+        return {
+          inheritedCash: lastClosedShift.finalCash || "200.00",
           totalWithdrawals: 0
         };
       }
@@ -854,8 +864,10 @@ export class DatabaseStorage implements IStorage {
       };
     } catch (error) {
       console.error("Error calculating adjusted inherited cash:", error);
+      // Retornar valores sensíveis mesmo em caso de erro
+      const fallbackCash = lastClosedShift?.finalCash || "200.00";
       return {
-        inheritedCash: lastClosedShift?.finalCash || "200.00",
+        inheritedCash: fallbackCash,
         totalWithdrawals: 0
       };
     }
