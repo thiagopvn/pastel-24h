@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API</title>
+</head>
+<body>
+    <h1>Test Last Closed Shift API</h1>
+    <button onclick="testAPI()">Test API</button>
+    <pre id="result"></pre>
+    
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.textContent = 'Loading...';
+            
+            try {
+                // First login
+                const loginRes = await fetch('http://localhost:5000/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        email: 'admin@test.com',
+                        password: 'admin123'
+                    })
+                });
+                
+                if (!loginRes.ok) {
+                    resultDiv.textContent = 'Login failed. Creating admin user...';
+                    
+                    // Try to register admin
+                    const registerRes = await fetch('http://localhost:5000/api/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        credentials: 'include',
+                        body: JSON.stringify({
+                            email: 'admin@test.com',
+                            password: 'admin123',
+                            name: 'Admin',
+                            role: 'admin'
+                        })
+                    });
+                    
+                    if (!registerRes.ok) {
+                        resultDiv.textContent = 'Could not create admin user';
+                        return;
+                    }
+                }
+                
+                // Now test the last-closed endpoint
+                const response = await fetch('http://localhost:5000/api/shifts/last-closed', {
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                resultDiv.textContent = JSON.stringify(data, null, 2);
+                
+            } catch (error) {
+                resultDiv.textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

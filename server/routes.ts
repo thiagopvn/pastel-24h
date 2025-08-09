@@ -6,6 +6,10 @@ import { db } from "./db";
 import bcrypt from "bcrypt";
 import { applyCorrectionsToShiftData } from "./corrections-utils";
 import { 
+  getProcessedShiftById, 
+  getLastClosedShift
+} from "./lib/shift-processor-sql";
+import { 
   shifts, 
   shiftRecords, 
   shiftPayments, 
@@ -64,28 +68,16 @@ export function registerRoutes(app: Express): Server {
 
   app.get("/api/shifts/last-closed", requireAuth, async (req, res) => {
     try {
-      // Etapa 1: Busca inicial - buscar o último turno fechado do banco de dados
-      const lastOriginalShift = await db.query.shifts.findFirst({
-        where: eq(shifts.status, 'closed'),
-        orderBy: [desc(shifts.endTime)],
-        with: {
-          user: true,
-          records: {
-            with: {
-              product: true
-            }
-          },
-          payments: true
-        }
-      });
-
-      // Etapa 2: Cenário 1 - Nenhum turno fechado encontrado
-      if (!lastOriginalShift) {
-        return res.json({ 
-          shift: null, 
+      // Usar a nova função robusta para buscar e processar o último turno
+      const processedShift = await getLastClosedShift();
+      
+      if (!processedShift) {
+        // Retornar resposta padrão quando não há turno fechado
+        return res.json({
+          shift: null,
           user: null,
-          inheritedCash: "200.00", // Valor padrão inicial
-          inheritedCoins: "50.00",  // Valor padrão inicial
+          inheritedCash: "200.00",
+          inheritedCoins: "50.00",
           cashForNextShift: "200.00",
           coinsForNextShift: "50.00",
           totalLeftovers: 0,
@@ -95,58 +87,54 @@ export function registerRoutes(app: Express): Server {
           message: "Nenhum turno fechado encontrado."
         });
       }
-
-      // Etapa 3: Cenário 2 - Existe um turno fechado, processar com correções
-      try {
-        // Aplicar correções e recalcular valores
-        const correctedShiftData = await applyCorrectionsToShiftData(lastOriginalShift.id);
-        
-        if (correctedShiftData) {
-          // Usar dados corrigidos
-          const correctedShift = correctedShiftData.shift;
-          const correctedRecords = correctedShiftData.records;
-          
-          const totalLeftovers = correctedRecords.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
-          const adjustedCashInfo = await storage.getAdjustedInheritedCash(correctedShift);
-
-          return res.json({
-            shift: correctedShift,
-            user: correctedShiftData.user || null,
-            inheritedCash: correctedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
-            inheritedCoins: correctedShift.coinsForNextShift || correctedShift.finalCoins || "50.00",
-            cashForNextShift: correctedShift.cashForNextShift,
-            coinsForNextShift: correctedShift.coinsForNextShift,
-            totalLeftovers,
-            products: correctedRecords.filter(r => (r.leftoverQty ?? 0) > 0),
-            pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
-            pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
-          });
-        } else {
-          // Fallback: usar dados originais se a aplicação de correções falhar
-          const totalLeftovers = lastOriginalShift.records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
-          const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastOriginalShift);
-
-          return res.json({
-            shift: lastOriginalShift,
-            user: lastOriginalShift.user || null,
-            inheritedCash: lastOriginalShift.cashForNextShift || adjustedCashInfo.inheritedCash,
-            inheritedCoins: lastOriginalShift.coinsForNextShift || lastOriginalShift.finalCoins || "50.00",
-            cashForNextShift: lastOriginalShift.cashForNextShift,
-            coinsForNextShift: lastOriginalShift.coinsForNextShift,
-            totalLeftovers,
-            products: lastOriginalShift.records.filter(r => (r.leftoverQty ?? 0) > 0),
-            pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
-            pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
-          });
-        }
-      } catch (processingError) {
-        console.error("Erro ao processar o último turno fechado:", processingError);
-        return res.status(500).json({ message: "Falha ao processar dados do último turno." });
-      }
-
+      
+      // Preparar produtos com sobras
+      const productsWithLeftovers = processedShift.records
+        ?.filter((r: any) => (parseInt(r.leftoverQty) || 0) > 0)
+        ?.map((r: any) => ({
+          name: r.product?.name || 'Produto Desconhecido',
+          leftover: parseInt(r.leftoverQty) || 0
+        })) || [];
+      
+      // Calcular sangrias pendentes
+      const pendingWithdrawals = processedShift.cashAdjustments
+        ?.filter((a: any) => (a.type === 'withdraw' || a.type === 'sangria'))
+        ?.reduce((sum: number, a: any) => sum + (parseFloat(a.amount) || 0), 0) || 0;
+      
+      const pendingWithdrawalsCount = processedShift.cashAdjustments
+        ?.filter((a: any) => (a.type === 'withdraw' || a.type === 'sangria'))?.length || 0;
+      
+      // Retornar resposta completa com turno processado
+      return res.json({
+        shift: processedShift,
+        user: processedShift.user || null,
+        inheritedCash: processedShift.cashForNextShift || processedShift.finalCash || "200.00",
+        inheritedCoins: processedShift.coinsForNextShift || processedShift.finalCoins || "50.00",
+        cashForNextShift: processedShift.cashForNextShift || processedShift.finalCash || "200.00",
+        coinsForNextShift: processedShift.coinsForNextShift || processedShift.finalCoins || "50.00",
+        totalLeftovers: processedShift.totalLeftovers || 0,
+        products: productsWithLeftovers,
+        pendingWithdrawals: pendingWithdrawals.toFixed(2),
+        pendingWithdrawalsCount: pendingWithdrawalsCount
+      });
+      
     } catch (error) {
       console.error("Error getting last closed shift:", error);
-      res.status(500).json({ message: "Failed to get last closed shift" });
+      
+      // Em caso de erro, retornar resposta vazia ao invés de erro 500
+      return res.json({
+        shift: null,
+        user: null,
+        inheritedCash: "200.00",
+        inheritedCoins: "50.00",
+        cashForNextShift: "200.00",
+        coinsForNextShift: "50.00",
+        totalLeftovers: 0,
+        products: [],
+        pendingWithdrawals: "0.00",
+        pendingWithdrawalsCount: 0,
+        message: "Erro ao processar turno fechado."
+      });
     }
   });
 
@@ -1340,19 +1328,30 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid shift ID" });
       }
 
-      console.log("Buscando detalhes do turno com correções:", shiftId);
-      const shiftDetails = await applyCorrectionsToShiftData(shiftId);
-      console.log("Detalhes encontrados:", shiftDetails ? "sim" : "não");
+      // Usar a função robusta para buscar e processar o turno
+      const processedShift = await getProcessedShiftById(shiftId);
 
-      if (!shiftDetails) {
+      if (!processedShift) {
         return res.status(404).json({ message: "Shift not found" });
       }
 
-      res.json(shiftDetails);
+      // Retornar o turno processado completo
+      res.json({
+        shift: processedShift,
+        user: processedShift.user,
+        records: processedShift.records || [],
+        payments: processedShift.payments || {},
+        collaborators: processedShift.collaborators || [],
+        totalCorrections: processedShift.totalCorrections || 0
+      });
     } catch (error) {
       console.error("Erro ao buscar detalhes do turno:", error);
-      const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ message: "Failed to get shift details", error: message });
+      
+      // Retornar erro mais amigável
+      res.status(500).json({ 
+        message: "Failed to get shift details",
+        error: "Internal server error processing shift data"
+      });
     }
   });
 
