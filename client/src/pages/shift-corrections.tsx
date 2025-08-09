@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
-import { Redirect, useParams } from "wouter";
+import { Redirect, useRoute } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { Edit, RotateCcw, AlertTriangle, CheckCircle, ArrowLeft } from "lucide-r
 import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { api } from "@/lib/apiClient";
 
 interface CorrectionFormData {
   correctionType: "product_qty" | "payment" | "cash_count";
@@ -34,7 +35,8 @@ interface CorrectionFormData {
 
 export default function ShiftCorrections() {
   const { user } = useAuth();
-  const { shiftId } = useParams();
+  const [match, params] = useRoute('/admin/shifts/:shiftId/corrections');
+  const shiftId = params?.shiftId;
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -55,37 +57,19 @@ export default function ShiftCorrections() {
 
   const { data: shiftDetails, isLoading: isLoadingDetails } = useQuery({
     queryKey: [`/api/admin/shift-details/${shiftId}`],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/shift-details/${shiftId}`, {
-        credentials: "include"
-      });
-      if (!res.ok) throw new Error("Failed to fetch shift details");
-      return res.json();
-    }
+    queryFn: () => api.get(`/api/admin/shift-details/${shiftId}`),
+    enabled: !!shiftId
   });
 
   const { data: corrections = [] } = useQuery({
     queryKey: [`/api/admin/shifts/${shiftId}/corrections`],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/shifts/${shiftId}/corrections`, {
-        credentials: "include"
-      });
-      if (!res.ok) throw new Error("Failed to fetch corrections");
-      return res.json();
-    }
+    queryFn: () => api.get(`/api/admin/shifts/${shiftId}/corrections`),
+    enabled: !!shiftId
   });
 
   const createCorrectionMutation = useMutation({
-    mutationFn: async (data: CorrectionFormData) => {
-      const res = await fetch(`/api/admin/shifts/${shiftId}/corrections`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(data)
-      });
-      if (!res.ok) throw new Error("Failed to create correction");
-      return res.json();
-    },
+    mutationFn: (data: CorrectionFormData) => 
+      api.post(`/api/admin/shifts/${shiftId}/corrections`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/shift-details/${shiftId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/admin/shifts/${shiftId}/corrections`] });
@@ -109,16 +93,8 @@ export default function ShiftCorrections() {
   });
 
   const revokeCorrectionMutation = useMutation({
-    mutationFn: async (correctionId: number) => {
-      const res = await fetch(`/api/admin/corrections/${correctionId}/revoke`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ reason: revokeReason })
-      });
-      if (!res.ok) throw new Error("Failed to revoke correction");
-      return res.json();
-    },
+    mutationFn: (correctionId: number) => 
+      api.put(`/api/admin/corrections/${correctionId}/revoke`, { reason: revokeReason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/admin/shift-details/${shiftId}`] });
       queryClient.invalidateQueries({ queryKey: [`/api/admin/shifts/${shiftId}/corrections`] });
@@ -229,7 +205,7 @@ export default function ShiftCorrections() {
     );
   }
 
-  if (!shiftDetails) {
+  if (!shiftId || !shiftDetails) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <Alert>

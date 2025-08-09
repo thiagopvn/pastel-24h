@@ -63,6 +63,8 @@ The application manages restaurant operations through interconnected tables:
 - **Transport Modes**: Employee transportation options with pricing
 - **Weekly Reports**: Payroll calculations and employee hours
 - **Timeline**: Activity logging for audit trails
+- **Corrections**: Administrative corrections for closed shifts (quantities, payments, cash counts)
+- **Cash Adjustments**: Cash withdrawal and adjustment records
 
 ## Development Notes
 
@@ -107,6 +109,8 @@ The application manages restaurant operations through interconnected tables:
 - Products, shifts, users, transport modes, weekly reports
 - All routes require authentication except public endpoints
 - Admin routes require admin role for access
+- Administrative corrections: `/api/admin/shifts/:id/corrections`
+- Shift details with corrections: `/api/admin/shift-details/:id`
 
 **Middleware Stack:**
 - Session management with express-session and memorystore
@@ -124,6 +128,31 @@ The application manages restaurant operations through interconnected tables:
 3. Run `npm run db:migrate` to create database tables (required - application will exit with error if not run)
 4. Start development with `npm run dev`
 
+## Critical Implementation Patterns
+
+**Database Queries with Relations:**
+When fetching data that includes related entities, ALWAYS use Drizzle's query builder with `with` clause:
+```typescript
+// CORRECT - includes related data
+const result = await db.query.shifts.findFirst({
+  where: eq(shifts.id, shiftId),
+  with: { user: true, records: true }
+});
+
+// INCORRECT - missing relations causes frontend crashes
+const result = await db.select().from(shifts).where(eq(shifts.id, shiftId));
+```
+
+**Frontend Data Access Safety:**
+Always use optional chaining when accessing nested properties:
+```typescript
+// SAFE - handles undefined gracefully
+<span>{shift?.user?.name ?? 'Not found'}</span>
+
+// UNSAFE - causes "Cannot read properties of undefined" errors
+<span>{shift.user.name}</span>
+```
+
 ## Testing & Quality Checks
 
 **Before committing code:**
@@ -132,6 +161,7 @@ The application manages restaurant operations through interconnected tables:
 - Verify database migrations with `npm run db:migrate`
 - Check API endpoints return proper status codes and error messages
 - Ensure no sensitive data in commits (passwords are hashed with bcrypt, rounds=12)
+- Verify all database queries include necessary relations when frontend expects nested data
 
 ## Deployment Options
 
