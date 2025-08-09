@@ -32,10 +32,7 @@ export default function ProductForm() {
 
   const saveRecordMutation = useMutation({
     mutationFn: async (record: any) => {
-      const res = await apiRequest("POST", "/api/shift-records", {
-        ...record,
-        shiftId: currentShift?.id,
-      });
+      const res = await apiRequest("POST", "/api/shift-records", record);
       return res.json();
     },
     onSuccess: () => {
@@ -141,7 +138,11 @@ export default function ProductForm() {
   const handleSave = (productId: number) => {
     const record = getRecord(productId);
     if (record && currentShift) {
-      saveRecordMutation.mutate(record);
+      saveRecordMutation.mutate({
+        ...record,
+        productId: productId,
+        shiftId: currentShift.id,
+      });
     }
   };
 

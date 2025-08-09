@@ -256,6 +256,15 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  app.get("/api/users", requireAuth, async (req, res) => {
+    try {
+      const users = await storage.getAllUsers();
+      res.json(users.map(user => ({ ...user, password: undefined })));
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get users" });
+    }
+  });
+
   app.get("/api/admin/pending-withdrawals", requireAdmin, async (req, res) => {
     try {
       const pendingWithdrawals = await storage.getPendingWithdrawals();

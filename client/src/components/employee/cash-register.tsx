@@ -116,8 +116,8 @@ export default function CashRegister() {
   };
 
   // Query para buscar ajustes de caixa do turno atual
-  const { data: cashAdjustments } = useQuery({
-    queryKey: ["/api/cash-adjustments", currentShift?.id],
+  const { data: cashAdjustments } = useQuery<Array<{id: number; amount: string; type: string; reason: string}>>({
+    queryKey: [`/api/cash-adjustments/${currentShift?.id}`],
     enabled: !!currentShift?.id,
   });
 

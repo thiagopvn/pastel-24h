@@ -19,7 +19,7 @@ export default function Collaborators() {
   });
 
   const { data: allUsers } = useQuery<UserType[]>({
-    queryKey: ["/api/admin/users"],
+    queryKey: ["/api/users"],
     enabled: !!currentShift,
   });
 
