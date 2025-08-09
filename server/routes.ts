@@ -4,6 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
 import bcrypt from "bcrypt";
+import { applyCorrectionsToShiftData } from "./corrections-utils";
 import { 
   shifts, 
   shiftRecords, 
@@ -70,26 +71,49 @@ export function registerRoutes(app: Express): Server {
       const lastClosedShift = lastShifts.find(s => s.endTime !== null);
 
       if (lastClosedShift) {
-        const records = await storage.getShiftRecords(lastClosedShift.id);
-        const totalLeftovers = records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
-
-        const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastClosedShift);
+        // Aplicar correções ao turno fechado para obter dados corretos
+        const correctedShiftData = await applyCorrectionsToShiftData(lastClosedShift.id);
         
-        // Buscar o usuário do turno
-        const user = await storage.getUser(lastClosedShift.userId);
+        if (correctedShiftData) {
+          // Usar dados corrigidos
+          const correctedShift = correctedShiftData.shift;
+          const correctedRecords = correctedShiftData.records;
+          
+          const totalLeftovers = correctedRecords.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
+          const adjustedCashInfo = await storage.getAdjustedInheritedCash(correctedShift);
 
-        res.json({
-          shift: lastClosedShift,
-          user: user || null, // Incluir o usuário na resposta
-          inheritedCash: lastClosedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
-          inheritedCoins: lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "0",
-          cashForNextShift: lastClosedShift.cashForNextShift,
-          coinsForNextShift: lastClosedShift.coinsForNextShift,
-          totalLeftovers,
-          products: records.filter(r => (r.leftoverQty ?? 0) > 0),
-          pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
-          pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
-        });
+          res.json({
+            shift: correctedShift,
+            user: correctedShiftData.user || null,
+            inheritedCash: correctedShift?.cashForNextShift || adjustedCashInfo.inheritedCash,
+            inheritedCoins: correctedShift?.coinsForNextShift || correctedShift?.finalCoins || "0",
+            cashForNextShift: correctedShift?.cashForNextShift,
+            coinsForNextShift: correctedShift?.coinsForNextShift,
+            totalLeftovers,
+            products: correctedRecords.filter(r => (r.leftoverQty ?? 0) > 0),
+            pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
+            pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
+          });
+        } else {
+          // Fallback para dados originais se algo der errado
+          const records = await storage.getShiftRecords(lastClosedShift.id);
+          const totalLeftovers = records.reduce((sum, record) => sum + (record.leftoverQty ?? 0), 0);
+          const adjustedCashInfo = await storage.getAdjustedInheritedCash(lastClosedShift);
+          const user = await storage.getUser(lastClosedShift.userId);
+
+          res.json({
+            shift: lastClosedShift,
+            user: user || null,
+            inheritedCash: lastClosedShift.cashForNextShift || adjustedCashInfo.inheritedCash,
+            inheritedCoins: lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "0",
+            cashForNextShift: lastClosedShift.cashForNextShift,
+            coinsForNextShift: lastClosedShift.coinsForNextShift,
+            totalLeftovers,
+            products: records.filter(r => (r.leftoverQty ?? 0) > 0),
+            pendingWithdrawals: adjustedCashInfo.totalWithdrawals.toFixed(2),
+            pendingWithdrawalsCount: adjustedCashInfo.totalWithdrawals > 0 ? 1 : 0
+          });
+        }
       } else {
         res.json(null);
       }
@@ -1122,7 +1146,10 @@ export function registerRoutes(app: Express): Server {
             totalHours += duration;
           }
 
-          const records = await storage.getShiftRecords(shift.id);
+          // Usar dados com correções aplicadas para consumo correto
+          const correctedShiftData = await applyCorrectionsToShiftData(shift.id);
+          const records = correctedShiftData ? correctedShiftData.records : await storage.getShiftRecords(shift.id);
+          
           for (const record of records) {
             totalConsumption += (record.consumedQty || 0) * parseFloat(record.priceSnapshot || '0');
           }
@@ -1286,8 +1313,8 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ message: "Invalid shift ID" });
       }
 
-      console.log("Buscando detalhes do turno:", shiftId);
-      const shiftDetails = await storage.getShiftDetailsWithCorrections(shiftId);
+      console.log("Buscando detalhes do turno com correções:", shiftId);
+      const shiftDetails = await applyCorrectionsToShiftData(shiftId);
       console.log("Detalhes encontrados:", shiftDetails ? "sim" : "não");
 
       if (!shiftDetails) {

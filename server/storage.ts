@@ -827,6 +827,14 @@ export class DatabaseStorage implements IStorage {
 
   async getAdjustedInheritedCash(lastClosedShift: any): Promise<{ inheritedCash: string; totalWithdrawals: number }> {
     try {
+      // Handle case where lastClosedShift is null or undefined
+      if (!lastClosedShift) {
+        return {
+          inheritedCash: "200.00",
+          totalWithdrawals: 0
+        };
+      }
+      
       const baseCash = parseFloat(lastClosedShift.finalCash || "200.00");
 
       const withdrawals = await db.select().from(cashAdjustments)
@@ -847,7 +855,7 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error calculating adjusted inherited cash:", error);
       return {
-        inheritedCash: lastClosedShift.finalCash || "200.00",
+        inheritedCash: lastClosedShift?.finalCash || "200.00",
         totalWithdrawals: 0
       };
     }

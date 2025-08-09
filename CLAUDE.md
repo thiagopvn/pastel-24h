@@ -45,7 +45,7 @@ This is a full-stack web application for restaurant shift management built with:
 **Key Directories:**
 - `server/` - Express backend with authentication, routes, and database logic
 - `client/src/` - React frontend application
-- `client/src/lib/` - Business logic utilities (calculations, constants)
+- `client/src/lib/` - Business logic utilities (calculations, constants, apiClient)
 - `client/src/components/` - UI components organized by feature (admin/, employee/, ui/)
 - `client/src/pages/` - Page components with route definitions
 - `shared/` - Shared TypeScript schemas and types between client and server
@@ -77,9 +77,10 @@ The application manages restaurant operations through interconnected tables:
 - Port 5000 used for both development and production servers
 
 **Authentication Flow:**
-- Passport local strategy with bcrypt password hashing
+- Passport local strategy with bcrypt password hashing (12 rounds)
 - Session-based authentication with role-based access control
 - Protected routes enforce authentication and admin privileges
+- API client must include `credentials: 'include'` for session cookies
 
 **Payment Processing:**
 - Multiple payment methods: cash, PIX, Stone card/voucher, PagBank
@@ -90,6 +91,7 @@ The application manages restaurant operations through interconnected tables:
 - Server state via TanStack Query with optimistic updates
 - Authentication context provides user state across components
 - Toast notifications for user feedback
+- API client in `/client/src/lib/apiClient.ts` handles credentials
 
 **Business Logic:**
 - Complex inventory calculations engine in `client/src/lib/calculations.ts`
@@ -151,6 +153,29 @@ Always use optional chaining when accessing nested properties:
 
 // UNSAFE - causes "Cannot read properties of undefined" errors
 <span>{shift.user.name}</span>
+```
+
+**API Client Usage:**
+Always use the centralized apiClient for fetch operations:
+```typescript
+// CORRECT - uses apiClient with credentials
+import { api } from '@/lib/apiClient';
+const data = await api.get('/api/endpoint');
+
+// INCORRECT - direct fetch without credentials
+const data = await fetch('/api/endpoint').then(res => res.json());
+```
+
+**Route Parameters with Wouter:**
+Use `useRoute` hook for dynamic route parameters:
+```typescript
+// CORRECT - useRoute for dynamic params
+import { useRoute } from 'wouter';
+const [match, params] = useRoute('/admin/shifts/:id/corrections');
+const shiftId = params?.id;
+
+// INCORRECT - useParams doesn't work with wouter
+import { useParams } from 'wouter'; // This doesn't exist in wouter
 ```
 
 ## Testing & Quality Checks

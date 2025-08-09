@@ -19,6 +19,7 @@ import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/apiClient";
+import { PAYMENT_METHODS } from "@/lib/constants";
 
 interface CorrectionFormData {
   correctionType: "product_qty" | "payment" | "cash_count";
@@ -300,52 +301,43 @@ export default function ShiftCorrections() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      <TableRow>
-                        <TableCell>Dinheiro</TableCell>
-                        <TableCell>{formatCurrency(parseFloat(shiftDetails?.payments?.cash || "0"))}</TableCell>
-                        <TableCell>
-                          {shiftDetails?.correctedPayments?.cash 
-                            ? formatCurrency(parseFloat(shiftDetails.correctedPayments.cash))
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => openCorrectionDialog("payment")}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                      <TableRow>
-                        <TableCell>PIX</TableCell>
-                        <TableCell>{formatCurrency(parseFloat(shiftDetails?.payments?.pix || "0"))}</TableCell>
-                        <TableCell>
-                          {shiftDetails?.correctedPayments?.pix 
-                            ? formatCurrency(parseFloat(shiftDetails.correctedPayments.pix))
-                            : "-"
-                          }
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            size="sm" 
-                            variant="outline"
-                            onClick={() => {
-                              setFormData({
-                                ...formData,
-                                correctionType: "payment",
-                                paymentMethod: "pix",
-                                originalValue: shiftDetails?.payments?.pix || "0"
-                              });
-                              setIsDialogOpen(true);
-                            }}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                      {Object.entries(shiftDetails?.payments || {}).map(([method, value]) => {
+                        // Só mostra métodos que têm valor ou são métodos principais
+                        const valueStr = String(value || "0");
+                        const showMethod = parseFloat(valueStr) > 0 || ['cash', 'pix'].includes(method);
+                        
+                        if (!showMethod) return null;
+                        
+                        return (
+                          <TableRow key={method}>
+                            <TableCell>{PAYMENT_METHODS[method as keyof typeof PAYMENT_METHODS] || method}</TableCell>
+                            <TableCell>{formatCurrency(parseFloat(valueStr))}</TableCell>
+                            <TableCell>
+                              {shiftDetails?.correctedPayments?.[method] 
+                                ? formatCurrency(parseFloat(String(shiftDetails.correctedPayments[method])))
+                                : "-"
+                              }
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                onClick={() => {
+                                  setFormData({
+                                    ...formData,
+                                    correctionType: "payment",
+                                    paymentMethod: method,
+                                    originalValue: valueStr
+                                  });
+                                  setIsDialogOpen(true);
+                                }}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
@@ -510,11 +502,9 @@ export default function ShiftCorrections() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">Dinheiro</SelectItem>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="stoneCard">Stone Cartão</SelectItem>
-                      <SelectItem value="stoneVoucher">Stone Voucher</SelectItem>
-                      <SelectItem value="pagBankCard">PagBank</SelectItem>
+                      {Object.entries(PAYMENT_METHODS).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
