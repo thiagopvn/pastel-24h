@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a00aba68-8e7d-491a-9190-fe41bf2d83c2",
+  "id": "618edc1b-e460-4c04-bf6c-2f49a9536612",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "cash_adjustments": {
@@ -69,7 +69,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.534Z\"'"
+          "default": "'\"2025-08-10T02:24:51.304Z\"'"
         }
       },
       "indexes": {},
@@ -135,7 +135,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.533Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         }
       },
       "indexes": {
@@ -148,6 +148,202 @@
         }
       },
       "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "corrections": {
+      "name": "corrections",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "shift_id": {
+          "name": "shift_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_by_user_id": {
+          "name": "created_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "correction_type": {
+          "name": "correction_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "shift_record_id": {
+          "name": "shift_record_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "product_id": {
+          "name": "product_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "field_name": {
+          "name": "field_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "payment_method": {
+          "name": "payment_method",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cash_type": {
+          "name": "cash_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "original_value": {
+          "name": "original_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "corrected_value": {
+          "name": "corrected_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "evidence_url": {
+          "name": "evidence_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "applied_at": {
+          "name": "applied_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'\"2025-08-10T02:24:51.304Z\"'"
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoked_by_user_id": {
+          "name": "revoked_by_user_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "revoke_reason": {
+          "name": "revoke_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "corrections_shift_id_shifts_id_fk": {
+          "name": "corrections_shift_id_shifts_id_fk",
+          "tableFrom": "corrections",
+          "tableTo": "shifts",
+          "columnsFrom": [
+            "shift_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "corrections_created_by_user_id_users_id_fk": {
+          "name": "corrections_created_by_user_id_users_id_fk",
+          "tableFrom": "corrections",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "corrections_shift_record_id_shift_records_id_fk": {
+          "name": "corrections_shift_record_id_shift_records_id_fk",
+          "tableFrom": "corrections",
+          "tableTo": "shift_records",
+          "columnsFrom": [
+            "shift_record_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "corrections_product_id_products_id_fk": {
+          "name": "corrections_product_id_products_id_fk",
+          "tableFrom": "corrections",
+          "tableTo": "products",
+          "columnsFrom": [
+            "product_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "corrections_revoked_by_user_id_users_id_fk": {
+          "name": "corrections_revoked_by_user_id_users_id_fk",
+          "tableFrom": "corrections",
+          "tableTo": "users",
+          "columnsFrom": [
+            "revoked_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -200,7 +396,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.533Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         },
         "updated_at": {
           "name": "updated_at",
@@ -208,7 +404,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.533Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         }
       },
       "indexes": {},
@@ -265,7 +461,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.534Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         },
         "updated_at": {
           "name": "updated_at",
@@ -273,7 +469,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.534Z\"'"
+          "default": "'\"2025-08-10T02:24:51.304Z\"'"
         }
       },
       "indexes": {},
@@ -327,7 +523,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.531Z\"'"
+          "default": "'\"2025-08-10T02:24:51.302Z\"'"
         }
       },
       "indexes": {},
@@ -360,13 +556,29 @@
           "notNull": true,
           "autoincrement": false
         },
+        "hours_worked": {
+          "name": "hours_worked",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
+        "internal_consumption": {
+          "name": "internal_consumption",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false,
+          "default": "'0.00'"
+        },
         "added_at": {
           "name": "added_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.532Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         }
       },
       "indexes": {},
@@ -723,7 +935,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.534Z\"'"
+          "default": "'\"2025-08-10T02:24:51.304Z\"'"
         }
       },
       "indexes": {},
@@ -900,13 +1112,62 @@
           "autoincrement": false,
           "default": false
         },
+        "counted_final_cash": {
+          "name": "counted_final_cash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "counted_final_coins": {
+          "name": "counted_final_coins",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "envelope_cash": {
+          "name": "envelope_cash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "envelope_coins": {
+          "name": "envelope_coins",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cash_for_next_shift": {
+          "name": "cash_for_next_shift",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "coins_for_next_shift": {
+          "name": "coins_for_next_shift",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "opening_discrepancy": {
+          "name": "opening_discrepancy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.532Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         }
       },
       "indexes": {},
@@ -986,7 +1247,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.534Z\"'"
+          "default": "'\"2025-08-10T02:24:51.304Z\"'"
         }
       },
       "indexes": {},
@@ -1039,7 +1300,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.530Z\"'"
+          "default": "'\"2025-08-10T02:24:51.302Z\"'"
         },
         "updated_at": {
           "name": "updated_at",
@@ -1047,7 +1308,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.531Z\"'"
+          "default": "'\"2025-08-10T02:24:51.302Z\"'"
         }
       },
       "indexes": {
@@ -1123,7 +1384,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.529Z\"'"
+          "default": "'\"2025-08-10T02:24:51.301Z\"'"
         }
       },
       "indexes": {
@@ -1221,7 +1482,7 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false,
-          "default": "'\"2025-07-19T23:08:00.533Z\"'"
+          "default": "'\"2025-08-10T02:24:51.303Z\"'"
         }
       },
       "indexes": {},
