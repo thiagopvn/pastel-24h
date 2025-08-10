@@ -38,10 +38,10 @@ export default function PaymentBreakdown({ period }: PaymentBreakdownProps) {
   useEffect(() => {
     if (paymentConfig) {
       setInterestRates({
-        pix: parseFloat(paymentConfig.pixRate) || 0,
-        stoneCard: parseFloat(paymentConfig.stoneCardRate) || 3.5,
-        stoneVoucher: parseFloat(paymentConfig.stoneVoucherRate) || 2.5,
-        pagBankCard: parseFloat(paymentConfig.pagBankCardRate) || 3.2,
+        pix: parseFloat((paymentConfig as any)?.pixRate) || 0,
+        stoneCard: parseFloat((paymentConfig as any)?.stoneCardRate) || 3.5,
+        stoneVoucher: parseFloat((paymentConfig as any)?.stoneVoucherRate) || 2.5,
+        pagBankCard: parseFloat((paymentConfig as any)?.pagBankCardRate) || 3.2,
       });
     }
   }, [paymentConfig]);

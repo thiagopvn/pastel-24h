@@ -138,6 +138,11 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
     field: string;
     value: string;
   } | null>(null);
+  
+  const [editingCash, setEditingCash] = useState<{
+    field: 'initialCash' | 'initialCoins';
+    value: string;
+  } | null>(null);
 
   const { data: shiftRecords, isLoading } = useQuery<ShiftRecord[]>({
     queryKey: ["/api/shift-records", shift.id],
@@ -180,6 +185,29 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
     },
   });
 
+  const updateInitialCashMutation = useMutation({
+    mutationFn: async (data: { 
+      shiftId: number; 
+      initialCash?: string; 
+      initialCoins?: string 
+    }) => {
+      const res = await api.put(`/api/admin/shifts/${data.shiftId}/initial-cash`, data);
+      return res;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-active-shifts'] });
+      toast({ title: "Caixa inicial atualizado com sucesso!" });
+      setEditingCash(null);
+    },
+    onError: (error: any) => {
+      toast({ 
+        title: "Erro ao atualizar caixa inicial", 
+        description: error.message,
+        variant: "destructive" 
+      });
+    }
+  });
+
   const handleSave = () => {
     if (!editingRecord) return;
     
@@ -198,6 +226,29 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
       field: editingRecord.field,
       value: numValue
     });
+  };
+
+  const handleSaveCash = () => {
+    if (!editingCash) return;
+    
+    const cleanValue = editingCash.value.replace(',', '.');
+    const numValue = parseFloat(cleanValue);
+    
+    if (isNaN(numValue) || numValue < 0) {
+      toast({ 
+        title: "Valor inválido", 
+        description: "Digite um valor válido maior ou igual a zero.",
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    const payload: { shiftId: number; initialCash?: string; initialCoins?: string } = {
+      shiftId: shift.id,
+      [editingCash.field]: String(numValue)
+    };
+    
+    updateInitialCashMutation.mutate(payload);
   };
 
   const getProductName = (productId: number) => {
@@ -241,27 +292,146 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
             </div>
           </div>
 
+          {/* Seção Estado do Caixa */}
+          <div className="space-y-2">
+            <h4 className="font-medium">Estado do Caixa</h4>
+            <div className="grid grid-cols-2 gap-4 p-4 border rounded-lg">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Dinheiro Inicial</p>
+                {editingCash?.field === 'initialCash' ? (
+                  <div className="flex gap-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editingCash.value}
+                      onChange={(e) => setEditingCash({
+                        ...editingCash,
+                        value: e.target.value
+                      })}
+                      className="h-8 w-24"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={handleSaveCash}
+                      disabled={updateInitialCashMutation.isPending}
+                    >
+                      <Save className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setEditingCash(null)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      R$ {parseFloat(shift.initialCash ?? '0').toFixed(2)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setEditingCash({
+                        field: 'initialCash',
+                        value: shift.initialCash ?? '0'
+                      })}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Moedas Iniciais</p>
+                {editingCash?.field === 'initialCoins' ? (
+                  <div className="flex gap-1">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={editingCash.value}
+                      onChange={(e) => setEditingCash({
+                        ...editingCash,
+                        value: e.target.value
+                      })}
+                      className="h-8 w-24"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={handleSaveCash}
+                      disabled={updateInitialCashMutation.isPending}
+                    >
+                      <Save className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setEditingCash(null)}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      R$ {parseFloat(shift.initialCoins ?? '0').toFixed(2)}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 w-6 p-0"
+                      onClick={() => setEditingCash({
+                        field: 'initialCoins',
+                        value: shift.initialCoins ?? '0'
+                      })}
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {isLoading ? (
             <p>Carregando registros...</p>
           ) : (
             <div className="space-y-2">
               <h4 className="font-medium">Registros de Produtos</h4>
               <div className="border rounded-lg">
-                <div className="grid grid-cols-6 gap-2 p-2 bg-muted text-sm font-medium">
+                <div className="grid grid-cols-7 gap-2 p-2 bg-muted text-sm font-medium">
                   <div>Produto</div>
                   <div>Entrada</div>
-                  <div>Saída</div>
-                  <div>Falta</div>
+                  <div>Chegada</div>
+                  <div>Sobra</div>
+                  <div>Descarte</div>
+                  <div>Consumo</div>
                   <div>Vendido</div>
-                  <div>Ações</div>
                 </div>
                 
                 {products?.map((product) => {
                   const hasRecord = shiftRecords?.some(r => r.productId === product.id);
                   if (!hasRecord) return null;
 
+                  // Calcular vendido
+                  const entryQty = getRecordValue(product.id, 'entryQty');
+                  const arrivalQty = getRecordValue(product.id, 'arrivalQty');
+                  const leftoverQty = getRecordValue(product.id, 'leftoverQty');
+                  const discardQty = getRecordValue(product.id, 'discardQty');
+                  const consumedQty = getRecordValue(product.id, 'consumedQty');
+                  const soldQty = entryQty + arrivalQty - leftoverQty - discardQty - consumedQty;
+
                   return (
-                    <div key={product.id} className="grid grid-cols-6 gap-2 p-2 border-t">
+                    <div key={product.id} className="grid grid-cols-7 gap-2 p-2 border-t">
                       <div className="text-sm">{product.name}</div>
                       
                       {/* Entrada */}
@@ -275,7 +445,7 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                                 ...editingRecord,
                                 value: e.target.value
                               })}
-                              className="h-8 text-xs"
+                              className="h-8 text-xs w-16"
                             />
                             <Button
                               size="sm"
@@ -297,7 +467,7 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
-                            <span className="text-sm">{getRecordValue(product.id, 'entryQty')}</span>
+                            <span className="text-sm">{entryQty}</span>
                             <Button
                               size="sm"
                               variant="ghost"
@@ -305,7 +475,7 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                               onClick={() => setEditingRecord({
                                 productId: product.id,
                                 field: 'entryQty',
-                                value: String(getRecordValue(product.id, 'entryQty'))
+                                value: String(entryQty)
                               })}
                             >
                               <Edit2 className="h-3 w-3" />
@@ -314,9 +484,9 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                         )}
                       </div>
 
-                      {/* Saída */}
+                      {/* Chegada */}
                       <div>
-                        {editingRecord?.productId === product.id && editingRecord.field === 'exitQty' ? (
+                        {editingRecord?.productId === product.id && editingRecord.field === 'arrivalQty' ? (
                           <div className="flex gap-1">
                             <Input
                               type="number"
@@ -325,7 +495,7 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                                 ...editingRecord,
                                 value: e.target.value
                               })}
-                              className="h-8 text-xs"
+                              className="h-8 text-xs w-16"
                             />
                             <Button
                               size="sm"
@@ -347,15 +517,15 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1">
-                            <span className="text-sm">{getRecordValue(product.id, 'exitQty')}</span>
+                            <span className="text-sm">{arrivalQty}</span>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="h-6 w-6 p-0"
                               onClick={() => setEditingRecord({
                                 productId: product.id,
-                                field: 'exitQty',
-                                value: String(getRecordValue(product.id, 'exitQty'))
+                                field: 'arrivalQty',
+                                value: String(arrivalQty)
                               })}
                             >
                               <Edit2 className="h-3 w-3" />
@@ -364,10 +534,158 @@ function ShiftDetailsDialog({ shift, products }: ShiftDetailsDialogProps) {
                         )}
                       </div>
 
-                      {/* Outros campos não editáveis */}
-                      <div className="text-sm">{getRecordValue(product.id, 'lossQty')}</div>
-                      <div className="text-sm">{getRecordValue(product.id, 'soldQty')}</div>
-                      <div></div>
+                      {/* Sobra */}
+                      <div>
+                        {editingRecord?.productId === product.id && editingRecord.field === 'leftoverQty' ? (
+                          <div className="flex gap-1">
+                            <Input
+                              type="number"
+                              value={editingRecord.value}
+                              onChange={(e) => setEditingRecord({
+                                ...editingRecord,
+                                value: e.target.value
+                              })}
+                              className="h-8 text-xs w-16"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={handleSave}
+                              disabled={updateRecordMutation.isPending}
+                            >
+                              <Save className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setEditingRecord(null)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm">{leftoverQty}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => setEditingRecord({
+                                productId: product.id,
+                                field: 'leftoverQty',
+                                value: String(leftoverQty)
+                              })}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Descarte */}
+                      <div>
+                        {editingRecord?.productId === product.id && editingRecord.field === 'discardQty' ? (
+                          <div className="flex gap-1">
+                            <Input
+                              type="number"
+                              value={editingRecord.value}
+                              onChange={(e) => setEditingRecord({
+                                ...editingRecord,
+                                value: e.target.value
+                              })}
+                              className="h-8 text-xs w-16"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={handleSave}
+                              disabled={updateRecordMutation.isPending}
+                            >
+                              <Save className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setEditingRecord(null)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm">{discardQty}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => setEditingRecord({
+                                productId: product.id,
+                                field: 'discardQty',
+                                value: String(discardQty)
+                              })}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Consumo */}
+                      <div>
+                        {editingRecord?.productId === product.id && editingRecord.field === 'consumedQty' ? (
+                          <div className="flex gap-1">
+                            <Input
+                              type="number"
+                              value={editingRecord.value}
+                              onChange={(e) => setEditingRecord({
+                                ...editingRecord,
+                                value: e.target.value
+                              })}
+                              className="h-8 text-xs w-16"
+                            />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={handleSave}
+                              disabled={updateRecordMutation.isPending}
+                            >
+                              <Save className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                              onClick={() => setEditingRecord(null)}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className="text-sm">{consumedQty}</span>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 w-6 p-0"
+                              onClick={() => setEditingRecord({
+                                productId: product.id,
+                                field: 'consumedQty',
+                                value: String(consumedQty)
+                              })}
+                            >
+                              <Edit2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Vendido - Campo apenas de leitura (calculado) */}
+                      <div className="text-sm font-medium">{soldQty}</div>
                     </div>
                   );
                 })}

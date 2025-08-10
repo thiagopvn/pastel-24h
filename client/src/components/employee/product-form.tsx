@@ -89,6 +89,26 @@ export default function ProductForm() {
             description: "Um registro foi atualizado pelo administrador." 
           });
         }
+
+        // Handler para atualização do caixa inicial
+        if (message.type === 'SHIFT_DATA_UPDATED' && message.payload?.type === 'INITIAL_CASH_UPDATED') {
+          const { initialCash, initialCoins } = message.payload;
+          
+          // Atualiza o cache do turno atual
+          queryClient.setQueryData(['/api/shifts/current'], (oldData: any) => {
+            if (!oldData) return oldData;
+            return {
+              ...oldData,
+              initialCash: initialCash,
+              initialCoins: initialCoins,
+            };
+          });
+
+          toast({
+            title: "Aviso do Administrador",
+            description: "Seu caixa inicial foi corrigido."
+          });
+        }
       } catch (error) {
         console.error('Error parsing WebSocket message:', error);
       }

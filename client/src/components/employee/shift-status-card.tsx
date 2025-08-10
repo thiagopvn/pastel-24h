@@ -53,12 +53,12 @@ export default function ShiftStatusCard() {
 
   // Calculate expected cash values (for reference only)
   const calculateExpectedCash = () => {
-    if (!lastClosedShift || !lastClosedShift.shift) return "200.00"; // Default for first shift
+    if (!lastClosedShift || !(lastClosedShift as any)?.shift) return "200.00"; // Default for first shift
     return (lastClosedShift as any).cashForNextShift || (lastClosedShift as any).inheritedCash || "200.00";
   };
 
   const calculateExpectedCoins = () => {
-    if (!lastClosedShift || !lastClosedShift.shift) return "50.00"; // Default for first shift
+    if (!lastClosedShift || !(lastClosedShift as any)?.shift) return "50.00"; // Default for first shift
     return (lastClosedShift as any).coinsForNextShift || (lastClosedShift as any).inheritedCoins || "50.00";
   };
 
@@ -249,11 +249,11 @@ export default function ShiftStatusCard() {
               <div className="text-center">
                 <p className="text-sm text-gray-600">Dinheiro Total Inicial</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(parseFloat(currentShift.initialCash) + parseFloat(currentShift.initialCoins))}
+                  {formatCurrency(parseFloat(currentShift.initialCash || '0') + parseFloat(currentShift.initialCoins || '0'))}
                 </p>
                 <p className="text-xs text-gray-500">
-                  Caixa: {formatCurrency(parseFloat(currentShift.initialCash))} + 
-                  Moedas: {formatCurrency(parseFloat(currentShift.initialCoins))}
+                  Caixa: {formatCurrency(parseFloat(currentShift.initialCash || '0'))} + 
+                  Moedas: {formatCurrency(parseFloat(currentShift.initialCoins || '0'))}
                 </p>
               </div>
               <div className="text-center">
@@ -291,7 +291,7 @@ export default function ShiftStatusCard() {
               </DialogHeader>
               <form onSubmit={form.handleSubmit(handleOpenShift)} className="space-y-4">
                 {/* Resumo de Herança */}
-                {lastClosedShift && (
+                {(lastClosedShift as any) && (
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                     <h4 className="text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
                       <Clock className="h-4 w-4" />

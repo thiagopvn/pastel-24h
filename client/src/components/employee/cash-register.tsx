@@ -123,20 +123,20 @@ export default function CashRegister() {
 
   const calculateDivergence = () => {
     if (!currentShift) return 0;
-    const initialCash = parseFloat(currentShift.initialCash);
-    const initialCoins = parseFloat(currentShift.initialCoins);
+    const initialCash = parseFloat(currentShift.initialCash || '0');
+    const initialCoins = parseFloat(currentShift.initialCoins || '0');
     const cashSales = payments.cash || 0;
     
     // Valores esperados (inicial + vendas em dinheiro)
-    const expectedCash = initialCash + cashSales;
-    const expectedCoins = initialCoins; // Moedas não mudam com vendas
+    const expectedCash = (isNaN(initialCash) ? 0 : initialCash) + cashSales;
+    const expectedCoins = isNaN(initialCoins) ? 0 : initialCoins; // Moedas não mudam com vendas
     
     // Calcular total de ajustes feitos pelo administrador
     let totalAdjustments = 0;
     if (cashAdjustments && Array.isArray(cashAdjustments)) {
       totalAdjustments = cashAdjustments.reduce((total, adjustment) => {
         if (adjustment.type === 'withdraw' || adjustment.type === 'adjustment') {
-          return total + parseFloat(adjustment.amount || 0);
+          return total + parseFloat(adjustment.amount || '0');
         }
         return total;
       }, 0);

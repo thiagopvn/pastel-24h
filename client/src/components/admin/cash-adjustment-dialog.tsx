@@ -44,19 +44,19 @@ function CurrentCashDisplay() {
 
   const { data: shiftPayments } = useQuery({
     queryKey: ["/api/shift-payments"],
-    enabled: !!currentShift?.id,
+    enabled: !!(currentShift as any)?.id,
   });
 
   // Query para buscar registros de produtos para calcular vendas
   const { data: shiftRecords } = useQuery({
     queryKey: ["/api/shift-records"],
-    enabled: !!currentShift?.id,
+    enabled: !!(currentShift as any)?.id,
   });
 
   // Query para buscar ajustes de caixa para deduzir do valor atual
   const { data: cashAdjustments } = useQuery({
-    queryKey: ["/api/cash-adjustments", currentShift?.id],
-    enabled: !!currentShift?.id,
+    queryKey: ["/api/cash-adjustments", (currentShift as any)?.id],
+    enabled: !!(currentShift as any)?.id,
   });
 
   if (!currentShift) {
@@ -68,7 +68,7 @@ function CurrentCashDisplay() {
     );
   }
 
-  const initialCash = parseFloat(currentShift.initialCash || "0");
+  const initialCash = parseFloat((currentShift as any)?.initialCash || "0");
 
   // Calcular vendas totais dos registros de produtos
   let totalSalesFromRecords = 0;
@@ -79,7 +79,7 @@ function CurrentCashDisplay() {
   }
 
   // Usar vendas em dinheiro registradas ou assumir que é igual ao total de vendas se não houver pagamentos registrados
-  const cashSales = parseFloat(shiftPayments?.cash || "0") || totalSalesFromRecords;
+  const cashSales = parseFloat((shiftPayments as any)?.cash || "0") || totalSalesFromRecords;
 
   // Calcular total de ajustes/retiradas feitos neste turno
   let totalAdjustments = 0;
@@ -103,14 +103,14 @@ function CurrentCashDisplay() {
         Inicial: {formatCurrency(initialCash)} + Vendas: {formatCurrency(cashSales)}
         {totalAdjustments > 0 && ` - Retiradas: ${formatCurrency(totalAdjustments)}`}
       </div>
-      {totalSalesFromRecords > 0 && !shiftPayments?.cash && (
+      {totalSalesFromRecords > 0 && !(shiftPayments as any)?.cash && (
         <div className="text-xs text-orange-600 mt-1">
           * Assumindo vendas em dinheiro (pagamentos não registrados ainda)
         </div>
       )}
       {totalAdjustments > 0 && (
         <div className="text-xs text-red-600 mt-1">
-          {cashAdjustments.length} ajuste(s) administrativo(s) aplicado(s)
+          {(cashAdjustments as any[])?.length || 0} ajuste(s) administrativo(s) aplicado(s)
         </div>
       )}
     </div>

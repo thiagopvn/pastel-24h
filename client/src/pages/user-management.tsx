@@ -120,7 +120,7 @@ export default function UserManagement() {
     const updatedData = {
       name: formData.get("name") as string,
       email: formData.get("email") as string,
-      role: selectedRole,
+      role: selectedRole as "admin" | "employee",
       transportModeId: selectedTransportModeId,
     };
 

@@ -84,7 +84,7 @@ export default function Alerts({ period }: AlertsProps) {
                         {new Date(divergence.shift.startTime).toLocaleTimeString('pt-BR', { 
                           hour: '2-digit', 
                           minute: '2-digit' 
-                        })} - Diferença: R$ {parseFloat(divergence.divergence).toFixed(2)}
+                        })} - Diferença: R$ {parseFloat(String(divergence.divergence)).toFixed(2)}
                       </p>
                       {divergence.shift.notes && (
                         <p className="text-sm mt-1 text-gray-600 italic">

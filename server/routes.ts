@@ -45,8 +45,21 @@ export function registerRoutes(app: Express): Server {
       console.log(`Authenticated:`, req.isAuthenticated ? req.isAuthenticated() : false);
       console.log(`User:`, req.user);
     }
+    
+    // Debug ALL PUT requests to see what's happening
+    if (req.method === 'PUT') {
+      console.log(`=== PUT REQUEST DEBUG ===`);
+      console.log(`Method: ${req.method}`);
+      console.log(`Path: ${req.path}`);
+      console.log(`URL: ${req.url}`);
+      console.log(`Body:`, req.body);
+      console.log(`Content-Type:`, req.headers['content-type']);
+      console.log(`Content-Length:`, req.headers['content-length']);
+    }
+    
     next();
   });
+
 
   const requireAuth = (req: any, res: any, next: any) => {
     console.log(`requireAuth - path: ${req.path}, isAuthenticated: ${req.isAuthenticated ? req.isAuthenticated() : false}, user: ${req.user ? req.user.role : 'none'}`);
@@ -1552,6 +1565,105 @@ export function registerRoutes(app: Express): Server {
       console.error("Erro ao revogar correção:", error);
       const message = error instanceof Error ? error.message : "An unknown error occurred";
       res.status(500).json({ message: "Failed to revoke correction", error: message });
+    }
+  });
+
+
+  // Rota para atualizar caixa inicial de um turno ativo
+  app.put("/api/admin/shifts/:shiftId/initial-cash", requireAdmin, async (req, res) => {
+    try {
+      console.log("=== DEBUG INITIAL CASH UPDATE ===");
+      console.log("ShiftId:", req.params.shiftId);
+      console.log("Request body:", JSON.stringify(req.body, null, 2));
+      
+      const shiftId = parseInt(req.params.shiftId);
+      if (isNaN(shiftId)) {
+        console.log("Invalid shiftId:", req.params.shiftId);
+        return res.status(400).json({ message: "Invalid shift ID" });
+      }
+
+      const { initialCash, initialCoins } = req.body;
+      const updates: { initialCash?: string; initialCoins?: string } = {};
+
+      console.log("Initial cash:", initialCash, typeof initialCash);
+      console.log("Initial coins:", initialCoins, typeof initialCoins);
+
+      // Valida e adiciona ao objeto de atualização apenas os campos que foram enviados
+      if (initialCash !== undefined) {
+        const cashValue = parseFloat(String(initialCash).replace(',', '.'));
+        console.log("Parsed cash value:", cashValue);
+        if (isNaN(cashValue) || cashValue < 0) {
+          console.log("Invalid cash value");
+          return res.status(400).json({ message: "Valor inválido para Dinheiro Inicial" });
+        }
+        updates.initialCash = String(cashValue);
+      }
+
+      if (initialCoins !== undefined) {
+        const coinsValue = parseFloat(String(initialCoins).replace(',', '.'));
+        console.log("Parsed coins value:", coinsValue);
+        if (isNaN(coinsValue) || coinsValue < 0) {
+          console.log("Invalid coins value");
+          return res.status(400).json({ message: "Valor inválido para Moedas Iniciais" });
+        }
+        updates.initialCoins = String(coinsValue);
+      }
+
+      console.log("Updates object:", updates);
+
+      if (Object.keys(updates).length === 0) {
+        console.log("No updates to apply");
+        return res.status(400).json({ message: "Nenhum valor para atualizar foi fornecido." });
+      }
+
+      // Buscar o turno atual para verificar se está aberto
+      const shift = await storage.getShift(shiftId);
+      if (!shift) {
+        return res.status(404).json({ message: "Turno não encontrado" });
+      }
+      
+      if (shift.status !== 'open') {
+        return res.status(400).json({ message: "Só é possível atualizar o caixa inicial de turnos abertos" });
+      }
+
+      // Atualizar o banco de dados com o objeto 'updates'
+      await db.update(shifts).set(updates).where(eq(shifts.id, shiftId));
+
+      // Buscar o turno atualizado para notificar
+      const updatedShift = await storage.getShift(shiftId);
+      
+      // Notificar via WebSocket
+      notifyShiftClients(shiftId, {
+        type: 'SHIFT_DATA_UPDATED',
+        payload: {
+          type: 'INITIAL_CASH_UPDATED',
+          shiftId: shiftId,
+          initialCash: updatedShift?.initialCash,
+          initialCoins: updatedShift?.initialCoins
+        }
+      });
+
+      // Adicionar ao Timeline
+      const description = [];
+      if (updates.initialCash !== undefined) {
+        description.push(`Notas: R$ ${parseFloat(updates.initialCash).toFixed(2)}`);
+      }
+      if (updates.initialCoins !== undefined) {
+        description.push(`Moedas: R$ ${parseFloat(updates.initialCoins).toFixed(2)}`);
+      }
+      
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "initial_cash_updated",
+        description: `Caixa inicial atualizado no turno #${shiftId}: ${description.join(', ')}`,
+        metadata: { shiftId, ...updates }
+      });
+      
+      res.json({ message: "Caixa inicial atualizado com sucesso", ...updates });
+    } catch (error) {
+      console.error("Erro ao atualizar caixa inicial:", error);
+      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      res.status(500).json({ message: "Failed to update initial cash", error: message });
     }
   });
 

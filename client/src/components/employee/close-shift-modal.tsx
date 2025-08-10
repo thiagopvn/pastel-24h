@@ -101,7 +101,7 @@ export function CloseShiftModal({
 
   // Colaboradores do turno
   const { data: collaborators } = useQuery<any[]>({
-    queryKey: [`/api/shift-collaborators/${shift.id}`],
+    queryKey: [`/api/shift-collaborators?shiftId=${shift.id}`],
     enabled: isOpen,
   });
 
@@ -154,6 +154,10 @@ export function CloseShiftModal({
 
   const generateShiftClosurePDF = async (pdfData: any) => {
     const { shift, formData, paymentData, shiftRecords, collaborators } = pdfData;
+
+    console.log('PDF Generation - Collaborators data:', collaborators);
+    console.log('PDF Generation - Collaborators length:', collaborators?.length);
+    console.log('PDF Generation - Shift data:', shift);
 
     const doc = new jsPDF();
     const now = new Date();
@@ -284,31 +288,65 @@ export function CloseShiftModal({
       });
     }
 
-    // Observações e Colaboradores
-    if (formData.notes || (collaborators && collaborators.length > 0)) {
+    // Resumo dos Colaboradores
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Resumo dos Colaboradores", 14, finalY);
+
+    if (collaborators && collaborators.length > 0) {
+      const collaboratorRows = collaborators.map((c: any) => [
+        c.name || 'N/A',
+        `${parseFloat(c.hoursWorked || '0').toFixed(2)} horas`,
+        formatCurrencyPDF(c.internalConsumption || 0)
+      ]);
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Colaborador', 'Horas Trabalhadas', 'Consumo Interno (R$)']],
+        body: collaboratorRows,
+        theme: 'grid',
+      });
+    } else {
+      autoTable(doc, {
+        startY: finalY + 5,
+        body: [['Nenhum colaborador registrado neste turno.']],
+        theme: 'plain',
+        styles: { fontSize: 10, textColor: [128, 128, 128] }
+      });
+    }
+
+    // Informações Operacionais
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Informações Operacionais", 14, finalY);
+
+    // Verifica gasExchange ou tempGasExchange
+    const gasExchanged = shift.gasExchange || shift.tempGasExchange || false;
+    console.log('Gas Exchange Status:', gasExchanged, 'gasExchange:', shift.gasExchange, 'tempGasExchange:', shift.tempGasExchange);
+
+    const operationalInfo = [
+      ['Troca de Gás Realizada:', gasExchanged ? 'Sim' : 'Não']
+    ];
+
+    autoTable(doc, {
+      startY: finalY + 5,
+      body: operationalInfo,
+      theme: 'plain',
+      styles: { fontSize: 10 },
+    });
+
+    // Observações
+    if (formData.notes) {
       finalY = (doc as any).lastAutoTable.finalY + 10;
       doc.setFontSize(12);
-      doc.text("Observações e Colaboradores", 14, finalY);
+      doc.text("Observações", 14, finalY);
       
-      const infoRows: string[][] = [];
-      
-      if (formData.notes) {
-        infoRows.push(['Observações:', formData.notes]);
-      }
-      
-      if (collaborators && collaborators.length > 0) {
-        const collabNames = collaborators.map((c: any) => c.user?.name || 'N/A').join(', ');
-        infoRows.push(['Colaboradores:', collabNames]);
-      }
-      
-      if (infoRows.length > 0) {
-        autoTable(doc, {
-          startY: finalY + 5,
-          body: infoRows,
-          theme: 'plain',
-          styles: { fontSize: 10 }
-        });
-      }
+      autoTable(doc, {
+        startY: finalY + 5,
+        body: [['Observações:', formData.notes]],
+        theme: 'plain',
+        styles: { fontSize: 10 }
+      });
     }
 
     // Assinatura

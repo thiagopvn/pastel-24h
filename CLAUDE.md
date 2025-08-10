@@ -178,6 +178,39 @@ const shiftId = params?.id;
 import { useParams } from 'wouter'; // This doesn't exist in wouter
 ```
 
+**WebSocket Real-time Updates:**
+The application uses WebSocket for real-time shift updates:
+```typescript
+// WebSocket is automatically connected via useShiftUpdates hook
+// Located in client/src/hooks/use-shift-updates.ts
+// Emits 'shift-updated' events when shifts change
+```
+
+**Shift Processing Logic:**
+Complex shift calculations are handled by specialized processors:
+- `server/lib/shift-processor.ts` - ORM-based shift processing
+- `server/lib/shift-processor-sql.ts` - Optimized SQL-based processing
+- Always use the appropriate processor based on performance needs
+
+## Business Formulas & Constants
+
+**Core Inventory Formula:**
+```typescript
+// From client/src/lib/calculations.ts
+Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno
+```
+
+**Cash Divergence Calculation:**
+```typescript
+Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
+```
+
+**Important Business Constants:**
+- Session duration: 14 days (configured in server/index.ts)
+- Password hashing: bcrypt with 12 rounds
+- Database transactions: Use Drizzle transactions for multi-table operations
+- Cash inheritance: Automatically passes between shifts when enabled
+
 ## Testing & Quality Checks
 
 **Before committing code:**
@@ -188,6 +221,7 @@ import { useParams } from 'wouter'; // This doesn't exist in wouter
 - Ensure no sensitive data in commits (passwords are hashed with bcrypt, rounds=12)
 - Verify all database queries include necessary relations when frontend expects nested data
 - Test responsive design on both desktop and mobile viewports
+- Validate business formulas for inventory and cash calculations
 
 ## Deployment Options
 

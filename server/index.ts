@@ -45,13 +45,13 @@ async function main() {
     throw e;
   }
 
-  // Registra todas as rotas da API
-  await registerRoutes(app);
-
   // Inicializa o WebSocket server
   log("Inicializando WebSocket server...");
   initWebSocket(server);
   log("WebSocket server inicializado!");
+
+  // Registra todas as rotas da API ANTES do middleware do Vite
+  await registerRoutes(app);
 
   // Em produção, serve os arquivos estáticos do React que foram buildados
   if (process.env.NODE_ENV === "production") {
@@ -70,6 +70,7 @@ async function main() {
   }
 
   // Em desenvolvimento, usa o Vite como middleware para servir o frontend com hot-reload
+  // IMPORTANTE: Vite middleware deve vir DEPOIS das rotas da API
   if (process.env.NODE_ENV === "development") {
     const { setupVite } = await import("./vite.js");
     await setupVite(app, server);

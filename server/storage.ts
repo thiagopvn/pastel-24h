@@ -27,6 +27,7 @@ export interface IStorage {
   getShift(shiftId: number): Promise<Shift | undefined>;
   createShift(shift: InsertShift & { userId: number; openingDiscrepancy?: string | null }): Promise<Shift>;
   updateShift(shiftId: number, updates: Partial<Shift>): Promise<Shift | undefined>;
+  updateShiftInitialCash(shiftId: number, initialCash: string, initialCoins: string): Promise<Shift | undefined>;
   closeShift(shiftId: number, closedBy: number, updates: Partial<Shift>): Promise<Shift | undefined>;
   getShiftsByDateRange(startDate: Date, endDate: Date): Promise<Shift[]>;
   getShiftDetails(shiftId: number): Promise<{
@@ -358,6 +359,14 @@ export class DatabaseStorage implements IStorage {
     return shift || undefined;
   }
 
+  async updateShiftInitialCash(shiftId: number, initialCash: string, initialCoins: string): Promise<Shift | undefined> {
+    const [shift] = await db.update(shifts)
+      .set({ initialCash, initialCoins })
+      .where(eq(shifts.id, shiftId))
+      .returning();
+    return shift || undefined;
+  }
+
   async closeShift(shiftId: number, closedBy: number, updates: Partial<Shift>): Promise<Shift | undefined> {
     console.log("Fechando turno no storage:", { shiftId, closedBy, updates });
 
@@ -584,7 +593,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTimeline(limit = 50): Promise<Timeline[]> {
-    return await db.select().from(timeline).orderBy(desc(timeline.createdAt)).limit(limit);
+    return db.query.timeline.findMany({
+      with: {
+        user: true,
+      },
+      orderBy: [desc(timeline.createdAt)],
+      limit,
+    });
   }
 
   async getConfig(key: string): Promise<string | undefined> {

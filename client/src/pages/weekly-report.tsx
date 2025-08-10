@@ -96,10 +96,10 @@ export default function WeeklyReportPage() {
   const [hasLoadedConfig, setHasLoadedConfig] = useState(false);
   useEffect(() => {
     if (payrollConfig && typeof payrollConfig === 'object' && !hasLoadedConfig) {
-      if (payrollConfig.hourlyRate) setHourlyRate(parseFloat(payrollConfig.hourlyRate) || 12.50);
-      if (payrollConfig.foodBenefit !== undefined) setFoodBenefit(parseFloat(payrollConfig.foodBenefit) || 0);
-      if (payrollConfig.consumptionDiscount !== undefined) setConsumptionDiscount(payrollConfig.consumptionDiscount || 50);
-      if (payrollConfig.transportRates) setTransportRates(payrollConfig.transportRates || { bus: 8.80, van: 12.00, app: 15.00 });
+      if ((payrollConfig as any).hourlyRate) setHourlyRate(parseFloat((payrollConfig as any).hourlyRate) || 12.50);
+      if ((payrollConfig as any).foodBenefit !== undefined) setFoodBenefit(parseFloat((payrollConfig as any).foodBenefit) || 0);
+      if ((payrollConfig as any).consumptionDiscount !== undefined) setConsumptionDiscount((payrollConfig as any).consumptionDiscount || 50);
+      if ((payrollConfig as any).transportRates) setTransportRates((payrollConfig as any).transportRates || { bus: 8.80, van: 12.00, app: 15.00 });
       setHasLoadedConfig(true);
     }
   }, [payrollConfig, hasLoadedConfig]);
@@ -236,8 +236,8 @@ export default function WeeklyReportPage() {
    */
   const loadExistingReport = () => {
     if (existingReport) {
-      setHourlyRate(parseFloat(existingReport.hourlyRate));
-      setFoodBenefit(parseFloat(existingReport.foodBenefit));
+      setHourlyRate(parseFloat(existingReport.hourlyRate || '0'));
+      setFoodBenefit(parseFloat(existingReport.foodBenefit || '0'));
       setConsumptionDiscount(existingReport.consumptionDiscount || 50);
       setTransportRates(existingReport.transportRates || { bus: 8.80, van: 12.00, app: 15.00 });
       setEmployeeData(existingReport.employeeData || []);
@@ -319,14 +319,14 @@ export default function WeeklyReportPage() {
     employeeData.forEach(emp => {
       ws_data.push([
         emp.name,
-        emp.hours,
-        emp.daysWorked,
-        emp.transport,
-        emp.food,
-        emp.consumption,
-        emp.bonus,
-        emp.deduction,
-        emp.total
+        emp.hours.toString(),
+        emp.daysWorked.toString(),
+        emp.transport.toString(),
+        emp.food.toString(),
+        emp.consumption.toString(),
+        emp.bonus.toString(),
+        emp.deduction.toString(),
+        emp.total.toString()
       ]);
     });
 
@@ -334,14 +334,14 @@ export default function WeeklyReportPage() {
     const totals = calculateTotals();
     ws_data.push([
       'TOTAL',
-      totals.hours,
+      totals.hours.toString(),
       '',
-      totals.transport,
-      totals.food,
-      totals.consumption,
+      totals.transport.toString(),
+      totals.food.toString(),
+      totals.consumption.toString(),
       '',
       '',
-      totals.payroll
+      totals.payroll.toString()
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
