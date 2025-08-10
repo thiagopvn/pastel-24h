@@ -4,7 +4,7 @@ import { Utensils, LogOut } from "lucide-react";
 import ShiftStatusCard from "@/components/employee/shift-status-card";
 import ProductForm from "@/components/employee/product-form";
 import CashRegister from "@/components/employee/cash-register";
-import Collaborators from "@/components/employee/collaborators";
+import CollaboratorsEnhanced from "@/components/employee/collaborators-enhanced";
 
 export default function EmployeeDashboard() {
   const { user, logoutMutation } = useAuth();
@@ -51,7 +51,7 @@ export default function EmployeeDashboard() {
           <ShiftStatusCard />
           <ProductForm />
           <CashRegister />
-          <Collaborators />
+          <CollaboratorsEnhanced />
         </div>
       </main>
     </div>

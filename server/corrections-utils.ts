@@ -114,9 +114,16 @@ export async function applyCorrectionsToShiftData(shiftId: number): Promise<Shif
 
         case 'cash_count':
           if (correction.cashType) {
-            // Aplicar correção nos valores de caixa
-            correctedShift.shift[correction.cashType] = correctedValue;
-            correctedCashValues[correction.cashType] = correctedValue;
+            // Verificar se existe o objeto shift antes de aplicar correções
+            if (correctedShift.shift) {
+              // Aplicar correção nos valores de caixa
+              correctedShift.shift[correction.cashType] = correctedValue;
+              correctedCashValues[correction.cashType] = correctedValue;
+            } else if (correctedShift[correction.cashType] !== undefined) {
+              // Se não houver objeto shift aninhado, aplicar diretamente
+              correctedShift[correction.cashType] = correctedValue;
+              correctedCashValues[correction.cashType] = correctedValue;
+            }
           }
           break;
       }
@@ -128,11 +135,20 @@ export async function applyCorrectionsToShiftData(shiftId: number): Promise<Shif
     }
 
     // 6. Retornar os dados com as correções aplicadas
+    // Verificar se há estrutura aninhada ou não
+    const shiftData = correctedShift.shift || correctedShift;
+    
+    // Garantir que os valores essenciais estejam definidos
+    if (shiftData) {
+      shiftData.countedFinalCash = shiftData.countedFinalCash || "0";
+      shiftData.countedFinalCoins = shiftData.countedFinalCoins || "0";
+    }
+    
     return {
-      shift: correctedShift.shift,
+      shift: shiftData,
       user: correctedShift.user,
-      records: correctedShift.records,
-      payments: correctedShift.payments,
+      records: correctedShift.records || [],
+      payments: correctedShift.payments || {},
       correctedRecords,
       correctedPayments,
       correctedCashValues
@@ -148,10 +164,10 @@ export async function applyCorrectionsToShiftData(shiftId: number): Promise<Shif
  * Recalcula valores derivados do turno após correções de pagamento ou caixa
  */
 async function recalculateShiftDerivedValues(correctedShift: any, correctedCashValues: { [key: string]: any }) {
-  const shift = correctedShift.shift;
+  const shift = correctedShift.shift || correctedShift;
   const payments = correctedShift.payments;
 
-  if (!payments) return;
+  if (!shift || !payments) return;
 
   // Recalcular valores totais de vendas
   const totalSales = (parseFloat(payments.cash || "0") + 

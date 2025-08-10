@@ -503,9 +503,9 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/shifts/add-collaborator", requireAuth, async (req, res) => {
     try {
-      const { shiftId, userId } = req.body;
+      const { shiftId, userId, hoursWorked, internalConsumption } = req.body;
 
-      const success = await storage.addShiftCollaborator(shiftId, userId);
+      const success = await storage.addShiftCollaborator(shiftId, userId, hoursWorked, internalConsumption);
       if (success) {
         res.json({ success: true });
       } else {
@@ -557,6 +557,27 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Error getting shift collaborators:", error);
       res.status(500).json({ message: "Failed to get shift collaborators" });
+    }
+  });
+
+  app.put("/api/shifts/:shiftId/collaborators/:userId", requireAuth, async (req, res) => {
+    try {
+      const { shiftId, userId } = req.params;
+      const { hoursWorked, internalConsumption } = req.body;
+
+      const success = await storage.updateShiftCollaborator(
+        parseInt(shiftId), 
+        parseInt(userId),
+        hoursWorked,
+        internalConsumption
+      );
+      if (success) {
+        res.json({ success: true });
+      } else {
+        res.status(400).json({ message: "Failed to update collaborator" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update collaborator" });
     }
   });
 
@@ -1215,13 +1236,27 @@ export function registerRoutes(app: Express): Server {
       const employeeData = [];
 
       for (const employee of employees) {
+        // Turnos onde o funcionário foi o responsável principal
         const employeeShifts = shifts.filter(shift => 
           shift.userId === employee.id && shift.endTime
         );
 
+        // Buscar também turnos onde o funcionário foi colaborador
+        const collaboratorShifts = [];
+        for (const shift of shifts) {
+          if (shift.endTime) {
+            const collaborators = await storage.getShiftCollaborators(shift.id);
+            const isCollaborator = collaborators.find(c => c.id === employee.id);
+            if (isCollaborator) {
+              collaboratorShifts.push({ shift, collaboratorData: isCollaborator });
+            }
+          }
+        }
+
         let totalHours = 0;
         let totalConsumption = 0;
 
+        // Processar turnos onde foi funcionário principal
         for (const shift of employeeShifts) {
           if (shift.startTime && shift.endTime) {
             const duration = (new Date(shift.endTime).getTime() - new Date(shift.startTime).getTime()) / (1000 * 60 * 60);
@@ -1237,7 +1272,14 @@ export function registerRoutes(app: Express): Server {
           }
         }
 
-        const daysWorked = employeeShifts.length;
+        // Adicionar horas e consumo dos turnos como colaborador
+        for (const { collaboratorData } of collaboratorShifts) {
+          totalHours += parseFloat(collaboratorData.hoursWorked || "0");
+          totalConsumption += parseFloat(collaboratorData.internalConsumption || "0");
+        }
+
+        // Total de dias trabalhados (como funcionário principal ou colaborador)
+        const daysWorked = employeeShifts.length + collaboratorShifts.length;
         const transportCost = daysWorked * employee.transportModePrice;
 
         const foodCost = daysWorked * foodBenefit;

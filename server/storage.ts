@@ -36,7 +36,8 @@ export interface IStorage {
     collaborators: User[];
   } | undefined>;
 
-  addShiftCollaborator(shiftId: number, userId: number): Promise<boolean>;
+  addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string, internalConsumption?: string): Promise<boolean>;
+  updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string, internalConsumption: string): Promise<boolean>;
   removeShiftCollaborator(shiftId: number, userId: number): Promise<boolean>;
   getShiftCollaborators(shiftId: number): Promise<User[]>;
 
@@ -440,10 +441,29 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async addShiftCollaborator(shiftId: number, userId: number): Promise<boolean> {
+  async addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string, internalConsumption?: string): Promise<boolean> {
     try {
-      await db.insert(shiftCollaborators).values({ shiftId, userId });
+      await db.insert(shiftCollaborators).values({ 
+        shiftId, 
+        userId,
+        hoursWorked: hoursWorked || "0.00",
+        internalConsumption: internalConsumption || "0.00"
+      });
       return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string, internalConsumption: string): Promise<boolean> {
+    try {
+      const result = await db.update(shiftCollaborators)
+        .set({ hoursWorked, internalConsumption })
+        .where(and(
+          eq(shiftCollaborators.shiftId, shiftId),
+          eq(shiftCollaborators.userId, userId)
+        ));
+      return (result.changes ?? 0) > 0;
     } catch {
       return false;
     }
@@ -455,12 +475,20 @@ export class DatabaseStorage implements IStorage {
     return (result.changes ?? 0) > 0;
   }
 
-  async getShiftCollaborators(shiftId: number): Promise<User[]> {
-    const result = await db.select({ user: users })
+  async getShiftCollaborators(shiftId: number): Promise<any[]> {
+    const result = await db.select({ 
+      user: users,
+      collaborator: shiftCollaborators 
+    })
       .from(shiftCollaborators)
       .innerJoin(users, eq(shiftCollaborators.userId, users.id))
       .where(eq(shiftCollaborators.shiftId, shiftId));
-    return result.map(r => r.user);
+    
+    return result.map(r => ({
+      ...r.user,
+      hoursWorked: r.collaborator.hoursWorked,
+      internalConsumption: r.collaborator.internalConsumption
+    }));
   }
 
   async upsertShiftRecord(record: InsertShiftRecord & { shiftId: number }): Promise<ShiftRecord> {

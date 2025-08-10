@@ -70,6 +70,8 @@ export const shiftCollaborators = sqliteTable("shift_collaborators", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   shiftId: integer("shift_id").references(() => shifts.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
+  hoursWorked: text("hours_worked").default("0.00"),
+  internalConsumption: text("internal_consumption").default("0.00"),
   addedAt: integer("added_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
