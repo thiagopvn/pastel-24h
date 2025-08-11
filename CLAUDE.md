@@ -181,16 +181,37 @@ import { useParams } from 'wouter'; // This doesn't exist in wouter
 **WebSocket Real-time Updates:**
 The application uses WebSocket for real-time shift updates:
 ```typescript
-// WebSocket is automatically connected via useShiftUpdates hook
-// Located in client/src/hooks/use-shift-updates.ts
-// Emits 'shift-updated' events when shifts change
+// WebSocket server runs on path '/ws-api' with shift-specific connections
+// Server code in server/ws.ts handles client connections by shiftId
+// Emits 'shift-updated' events when shifts change via notifyShiftClients()
+// Client components use direct WebSocket connections for real-time data
 ```
 
 **Shift Processing Logic:**
 Complex shift calculations are handled by specialized processors:
 - `server/lib/shift-processor.ts` - ORM-based shift processing
-- `server/lib/shift-processor-sql.ts` - Optimized SQL-based processing
+- `server/lib/shift-processor-sql.ts` - Optimized SQL-based processing  
+- `server/corrections-utils.ts` - Handles administrative corrections and data integrity
 - Always use the appropriate processor based on performance needs
+
+**Error Handling & Data Validation:**
+Critical patterns for robust operation:
+```typescript
+// ALWAYS validate shift IDs and handle null cases
+if (!shiftId || typeof shiftId !== 'number') {
+  console.warn("Invalid shift ID:", shiftId);
+  return null;
+}
+
+// Use try-catch blocks for database operations
+try {
+  const result = await getProcessedShiftById(shiftId);
+  return result;
+} catch (error) {
+  console.error("Database operation failed:", error);
+  return null;
+}
+```
 
 ## Business Formulas & Constants
 
@@ -206,10 +227,11 @@ Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
 ```
 
 **Important Business Constants:**
-- Session duration: 14 days (configured in server/index.ts)
+- Session duration: 24 hours (configured in server/auth.ts)
 - Password hashing: bcrypt with 12 rounds
 - Database transactions: Use Drizzle transactions for multi-table operations
 - Cash inheritance: Automatically passes between shifts when enabled
+- WebSocket connections: path '/ws-api' with shiftId parameter
 
 ## Testing & Quality Checks
 

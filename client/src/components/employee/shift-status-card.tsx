@@ -22,6 +22,7 @@ import { formatCurrency } from "@/lib/calculations";
 type ShiftForm = z.infer<typeof insertShiftSchema>;
 
 export default function ShiftStatusCard() {
+  console.log(`%c--- ShiftStatusCard RENDERIZOU --- (${new Date().toLocaleTimeString()})`, 'color: orange; font-weight: bold;');
   const { user } = useAuth();
   const { toast } = useToast();
   const [isOpenDialogOpen, setIsOpenDialogOpen] = useState(false);
@@ -32,7 +33,7 @@ export default function ShiftStatusCard() {
     staleTime: 0, // Always refetch
     gcTime: 0, // Don't cache
     refetchOnWindowFocus: true,
-    refetchInterval: 5000, // Refetch every 5 seconds
+    refetchInterval: 20000, // Polling a cada 20 segundos
   });
 
   const { data: lastClosedShift } = useQuery({
@@ -43,12 +44,23 @@ export default function ShiftStatusCard() {
 
   const form = useForm<ShiftForm>({
     resolver: zodResolver(insertShiftSchema),
+    // Valores estáticos para evitar resets em re-renderizações
     defaultValues: {
-      initialCash: "0.00",
-      initialCoins: "0.00",
-      gasExchange: false,
+      initialCash: "",
+      initialCoins: "",
       notes: "",
+      gasExchange: false,
     },
+  });
+
+  // Logs para debug
+  console.log('%c[DEBUG] Form State:', 'color: purple; font-weight: bold;', {
+    isDirty: form.formState.isDirty,
+    dirtyFields: form.formState.dirtyFields,
+    values: form.getValues(),
+    isOpenDialogOpen,
+    hasLastClosedShift: !!lastClosedShift,
+    lastClosedShiftData: lastClosedShift
   });
 
   // Calculate expected cash values (for reference only)
@@ -62,22 +74,38 @@ export default function ShiftStatusCard() {
     return (lastClosedShift as any).coinsForNextShift || (lastClosedShift as any).inheritedCoins || "50.00";
   };
 
-  // Este efeito só deve ser executado quando o modal for aberto.
+  // useEffect inteligente para popular os dados apenas uma vez
   useEffect(() => {
-    if (isOpenDialogOpen && !currentShift) {
-      const adjustedCash = calculateExpectedCash();
-      const adjustedCoins = calculateExpectedCoins();
+    console.log('%c[useEffect CHECK]', 'color: blue;', {
+      hasLastClosedShift: !!lastClosedShift,
+      isDirty: form.formState.isDirty,
+      willReset: !!(lastClosedShift && !form.formState.isDirty)
+    });
+    
+    // Condição: só executa se os dados do último turno chegaram E o usuário ainda não digitou nada
+    if (lastClosedShift && !form.formState.isDirty) {
+      console.log('%c>>> useEffect: Populando formulário com dados iniciais <<<', 'color: green; font-weight: bold;');
+      
+      // Calcula os valores com base nos dados recebidos
+      const expectedCash = (lastClosedShift as any).cashForNextShift || (lastClosedShift as any).inheritedCash || "200.00";
+      const expectedCoins = (lastClosedShift as any).coinsForNextShift || (lastClosedShift as any).inheritedCoins || "50.00";
 
-      // Usamos form.reset() para definir todos os valores iniciais do formulário de uma vez.
-      // Isso é mais seguro do que usar setValue repetidamente.
+      console.log('%c[RESET VALUES]', 'color: orange;', {
+        expectedCash,
+        expectedCoins,
+        lastClosedShift
+      });
+
+      // Reseta o formulário com os valores calculados
+      // Isso só acontecerá uma vez, quando os dados carregarem pela primeira vez
       form.reset({
-        initialCash: adjustedCash,
-        initialCoins: adjustedCoins,
-        notes: "", // Garante que as observações também sejam limpas
+        initialCash: expectedCash,
+        initialCoins: expectedCoins,
+        notes: "",
         gasExchange: false,
       });
     }
-  }, [isOpenDialogOpen, lastClosedShift, currentShift, form]); // As dependências garantem que o cálculo use os dados mais recentes ao abrir.
+  }, [lastClosedShift, form]); // Observa a chegada dos dados e o próprio form
 
   const openShiftMutation = useMutation({
     mutationFn: async (data: ShiftForm) => {
@@ -275,9 +303,21 @@ export default function ShiftStatusCard() {
         )}
 
         {!currentShift ? (
-          <Dialog open={isOpenDialogOpen} onOpenChange={setIsOpenDialogOpen}>
+          <Dialog 
+            open={isOpenDialogOpen} 
+            onOpenChange={setIsOpenDialogOpen} // Simples, apenas controlando o estado
+          >
             <DialogTrigger asChild>
-              <Button className="w-full">
+              <Button 
+                className="w-full"
+                onClick={() => {
+                  console.log('%c[OPEN BUTTON CLICKED]', 'color: magenta; font-weight: bold;', {
+                    formValues: form.getValues(),
+                    isDirty: form.formState.isDirty,
+                    dirtyFields: form.formState.dirtyFields
+                  });
+                }}
+              >
                 <Play className="h-4 w-4 mr-2" />
                 Abrir Novo Turno
               </Button>
@@ -338,6 +378,13 @@ export default function ShiftStatusCard() {
                     {...form.register("initialCash")}
                     placeholder="0.00"
                     className="border-gray-300"
+                    onChange={(e) => {
+                      console.log('%c[CASH INPUT CHANGE]', 'color: red; font-weight: bold;', {
+                        value: e.target.value,
+                        currentFormValue: form.getValues('initialCash'),
+                        isDirty: form.formState.isDirty
+                      });
+                    }}
                   />
                   <p className="text-xs text-gray-600 mt-1">
                     Valor esperado: {formatCurrency(parseFloat(calculateExpectedCash()))}
