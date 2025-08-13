@@ -1175,10 +1175,33 @@ export function registerRoutes(app: Express): Server {
       const product = await storage.createProduct(productData);
       res.status(201).json(product);
     } catch (error) {
+      console.error('[ERROR] Failed to create product:', error);
+      
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid data", errors: error.errors });
       }
-      res.status(500).json({ message: "Failed to create product" });
+      
+      // Tratamento específico para erros de banco de dados
+      if (error instanceof Error) {
+        // Verificar se é erro de coluna faltante
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch - migrations may not have been run');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        // Outros erros de banco de dados
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed. Please try again later.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      }
+      
+      res.status(500).json({ message: "Failed to create product due to a server error." });
     }
   });
 
@@ -1209,6 +1232,11 @@ export function registerRoutes(app: Express): Server {
   app.put("/api/admin/products/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid product ID" });
+      }
+      
       const productData = insertProductSchema.partial().parse(req.body);
       const product = await storage.updateProduct(id, productData);
 
@@ -1218,9 +1246,29 @@ export function registerRoutes(app: Express): Server {
 
       res.json(product);
     } catch (error) {
+      console.error('[ERROR] Failed to update product:', error);
+      
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid data", errors: error.errors });
       }
+      
+      if (error instanceof Error) {
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch when updating product');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      }
+      
       res.status(500).json({ message: "Failed to update product" });
     }
   });
@@ -1228,6 +1276,11 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/admin/products/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid product ID" });
+      }
+      
       const success = await storage.deleteProduct(id);
 
       if (!success) {
@@ -1236,6 +1289,31 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ success: true });
     } catch (error) {
+      console.error('[ERROR] Failed to delete product:', error);
+      
+      if (error instanceof Error) {
+        if (error.message.includes('foreign key') || error.message.includes('FOREIGN KEY')) {
+          return res.status(400).json({ 
+            message: "Cannot delete product that is in use in shift records" 
+          });
+        }
+        
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch when deleting product');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      }
+      
       res.status(500).json({ message: "Failed to delete product" });
     }
   });
@@ -1277,7 +1355,7 @@ export function registerRoutes(app: Express): Server {
       });
       res.status(201).json({ ...user, password: undefined });
     } catch (error) {
-      console.error("Error creating user:", error);
+      console.error("[ERROR] Failed to create user:", error);
       if (error instanceof z.ZodError) {
         const firstError = error.errors[0];
         return res.status(400).json({ 
@@ -1292,6 +1370,24 @@ export function registerRoutes(app: Express): Server {
           message: "Email já está em uso", 
           errors: [{ path: ['email'], message: "Este email já está cadastrado no sistema" }] 
         });
+      }
+      
+      // Tratamento para erros de banco de dados
+      if (error instanceof Error) {
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch when creating user');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
       }
       
       res.status(500).json({ message: "Falha ao criar usuário" });
@@ -1365,6 +1461,7 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/admin/weekly-report/calculate", requireAdmin, async (req, res) => {
     try {
+      console.log('[INFO] Starting weekly report calculation');
       const { weekStart, weekEnd, hourlyRate, foodBenefit, consumptionDiscount, transportRates } = req.body;
 
       const startDate = new Date(weekStart);
@@ -1491,9 +1588,38 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ employeeData });
     } catch (error) {
-      console.error("Erro ao calcular dados semanais:", error);
+      console.error("[ERROR] Failed to calculate weekly data:", error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          message: "Invalid data provided", 
+          errors: error.errors 
+        });
+      }
+      
+      if (error instanceof Error) {
+        // Verificar erros de banco de dados
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch in weekly report calculation');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed during calculation.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      }
+      
       const message = error instanceof Error ? error.message : "An unknown error occurred";
-      res.status(500).json({ message: "Failed to calculate weekly data", error: message });
+      res.status(500).json({ 
+        message: "Failed to calculate weekly data", 
+        error: process.env.NODE_ENV === 'development' ? message : undefined 
+      });
     }
   });
 
@@ -1883,6 +2009,11 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/admin/transport/:id", requireAdmin, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid transport ID" });
+      }
+      
       const success = await storage.deleteTransportMode(id);
 
       if (!success) {
@@ -1891,9 +2022,31 @@ export function registerRoutes(app: Express): Server {
 
       res.json({ success: true });
     } catch (error: any) {
-      if (error.message?.includes('foreign key')) {
+      console.error('[ERROR] Failed to delete transport mode:', error);
+      
+      // Tratamento específico para erro de chave estrangeira
+      if (error.message?.includes('foreign key') || error.message?.includes('FOREIGN KEY')) {
         return res.status(400).json({ message: "Transporte em uso por funcionários" });
       }
+      
+      // Tratamento para erros de banco de dados
+      if (error instanceof Error) {
+        if (error.message.includes('no such column')) {
+          console.error('[CRITICAL] Database schema mismatch when deleting transport');
+          return res.status(500).json({ 
+            message: "Database schema error. Please ensure migrations have been run.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+        
+        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+          return res.status(500).json({ 
+            message: "Database operation failed.",
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+          });
+        }
+      }
+      
       res.status(500).json({ message: "Failed to delete transport mode" });
     }
   });
