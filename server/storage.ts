@@ -21,6 +21,7 @@ export interface IStorage {
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product | undefined>;
   deleteProduct(id: number): Promise<boolean>;
+  reorderProducts(order: Array<{id: number; sortOrder: number}>): Promise<boolean>;
 
   getCurrentShift(userId?: number): Promise<Shift | undefined>;
   getAllOpenShifts(): Promise<Shift[]>;
@@ -236,14 +237,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllProducts(): Promise<Product[]> {
-    return await db.select().from(products).orderBy(asc(products.category), asc(products.name));
+    return await db.select().from(products).orderBy(asc(products.category), asc(products.sortOrder));
   }
 
   async getProductsByCategory(category: string): Promise<Product[]> {
-    return await db.select().from(products).where(eq(products.category, category)).orderBy(asc(products.name));
+    return await db.select().from(products).where(eq(products.category, category)).orderBy(asc(products.sortOrder));
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
+    // Se sortOrder não foi fornecido, definir como o próximo valor disponível
+    if (insertProduct.sortOrder === undefined) {
+      const maxSortOrder = await db.select({ max: sql<number>`MAX(${products.sortOrder})` })
+        .from(products);
+      insertProduct.sortOrder = (maxSortOrder[0]?.max ?? -1) + 1;
+    }
     const [product] = await db.insert(products).values(insertProduct).returning();
     return product;
   }
@@ -256,6 +263,20 @@ export class DatabaseStorage implements IStorage {
   async deleteProduct(id: number): Promise<boolean> {
     const result = await db.delete(products).where(eq(products.id, id));
     return (result.changes ?? 0) > 0;
+  }
+
+  async reorderProducts(order: Array<{id: number; sortOrder: number}>): Promise<boolean> {
+    try {
+      for (const item of order) {
+        await db.update(products)
+          .set({ sortOrder: item.sortOrder })
+          .where(eq(products.id, item.id));
+      }
+      return true;
+    } catch (error) {
+      console.error("Error reordering products:", error);
+      return false;
+    }
   }
 
   async getCurrentShift(userId?: number): Promise<Shift | undefined> {
@@ -548,7 +569,8 @@ export class DatabaseStorage implements IStorage {
       product: products
     }).from(shiftRecords)
       .leftJoin(products, eq(shiftRecords.productId, products.id))
-      .where(eq(shiftRecords.shiftId, shiftId)) as any;
+      .where(eq(shiftRecords.shiftId, shiftId))
+      .orderBy(asc(products.sortOrder)) as any;
   }
 
   async updateShiftRecord(recordId: number, updates: Partial<ShiftRecord>): Promise<ShiftRecord | undefined> {

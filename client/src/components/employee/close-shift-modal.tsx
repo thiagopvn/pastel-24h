@@ -105,6 +105,12 @@ export function CloseShiftModal({
     enabled: isOpen,
   });
 
+  // Consumo de colaboradores
+  const { data: collaboratorConsumptions } = useQuery<any[]>({
+    queryKey: [`/api/shifts/${shift.id}/collaborator-consumption`],
+    enabled: isOpen,
+  });
+
   const countedFinalCash = parseFloat(form.watch("countedFinalCash") || "0");
   const countedFinalCoins = parseFloat(form.watch("countedFinalCoins") || "0");
   const envelopeCash = parseFloat(form.watch("envelopeCash") || "0");
@@ -153,10 +159,11 @@ export function CloseShiftModal({
   }, [countedFinalCash, countedFinalCoins, totalExpectedFinal]);
 
   const generateShiftClosurePDF = async (pdfData: any) => {
-    const { shift, formData, paymentData, shiftRecords, collaborators } = pdfData;
+    const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
 
     console.log('PDF Generation - Collaborators data:', collaborators);
     console.log('PDF Generation - Collaborators length:', collaborators?.length);
+    console.log('PDF Generation - Collaborator consumptions:', collaboratorConsumptions);
     console.log('PDF Generation - Shift data:', shift);
 
     const doc = new jsPDF();
@@ -315,6 +322,69 @@ export function CloseShiftModal({
       });
     }
 
+    // Consumo de Colaboradores
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.text("Consumo de Colaboradores", 14, finalY);
+
+    if (collaboratorConsumptions && collaboratorConsumptions.length > 0) {
+      const consumptionRows = collaboratorConsumptions.map((consumption: any) => {
+        const discount = (consumption.beveragesValue + consumption.pastriesValue) * 0.5;
+        const products = consumption.consumedProducts 
+          ? (typeof consumption.consumedProducts === 'string' 
+             ? JSON.parse(consumption.consumedProducts) 
+             : consumption.consumedProducts)
+          : [];
+        const productsList = products.map((p: any) => `${p.name} (${p.quantity}x)`).join(', ') || '-';
+        
+        return [
+          consumption.collaborator?.name || 'N/A',
+          `${consumption.hoursWorked} h`,
+          formatCurrencyPDF(consumption.beveragesValue),
+          formatCurrencyPDF(consumption.pastriesValue),
+          `${consumption.waterQuantity}x`,
+          formatCurrencyPDF(discount),
+          productsList
+        ];
+      });
+
+      autoTable(doc, {
+        startY: finalY + 5,
+        head: [['Colaborador', 'Horas', 'Bebidas (R$)', 'Pastéis (R$)', 'Águas', 'Desconto (R$)', 'Produtos Detalhados']],
+        body: consumptionRows,
+        theme: 'grid',
+        styles: { fontSize: 8 },
+        columnStyles: {
+          6: { cellWidth: 50 }
+        }
+      });
+
+      // Totais de consumo
+      const totalBeverages = collaboratorConsumptions.reduce((sum: number, c: any) => sum + (c.beveragesValue || 0), 0);
+      const totalPastries = collaboratorConsumptions.reduce((sum: number, c: any) => sum + (c.pastriesValue || 0), 0);
+      const totalWater = collaboratorConsumptions.reduce((sum: number, c: any) => sum + (c.waterQuantity || 0), 0);
+      const totalDiscount = (totalBeverages + totalPastries) * 0.5;
+
+      autoTable(doc, {
+        startY: (doc as any).lastAutoTable.finalY + 2,
+        body: [
+          ['TOTAIS', '', formatCurrencyPDF(totalBeverages), formatCurrencyPDF(totalPastries), `${totalWater}x`, formatCurrencyPDF(totalDiscount), '']
+        ],
+        theme: 'grid',
+        styles: { fontSize: 8, fontStyle: 'bold' },
+        columnStyles: {
+          6: { cellWidth: 50 }
+        }
+      });
+    } else {
+      autoTable(doc, {
+        startY: finalY + 5,
+        body: [['Nenhum consumo de colaborador registrado neste turno.']],
+        theme: 'plain',
+        styles: { fontSize: 10, textColor: [128, 128, 128] }
+      });
+    }
+
     // Informações Operacionais
     finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(12);
@@ -378,6 +448,7 @@ export function CloseShiftModal({
         paymentData,
         shiftRecords,
         collaborators,
+        collaboratorConsumptions,
       };
       
       // 1. Gera e baixa o PDF

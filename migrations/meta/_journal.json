@@ -8,6 +8,27 @@
       "when": 1754792691325,
       "tag": "0000_milky_starjammers",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1755049018082,
+      "tag": "0001_add_sort_order",
+      "breakpoints": false
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1755052043400,
+      "tag": "0002_add_collaborator_consumption",
+      "breakpoints": false
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1755118635191,
+      "tag": "0003_open_dragon_lord",
+      "breakpoints": true
     }
   ]
 }

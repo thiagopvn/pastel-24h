@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Docker & Deployment:**
 - `docker build -t pastel24h .` - Build production Docker image (includes automatic database migration)
-- `docker-compose up` - Start containerized application
+- `docker-compose up` - Start containerized application with SQLite volume persistence
 - Vercel serverless deployment via `/api/index.js` endpoint
 
 **Database:**
@@ -31,11 +31,12 @@ This is a full-stack web application for restaurant shift management built with:
 - SQLite database with Drizzle ORM for type-safe queries
 - Passport.js authentication with local strategy and sessions
 - RESTful API with role-based access control (admin/employee)
+- WebSocket server for real-time shift updates on path '/ws-api'
 - Database schema shared between client and server via `shared/schema.ts`
 
 **Frontend (React + Vite):**
-- React with TypeScript and Wouter for routing
-- TanStack Query for server state management
+- React 18 with TypeScript and Wouter for routing
+- TanStack Query for server state management with optimistic updates
 - Shadcn/ui components with Tailwind CSS and Framer Motion animations
 - Comprehensive UI library: Radix UI components, Recharts for data visualization
 - Export capabilities: PDF generation (jsPDF) and Excel export (xlsx)
@@ -125,10 +126,11 @@ The application manages restaurant operations through interconnected tables:
 ## Initial Setup
 
 **First-time setup requires:**
-1. Create `.env` file with `SESSION_SECRET` (use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` to generate)
-2. Run `npm install` to install all dependencies
-3. Run `npm run db:migrate` to create database tables (required - application will exit with error if not run)
-4. Start development with `npm run dev`
+1. Node.js 20 or higher
+2. Create `.env` file with `SESSION_SECRET` (use `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` to generate)
+3. Run `npm install` to install all dependencies
+4. Run `npm run db:migrate` to create database tables (required - application will exit with error if not run)
+5. Start development with `npm run dev`
 
 ## Critical Implementation Patterns
 
@@ -250,7 +252,7 @@ Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
 **Docker Containerization:**
 - Multi-stage Docker build with optimization for production
 - Database migrations run automatically during container startup
-- Docker Compose configuration available for local development
+- Docker Compose configuration with SQLite volume persistence at `./data:/app/data`
 
 **Serverless Deployment:**
 - Vercel-compatible serverless functions via `/api/index.js`

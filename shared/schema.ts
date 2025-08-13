@@ -28,6 +28,8 @@ export const products = sqliteTable("products", {
   category: text("category").notNull(),
   price: text("price").notNull(),
   minStock: integer("min_stock").default(0),
+  stock: integer("stock").notNull().default(0),
+  sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
@@ -200,6 +202,24 @@ export const shiftSnapshots = sqliteTable("shift_snapshots", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
+export const collaboratorConsumption = sqliteTable("collaborator_consumption", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  shiftId: integer("shift_id").references(() => shifts.id).notNull(),
+  collaboratorId: integer("collaborator_id").references(() => users.id).notNull(),
+  hoursWorked: real("hours_worked").notNull().default(0),
+  beveragesValue: real("beverages_value").notNull().default(0),
+  pastriesValue: real("pastries_value").notNull().default(0),
+  waterQuantity: integer("water_quantity").notNull().default(0),
+  consumedProducts: text("consumed_products", { mode: "json" }).$type<Array<{
+    productId: number;
+    name: string;
+    quantity: number;
+    price: string;
+  }>>().default([]),
+  createdAt: integer("created_at", { mode: "timestamp_ms" }),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+});
+
 export const corrections = sqliteTable("corrections", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   shiftId: integer("shift_id").notNull().references(() => shifts.id),
@@ -235,6 +255,7 @@ export const corrections = sqliteTable("corrections", {
 export const usersRelations = relations(users, ({ many, one }) => ({
   shifts: many(shifts),
   shiftCollaborations: many(shiftCollaborators),
+  collaboratorConsumptions: many(collaboratorConsumption),
   timelineEntries: many(timeline),
   transportMode: one(transportModes, { fields: [users.transportModeId], references: [transportModes.id] }),
 }));
@@ -247,6 +268,7 @@ export const shiftsRelations = relations(shifts, ({ one, many }) => ({
   user: one(users, { fields: [shifts.userId], references: [users.id] }),
   closedByUser: one(users, { fields: [shifts.closedBy], references: [users.id] }),
   collaborators: many(shiftCollaborators),
+  collaboratorConsumptions: many(collaboratorConsumption),
   records: many(shiftRecords),
   payments: one(shiftPayments),
 }));
@@ -271,6 +293,11 @@ export const shiftPaymentsRelations = relations(shiftPayments, ({ one }) => ({
 
 export const timelineRelations = relations(timeline, ({ one }) => ({
   user: one(users, { fields: [timeline.userId], references: [users.id] }),
+}));
+
+export const collaboratorConsumptionRelations = relations(collaboratorConsumption, ({ one }) => ({
+  shift: one(shifts, { fields: [collaboratorConsumption.shiftId], references: [shifts.id] }),
+  collaborator: one(users, { fields: [collaboratorConsumption.collaboratorId], references: [users.id] }),
 }));
 
 export const correctionsRelations = relations(corrections, ({ one }) => ({
@@ -319,6 +346,7 @@ export const insertProductSchema = createInsertSchema(products).pick({
   category: true,
   price: true,
   minStock: true,
+  sortOrder: true,
 });
 
 export const insertShiftSchema = createInsertSchema(shifts).pick({
@@ -359,6 +387,27 @@ export const insertPayrollConfigSchema = createInsertSchema(payrollConfig).pick(
   transportRates: true,
 });
 
+export const insertCollaboratorConsumptionSchema = createInsertSchema(collaboratorConsumption).pick({
+  shiftId: true,
+  collaboratorId: true,
+  hoursWorked: true,
+  beveragesValue: true,
+  pastriesValue: true,
+  waterQuantity: true,
+  consumedProducts: true,
+}).extend({
+  hoursWorked: z.number().min(0, "Horas trabalhadas deve ser um número positivo"),
+  beveragesValue: z.number().min(0, "Valor de bebidas deve ser um número positivo"),
+  pastriesValue: z.number().min(0, "Valor de pastéis deve ser um número positivo"),
+  waterQuantity: z.number().int().min(0, "Quantidade de águas deve ser um número inteiro positivo"),
+  consumedProducts: z.array(z.object({
+    productId: z.number().int().positive("ID do produto deve ser um número inteiro positivo"),
+    name: z.string().min(1, "Nome do produto é obrigatório"),
+    quantity: z.number().int().positive("Quantidade deve ser um número inteiro positivo"),
+    price: z.string().min(1, "Preço é obrigatório"),
+  })).default([]),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type TransportMode = typeof transportModes.$inferSelect;
@@ -382,3 +431,5 @@ export type CashAdjustment = typeof cashAdjustments.$inferSelect;
 export type ShiftSnapshot = typeof shiftSnapshots.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type InsertCorrection = z.infer<typeof insertCorrectionSchema>;
+export type CollaboratorConsumption = typeof collaboratorConsumption.$inferSelect;
+export type InsertCollaboratorConsumption = z.infer<typeof insertCollaboratorConsumptionSchema>;
