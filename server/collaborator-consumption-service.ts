@@ -59,59 +59,60 @@ export class CollaboratorConsumptionService {
       updates
     });
 
+    // 1. READ OUTSIDE TRANSACTION
+    const existing = await db.query.collaboratorConsumption.findFirst({
+      where: and(
+        eq(collaboratorConsumption.id, consumptionId),
+        eq(collaboratorConsumption.shiftId, shiftId)
+      )
+    });
+
+    if (!existing) {
+      throw new Error("Collaborator consumption not found");
+    }
+
+    // 2. CALCULATE CHANGES
+    let waterDiff = 0;
+    if (updates.waterQuantity !== undefined && updates.waterQuantity !== existing.waterQuantity) {
+      waterDiff = updates.waterQuantity - existing.waterQuantity;
+    }
+
+    let productDiffs = new Map<string, number>();
+    if (updates.consumedProducts !== undefined) {
+      // Parse existing products from JSON string
+      let oldProducts: ConsumedProduct[] = [];
+      try {
+        if (typeof existing.consumedProducts === 'string') {
+          oldProducts = JSON.parse(existing.consumedProducts);
+        } else if (Array.isArray(existing.consumedProducts)) {
+          oldProducts = existing.consumedProducts;
+        }
+      } catch (error) {
+        console.warn("[CollaboratorConsumption] Error parsing existing products:", error);
+        oldProducts = [];
+      }
+      
+      const newProducts = (updates.consumedProducts as unknown as ConsumedProduct[]) || [];
+      productDiffs = this.calculateProductDifferences(oldProducts, newProducts);
+    }
+
+    // 3. EXECUTE WRITE IN TRANSACTION
     return db.transaction((tx: any) => {
-      // Get existing consumption
-      const existing = tx.select()
-        .from(collaboratorConsumption)
-        .where(and(
-          eq(collaboratorConsumption.id, consumptionId),
-          eq(collaboratorConsumption.shiftId, shiftId)
-        ))
-        .get();
-
-      if (!existing) {
-        throw new Error("Collaborator consumption not found");
+      // Update water stock
+      if (waterDiff !== 0) {
+        this.updateWaterStockSync(tx, waterDiff);
       }
 
-      // Handle water quantity update
-      if (updates.waterQuantity !== undefined && updates.waterQuantity !== existing.waterQuantity) {
-        const waterDiff = updates.waterQuantity - existing.waterQuantity;
-        if (waterDiff !== 0) {
-          this.updateWaterStockSync(tx, waterDiff);
-        }
-      }
-
-      // Handle consumed products update
-      if (updates.consumedProducts !== undefined) {
-        // Parse existing products from JSON string
-        let oldProducts: ConsumedProduct[] = [];
-        try {
-          if (typeof existing.consumedProducts === 'string') {
-            oldProducts = JSON.parse(existing.consumedProducts);
-          } else if (Array.isArray(existing.consumedProducts)) {
-            oldProducts = existing.consumedProducts;
-          }
-        } catch (error) {
-          console.warn("[CollaboratorConsumption] Error parsing existing products:", error);
-          oldProducts = [];
-        }
-        
-        const newProducts = (updates.consumedProducts as unknown as ConsumedProduct[]) || [];
-        
-        // Calculate product differences
-        const productDiffs = this.calculateProductDifferences(oldProducts, newProducts);
-        
-        // Update stock for each product difference
-        for (const [productId, diff] of Array.from(productDiffs)) {
-          if (diff !== 0) {
-            this.updateSingleProductStockSync(tx, parseInt(productId), diff);
-          }
+      // Update product stock
+      for (const [productId, diff] of Array.from(productDiffs)) {
+        if (diff !== 0) {
+          this.updateSingleProductStockSync(tx, parseInt(productId), diff);
         }
       }
 
       // Update the consumption record
       const updateData: any = {
-        updatedAt: new Date().getTime()
+        updatedAt: new Date()
       };
 
       if (updates.hoursWorked !== undefined) updateData.hoursWorked = updates.hoursWorked;
@@ -133,38 +134,46 @@ export class CollaboratorConsumptionService {
   }
 
   async deleteConsumption(consumptionId: number, shiftId: number) {
-    return db.transaction((tx: any) => {
-      // Get existing consumption
-      const existing = tx.select()
-        .from(collaboratorConsumption)
-        .where(and(
-          eq(collaboratorConsumption.id, consumptionId),
-          eq(collaboratorConsumption.shiftId, shiftId)
-        ))
-        .get();
+    console.log("[CollaboratorConsumption] Deleting consumption:", {
+      consumptionId,
+      shiftId
+    });
 
-      if (!existing) {
-        throw new Error("Collaborator consumption not found");
+    // 1. READ OUTSIDE TRANSACTION
+    const existing = await db.query.collaboratorConsumption.findFirst({
+      where: and(
+        eq(collaboratorConsumption.id, consumptionId),
+        eq(collaboratorConsumption.shiftId, shiftId)
+      )
+    });
+
+    if (!existing) {
+      throw new Error("Collaborator consumption not found");
+    }
+
+    // 2. CALCULATE REVERSIONS
+    const waterReversion = existing.waterQuantity > 0 ? -existing.waterQuantity : 0;
+    
+    let consumedProducts: ConsumedProduct[] = [];
+    try {
+      if (typeof existing.consumedProducts === 'string') {
+        consumedProducts = JSON.parse(existing.consumedProducts);
+      } else if (Array.isArray(existing.consumedProducts)) {
+        consumedProducts = existing.consumedProducts;
       }
+    } catch (error) {
+      console.warn("[CollaboratorConsumption] Error parsing products for deletion:", error);
+      consumedProducts = [];
+    }
 
+    // 3. EXECUTE WRITE IN TRANSACTION
+    return db.transaction((tx: any) => {
       // Revert water stock
-      if (existing.waterQuantity > 0) {
-        this.updateWaterStockSync(tx, -existing.waterQuantity);
+      if (waterReversion !== 0) {
+        this.updateWaterStockSync(tx, waterReversion);
       }
 
       // Revert consumed products stock
-      let consumedProducts: ConsumedProduct[] = [];
-      try {
-        if (typeof existing.consumedProducts === 'string') {
-          consumedProducts = JSON.parse(existing.consumedProducts);
-        } else if (Array.isArray(existing.consumedProducts)) {
-          consumedProducts = existing.consumedProducts;
-        }
-      } catch (error) {
-        console.warn("[CollaboratorConsumption] Error parsing products for deletion:", error);
-        consumedProducts = [];
-      }
-      
       if (consumedProducts.length > 0) {
         for (const product of consumedProducts) {
           this.updateSingleProductStockSync(tx, product.productId, -product.quantity);

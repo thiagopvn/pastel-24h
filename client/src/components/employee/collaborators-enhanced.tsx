@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
@@ -327,6 +327,9 @@ export default function CollaboratorsEnhanced() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Adicionar Consumo de Colaborador</DialogTitle>
+              <DialogDescription>
+                Registre as horas trabalhadas e os produtos consumidos pelo colaborador durante o turno.
+              </DialogDescription>
             </DialogHeader>
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -598,6 +601,9 @@ export default function CollaboratorsEnhanced() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Editar Consumo de Colaborador</DialogTitle>
+            <DialogDescription>
+              Atualize as informações de consumo. As alterações no estoque serão ajustadas automaticamente.
+            </DialogDescription>
           </DialogHeader>
           <Form {...editForm}>
             <form onSubmit={editForm.handleSubmit(handleUpdate)} className="space-y-4">
