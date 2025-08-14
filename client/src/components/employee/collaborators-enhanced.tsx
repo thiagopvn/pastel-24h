@@ -319,24 +319,30 @@ export default function CollaboratorsEnhanced() {
         const categoryLower = product.category.toLowerCase();
         const nameLower = product.name.toLowerCase();
         
-        // Check if it's a beverage
-        const isBeverage = 
-          categoryLower.includes('bebida') || 
-          categoryLower.includes('refrigerante') ||
-          categoryLower.includes('suco') ||
-          categoryLower.includes('água') ||
-          categoryLower.includes('cafe') ||
-          categoryLower.includes('café') ||
-          nameLower.includes('coca') ||
-          nameLower.includes('guaraná') ||
-          nameLower.includes('fanta') ||
-          nameLower.includes('sprite') ||
-          nameLower.includes('água');
+        // Check if it's water (água) - water is free, not included in beverages value
+        const isWater = categoryLower.includes('água') || nameLower.includes('água');
         
-        if (isBeverage) {
-          beveragesTotal += productTotal;
-        } else {
-          pastriesTotal += productTotal;
+        // Check if it's a beverage (excluding water)
+        const isBeverage = 
+          !isWater && ( // Exclude water from beverages
+            categoryLower.includes('bebida') || 
+            categoryLower.includes('refrigerante') ||
+            categoryLower.includes('suco') ||
+            categoryLower.includes('cafe') ||
+            categoryLower.includes('café') ||
+            nameLower.includes('coca') ||
+            nameLower.includes('guaraná') ||
+            nameLower.includes('fanta') ||
+            nameLower.includes('sprite')
+          );
+        
+        // Only add to totals if not water (water is free)
+        if (!isWater) {
+          if (isBeverage) {
+            beveragesTotal += productTotal;
+          } else {
+            pastriesTotal += productTotal;
+          }
         }
       }
     });

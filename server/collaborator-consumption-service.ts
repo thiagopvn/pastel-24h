@@ -31,16 +31,16 @@ export class CollaboratorConsumptionService {
 
       console.log("[CollaboratorConsumption] Created consumption record:", consumption.id);
 
-      // Update product stock for water
+      // Update internal consumption in shift records for water
       if (data.waterQuantity > 0) {
-        console.log("[CollaboratorConsumption] Updating water stock by:", data.waterQuantity);
-        this.updateWaterStockSync(tx, data.waterQuantity);
+        console.log("[CollaboratorConsumption] Updating water consumption by:", data.waterQuantity);
+        this.updateWaterConsumptionSync(tx, data.shiftId, data.waterQuantity);
       }
 
-      // Update product stock for consumed products
+      // Update internal consumption in shift records for consumed products
       if (data.consumedProducts && Array.isArray(data.consumedProducts)) {
-        console.log("[CollaboratorConsumption] Updating product stock for:", data.consumedProducts);
-        this.updateProductStockSync(tx, data.consumedProducts as unknown as ConsumedProduct[]);
+        console.log("[CollaboratorConsumption] Updating product consumption for:", data.consumedProducts);
+        this.updateProductConsumptionSync(tx, data.shiftId, data.consumedProducts as unknown as ConsumedProduct[]);
       }
 
       console.log("[CollaboratorConsumption] Transaction completed successfully");
@@ -98,15 +98,15 @@ export class CollaboratorConsumptionService {
 
     // 3. EXECUTE WRITE IN TRANSACTION
     return db.transaction((tx: any) => {
-      // Update water stock
+      // Update water consumption in shift records
       if (waterDiff !== 0) {
-        this.updateWaterStockSync(tx, waterDiff);
+        this.updateWaterConsumptionSync(tx, shiftId, waterDiff);
       }
 
-      // Update product stock
+      // Update product consumption in shift records
       for (const [productId, diff] of Array.from(productDiffs)) {
         if (diff !== 0) {
-          this.updateSingleProductStockSync(tx, parseInt(productId), diff);
+          this.updateSingleProductConsumptionSync(tx, shiftId, parseInt(productId), diff);
         }
       }
 
@@ -166,38 +166,14 @@ export class CollaboratorConsumptionService {
 
     // FASE 2: ESCRITA DENTRO DE TRANSAÇÃO SÍNCRONA
     return db.transaction((tx: any) => {
-      // 1. Reverter o estoque de água
+      // 1. Reverter o consumo interno de água nos shift records
       if (existingConsumption.waterQuantity > 0) {
-        const waterProduct = tx.select()
-          .from(products)
-          .where(ilike(products.name, '%água%'))
-          .get();
-          
-        if (waterProduct) {
-          const newStock = (waterProduct.stock || 0) + existingConsumption.waterQuantity;
-          tx.update(products)
-            .set({ stock: newStock })
-            .where(eq(products.id, waterProduct.id))
-            .run();
-          console.log(`[CollaboratorConsumption] Reverted water stock: +${existingConsumption.waterQuantity}`);
-        }
+        this.updateWaterConsumptionSync(tx, shiftId, -existingConsumption.waterQuantity);
       }
 
-      // 2. Reverter o estoque dos produtos detalhados
+      // 2. Reverter o consumo interno dos produtos nos shift records
       for (const productInfo of consumedProducts) {
-        const productToUpdate = tx.select()
-          .from(products)
-          .where(eq(products.id, productInfo.productId))
-          .get();
-          
-        if (productToUpdate) {
-          const newStock = (productToUpdate.stock || 0) + productInfo.quantity;
-          tx.update(products)
-            .set({ stock: newStock })
-            .where(eq(products.id, productInfo.productId))
-            .run();
-          console.log(`[CollaboratorConsumption] Reverted product ${productInfo.productId} stock: +${productInfo.quantity}`);
-        }
+        this.updateSingleProductConsumptionSync(tx, shiftId, productInfo.productId, -productInfo.quantity);
       }
 
       // 3. Deletar o registro de consumo
@@ -212,11 +188,94 @@ export class CollaboratorConsumptionService {
         throw new Error("Failed to delete consumption record inside transaction");
       }
 
-      console.log("[CollaboratorConsumption] Successfully deleted consumption and reverted stock");
+      console.log("[CollaboratorConsumption] Successfully deleted consumption and reverted consumption");
       return { success: true };
     });
   }
 
+  private updateWaterConsumptionSync(tx: any, shiftId: number, quantity: number) {
+    // Find water product
+    const waterProduct = tx.select()
+      .from(products)
+      .where(ilike(products.name, '%água%'))
+      .get();
+
+    if (waterProduct) {
+      this.updateSingleProductConsumptionSync(tx, shiftId, waterProduct.id, quantity);
+    }
+  }
+
+  private updateProductConsumptionSync(tx: any, shiftId: number, consumedProducts: ConsumedProduct[]) {
+    for (const product of consumedProducts) {
+      if (product.quantity > 0) {
+        this.updateSingleProductConsumptionSync(tx, shiftId, product.productId, product.quantity);
+      }
+    }
+  }
+
+  private updateSingleProductConsumptionSync(tx: any, shiftId: number, productId: number, quantity: number) {
+    console.log(`[CollaboratorConsumption] Updating consumption for product ${productId} by ${quantity} in shift ${shiftId}`);
+    
+    // First, check if shift record exists for this product
+    const existingRecord = tx.select()
+      .from(shiftRecords)
+      .where(and(
+        eq(shiftRecords.shiftId, shiftId),
+        eq(shiftRecords.productId, productId)
+      ))
+      .get();
+
+    if (existingRecord) {
+      // Update consumedQty in shift record (this represents internal consumption)
+      const currentConsumed = existingRecord.consumedQty || 0;
+      const newConsumed = Math.max(0, currentConsumed + quantity);
+      
+      console.log(`[CollaboratorConsumption] Updating shift record - Product ${productId}: consumed ${currentConsumed} -> ${newConsumed}`);
+      
+      tx.update(shiftRecords)
+        .set({ consumedQty: newConsumed })
+        .where(and(
+          eq(shiftRecords.shiftId, shiftId),
+          eq(shiftRecords.productId, productId)
+        ))
+        .run();
+    } else {
+      // If no record exists, create one with just the consumed quantity
+      console.log(`[CollaboratorConsumption] Creating new shift record for product ${productId} with consumed quantity ${quantity}`);
+      
+      tx.insert(shiftRecords)
+        .values({
+          shiftId: shiftId,
+          productId: productId,
+          entryQty: 0,
+          arrivalQty: 0,
+          leftoverQty: 0,
+          discardQty: 0,
+          consumedQty: Math.max(0, quantity),
+          soldQty: 0
+        })
+        .run();
+    }
+    
+    // Also update the product stock to maintain consistency
+    const product = tx.select()
+      .from(products)
+      .where(eq(products.id, productId))
+      .get();
+
+    if (product) {
+      const newStock = Math.max(0, product.stock - quantity);
+      console.log(`[CollaboratorConsumption] Also updating product stock - Product ${productId}: ${product.stock} -> ${newStock}`);
+      
+      tx.update(products)
+        .set({ stock: newStock })
+        .where(eq(products.id, productId))
+        .run();
+    }
+  }
+
+  // Keep old methods for backward compatibility but mark as deprecated
+  /** @deprecated Use updateWaterConsumptionSync instead */
   private updateWaterStockSync(tx: any, quantity: number) {
     // Find water product
     const waterProduct = tx.select()
@@ -229,6 +288,7 @@ export class CollaboratorConsumptionService {
     }
   }
 
+  /** @deprecated Use updateProductConsumptionSync instead */
   private updateProductStockSync(tx: any, consumedProducts: ConsumedProduct[]) {
     for (const product of consumedProducts) {
       if (product.quantity > 0) {
@@ -237,6 +297,7 @@ export class CollaboratorConsumptionService {
     }
   }
 
+  /** @deprecated Use updateSingleProductConsumptionSync instead */
   private updateSingleProductStockSync(tx: any, productId: number, quantity: number) {
     console.log(`[CollaboratorConsumption] Updating stock for product ${productId} by ${quantity}`);
     
