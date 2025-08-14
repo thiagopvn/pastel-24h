@@ -27,9 +27,15 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/data ./data
 # Copia o package.json para que o script 'npm run start' funcione
 COPY package.json .
+# Copia as migrações para poder executá-las no runtime se necessário
+COPY migrations ./migrations
+# Copia o arquivo de configuração do drizzle
+COPY drizzle.config.ts .
+# Copia o entrypoint script
+COPY docker-entrypoint.sh .
 
 # Expõe a porta em que a aplicação roda
 EXPOSE 5000
 
-# Comando para iniciar a aplicação
-CMD [ "npm", "run", "start" ]
+# Define o entrypoint
+ENTRYPOINT ["./docker-entrypoint.sh"]
