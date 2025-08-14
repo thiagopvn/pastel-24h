@@ -33,6 +33,8 @@ COPY migrations ./migrations
 COPY drizzle.config.ts .
 # Copia o entrypoint script
 COPY docker-entrypoint.sh .
+# Torna o script executável
+RUN chmod +x docker-entrypoint.sh
 
 # Expõe a porta em que a aplicação roda
 EXPOSE 5000
