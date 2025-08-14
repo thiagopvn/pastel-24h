@@ -139,51 +139,80 @@ export class CollaboratorConsumptionService {
       shiftId
     });
 
-    // 1. READ OUTSIDE TRANSACTION
-    const existing = await db.query.collaboratorConsumption.findFirst({
+    // FASE 1: LEITURA FORA DA TRANSAÇÃO
+    const existingConsumption = await db.query.collaboratorConsumption.findFirst({
       where: and(
         eq(collaboratorConsumption.id, consumptionId),
         eq(collaboratorConsumption.shiftId, shiftId)
       )
     });
 
-    if (!existing) {
+    if (!existingConsumption) {
       throw new Error("Collaborator consumption not found");
     }
 
-    // 2. CALCULATE REVERSIONS
-    const waterReversion = existing.waterQuantity > 0 ? -existing.waterQuantity : 0;
-    
+    // Parse consumed products for reversion
     let consumedProducts: ConsumedProduct[] = [];
     try {
-      if (typeof existing.consumedProducts === 'string') {
-        consumedProducts = JSON.parse(existing.consumedProducts);
-      } else if (Array.isArray(existing.consumedProducts)) {
-        consumedProducts = existing.consumedProducts;
+      if (typeof existingConsumption.consumedProducts === 'string') {
+        consumedProducts = JSON.parse(existingConsumption.consumedProducts);
+      } else if (Array.isArray(existingConsumption.consumedProducts)) {
+        consumedProducts = existingConsumption.consumedProducts;
       }
     } catch (error) {
       console.warn("[CollaboratorConsumption] Error parsing products for deletion:", error);
       consumedProducts = [];
     }
 
-    // 3. EXECUTE WRITE IN TRANSACTION
+    // FASE 2: ESCRITA DENTRO DE TRANSAÇÃO SÍNCRONA
     return db.transaction((tx: any) => {
-      // Revert water stock
-      if (waterReversion !== 0) {
-        this.updateWaterStockSync(tx, waterReversion);
-      }
-
-      // Revert consumed products stock
-      if (consumedProducts.length > 0) {
-        for (const product of consumedProducts) {
-          this.updateSingleProductStockSync(tx, product.productId, -product.quantity);
+      // 1. Reverter o estoque de água
+      if (existingConsumption.waterQuantity > 0) {
+        const waterProduct = tx.select()
+          .from(products)
+          .where(ilike(products.name, '%água%'))
+          .get();
+          
+        if (waterProduct) {
+          const newStock = (waterProduct.stock || 0) + existingConsumption.waterQuantity;
+          tx.update(products)
+            .set({ stock: newStock })
+            .where(eq(products.id, waterProduct.id))
+            .run();
+          console.log(`[CollaboratorConsumption] Reverted water stock: +${existingConsumption.waterQuantity}`);
         }
       }
 
-      // Delete the consumption record
-      tx.delete(collaboratorConsumption)
-        .where(eq(collaboratorConsumption.id, consumptionId));
+      // 2. Reverter o estoque dos produtos detalhados
+      for (const productInfo of consumedProducts) {
+        const productToUpdate = tx.select()
+          .from(products)
+          .where(eq(products.id, productInfo.productId))
+          .get();
+          
+        if (productToUpdate) {
+          const newStock = (productToUpdate.stock || 0) + productInfo.quantity;
+          tx.update(products)
+            .set({ stock: newStock })
+            .where(eq(products.id, productInfo.productId))
+            .run();
+          console.log(`[CollaboratorConsumption] Reverted product ${productInfo.productId} stock: +${productInfo.quantity}`);
+        }
+      }
 
+      // 3. Deletar o registro de consumo
+      console.log("[CollaboratorConsumption] About to delete record with ID:", consumptionId);
+      const deleteResult = tx.delete(collaboratorConsumption)
+        .where(eq(collaboratorConsumption.id, consumptionId))
+        .run();
+        
+      console.log("[CollaboratorConsumption] Delete result:", deleteResult);
+      
+      if (deleteResult.changes === 0) {
+        throw new Error("Failed to delete consumption record inside transaction");
+      }
+
+      console.log("[CollaboratorConsumption] Successfully deleted consumption and reverted stock");
       return { success: true };
     });
   }
@@ -223,7 +252,8 @@ export class CollaboratorConsumptionService {
       
       tx.update(products)
         .set({ stock: newStock })
-        .where(eq(products.id, productId));
+        .where(eq(products.id, productId))
+        .run();
     } else {
       console.warn(`[CollaboratorConsumption] Product ${productId} not found`);
     }
@@ -295,7 +325,8 @@ export class CollaboratorConsumptionService {
 
     // Filter by date range
     return consumptions.filter((c: any) => {
-      if (!c.shift.startTime) return false;
+      // Add null check for shift before accessing startTime
+      if (!c.shift || !c.shift.startTime) return false;
       const shiftDate = new Date(c.shift.startTime);
       return shiftDate >= startDate && shiftDate <= endDate;
     });

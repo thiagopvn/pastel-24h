@@ -652,6 +652,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const { shiftId } = req.params;
       
+      // Disable caching for this endpoint to ensure fresh data after mutations
+      res.set({
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      
       const consumptions = await db.query.collaboratorConsumption.findMany({
         where: eq(collaboratorConsumption.shiftId, parseInt(shiftId)),
         with: {

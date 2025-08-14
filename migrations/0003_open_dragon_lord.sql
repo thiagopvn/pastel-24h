@@ -1,1 +1,1 @@
-ALTER TABLE `products` ADD COLUMN `stock` integer DEFAULT 0;
+ALTER TABLE `products` ADD COLUMN `stock` integer NOT NULL DEFAULT 0;

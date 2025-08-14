@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Plus, X, User, Clock, Coffee, Edit, Utensils, DropletIcon, Trash2 } from "lucide-react";
+import { Plus, X, User, Clock, Coffee, Edit, Utensils, DropletIcon, Trash2 } from "lucide-react";
 import type { Shift, User as UserType, Product, CollaboratorConsumption } from "@shared/schema";
 
 const consumptionFormSchema = z.object({
@@ -78,9 +78,19 @@ export default function CollaboratorsEnhanced() {
     enabled: !!currentShift,
   });
 
-  const { data: consumptions } = useQuery<CollaboratorConsumption[]>({
+  const { data: consumptions, refetch: refetchConsumptions } = useQuery<CollaboratorConsumption[]>({
     queryKey: [`/api/shifts/${currentShift?.id}/collaborator-consumption`],
     enabled: !!currentShift?.id,
+    staleTime: 0,
+    gcTime: 0,
+    refetchInterval: false, // Desabilitar refetch automático
+    refetchOnWindowFocus: false, // Desabilitar refetch ao focar a janela
+    queryFn: async () => {
+      const response = await apiRequest("GET", `/api/shifts/${currentShift?.id}/collaborator-consumption`);
+      const data = await response.json();
+      console.log(`[QUERY] Fetched consumptions for shift ${currentShift?.id}:`, data);
+      return data;
+    }
   });
 
   const createConsumptionMutation = useMutation({
@@ -130,15 +140,69 @@ export default function CollaboratorsEnhanced() {
 
   const deleteConsumptionMutation = useMutation({
     mutationFn: async (consumptionId: number) => {
+      console.log(`[DELETE] Deleting consumption ${consumptionId} from shift ${currentShift?.id}`);
       const res = await apiRequest("DELETE", `/api/shifts/${currentShift?.id}/collaborator-consumption/${consumptionId}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to delete: ${res.status}`);
+      }
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/shifts/${currentShift?.id}/collaborator-consumption`] });
-      toast({ title: "Consumo removido com sucesso!" });
+    onMutate: async (consumptionId: number) => {
+      // Cancelar queries em andamento
+      await queryClient.cancelQueries({ 
+        queryKey: [`/api/shifts/${currentShift?.id}/collaborator-consumption`] 
+      });
+
+      // Guardar snapshot dos dados anteriores para rollback
+      const previousConsumptions = queryClient.getQueryData<CollaboratorConsumption[]>(
+        [`/api/shifts/${currentShift?.id}/collaborator-consumption`]
+      );
+
+      // Atualização otimista - remover item imediatamente
+      queryClient.setQueryData<CollaboratorConsumption[]>(
+        [`/api/shifts/${currentShift?.id}/collaborator-consumption`],
+        (old) => old?.filter(c => c.id !== consumptionId) ?? []
+      );
+
+      // Retornar contexto para rollback
+      return { previousConsumptions };
     },
-    onError: () => {
-      toast({ title: "Erro ao remover consumo", variant: "destructive" });
+    onError: (error: any, _consumptionId, context) => {
+      console.error("[DELETE] Error:", error);
+      
+      // Rollback em caso de erro
+      if (context?.previousConsumptions) {
+        queryClient.setQueryData(
+          [`/api/shifts/${currentShift?.id}/collaborator-consumption`],
+          context.previousConsumptions
+        );
+      }
+      
+      toast({
+        title: "Erro ao remover consumo",
+        description: error?.message || "Tente novamente",
+        variant: "destructive",
+      });
+    },
+    onSettled: async () => {
+      console.log(`[DELETE] Settled - refetching data for shift ${currentShift?.id}`);
+      
+      // Pequeno delay para garantir que o backend processou a exclusão
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Forçar invalidação e refetch
+      await queryClient.invalidateQueries({
+        queryKey: [`/api/shifts/${currentShift?.id}/collaborator-consumption`],
+        exact: true,
+      });
+      
+      // Refetch explícito como backup
+      await refetchConsumptions();
+    },
+    onSuccess: () => {
+      console.log(`[DELETE] Success - consumption deleted`);
+      toast({ title: "Consumo removido com sucesso!" });
     },
   });
 
@@ -251,10 +315,25 @@ export default function CollaboratorsEnhanced() {
       if (product) {
         const productTotal = parseFloat(product.price) * consumedProduct.quantity;
         
-        // Categorize based on product category
-        if (product.category.toLowerCase().includes('bebida') || 
-            product.category.toLowerCase().includes('refrigerante') ||
-            product.category.toLowerCase().includes('suco')) {
+        // Categorize based on product category and name
+        const categoryLower = product.category.toLowerCase();
+        const nameLower = product.name.toLowerCase();
+        
+        // Check if it's a beverage
+        const isBeverage = 
+          categoryLower.includes('bebida') || 
+          categoryLower.includes('refrigerante') ||
+          categoryLower.includes('suco') ||
+          categoryLower.includes('água') ||
+          categoryLower.includes('cafe') ||
+          categoryLower.includes('café') ||
+          nameLower.includes('coca') ||
+          nameLower.includes('guaraná') ||
+          nameLower.includes('fanta') ||
+          nameLower.includes('sprite') ||
+          nameLower.includes('água');
+        
+        if (isBeverage) {
           beveragesTotal += productTotal;
         } else {
           pastriesTotal += productTotal;
