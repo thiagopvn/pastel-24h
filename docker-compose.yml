@@ -2,14 +2,31 @@ version: '3.8'
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: pastel24h_app
-    ports:
-      - "5000:5000"
+    restart: unless-stopped
     volumes:
-      # Dados do banco SQLite persistidos no host
       - ./data:/app/data
     env_file:
-      # Carrega as variáveis de ambiente do seu arquivo .env
       - ./.env
+    networks:
+      - pastel24h-network
+
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx.dockerfile
+    container_name: pastel24h_nginx
     restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - app
+    networks:
+      - pastel24h-network
+
+networks:
+  pastel24h-network:
+    driver: bridge

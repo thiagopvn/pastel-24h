@@ -258,3 +258,52 @@ Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
 - Vercel-compatible serverless functions via `/api/index.js`
 - Automatic scaling and edge distribution support
 - Environment-specific configuration for production deployments
+
+## Error Debugging Patterns
+
+**Common Database-Related Errors:**
+When encountering "Cannot read properties of undefined" errors in the frontend, the issue is usually missing database relations. Always verify that:
+- Database queries include ALL needed relations with `with` clause in Drizzle
+- Frontend components use optional chaining (`?.`) when accessing nested properties
+- API responses include complete object structures expected by frontend
+
+**Shift ID Validation Pattern:**
+Always validate shift IDs before database operations:
+```typescript
+if (!shiftId || typeof shiftId !== 'number') {
+  console.warn("Invalid shift ID:", shiftId);
+  return null;
+}
+```
+
+**Robust Error Handling:**
+Use defensive programming patterns, especially in shift processing:
+```typescript
+try {
+  const result = await getProcessedShiftById(shiftId);
+  return result;
+} catch (error) {
+  console.error("Operation failed:", error);
+  return null;
+}
+```
+
+## Important Development Notes
+
+**Core File Locations:**
+- Shift processing logic: `server/lib/shift-processor.ts` (ORM-based) and `server/lib/shift-processor-sql.ts` (SQL-optimized)
+- Business calculations: `client/src/lib/calculations.ts` - contains inventory formulas and payroll calculations  
+- API client with credentials: `client/src/lib/apiClient.ts` - ALWAYS use this for API calls to maintain session cookies
+- Database schema: `shared/schema.ts` - shared between client and server for type safety
+
+**Critical Implementation Requirements:**
+- NEVER use direct `fetch()` - always use the centralized `apiClient` from `@/lib/apiClient`
+- ALL database queries fetching related data MUST use Drizzle's `with` clause or manual joins
+- Frontend components MUST use optional chaining (`?.`) for all nested property access
+- Wouter routing: use `useRoute('/path/:param')` hook for dynamic parameters, NOT `useParams`
+- WebSocket connections: use path '/ws-api' with shiftId parameter for real-time updates
+
+**Business Logic Validation:**
+- Inventory formula: `Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno`
+- Cash divergence: `Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)`
+- Always validate quantities are non-negative before calculations
