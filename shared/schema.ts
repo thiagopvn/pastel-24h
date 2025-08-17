@@ -73,7 +73,6 @@ export const shiftCollaborators = sqliteTable("shift_collaborators", {
   shiftId: integer("shift_id").references(() => shifts.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   hoursWorked: text("hours_worked").default("0.00"),
-  internalConsumption: text("internal_consumption").default("0.00"),
   addedAt: integer("added_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
@@ -202,22 +201,14 @@ export const shiftSnapshots = sqliteTable("shift_snapshots", {
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
-export const collaboratorConsumption = sqliteTable("collaborator_consumption", {
+export const collaboratorConsumptions = sqliteTable("collaborator_consumptions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   shiftId: integer("shift_id").references(() => shifts.id).notNull(),
-  collaboratorId: integer("collaborator_id").references(() => users.id).notNull(),
-  hoursWorked: real("hours_worked").notNull().default(0),
-  beveragesValue: real("beverages_value").notNull().default(0),
-  pastriesValue: real("pastries_value").notNull().default(0),
-  waterQuantity: integer("water_quantity").notNull().default(0),
-  consumedProducts: text("consumed_products", { mode: "json" }).$type<Array<{
-    productId: number;
-    name: string;
-    quantity: number;
-    price: string;
-  }>>().default([]),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }),
+  collaboratorUserId: integer("collaborator_user_id").references(() => users.id).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  priceSnapshot: text("price_snapshot").notNull(), // Preço no momento do consumo
+  createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
 export const corrections = sqliteTable("corrections", {
@@ -255,7 +246,7 @@ export const corrections = sqliteTable("corrections", {
 export const usersRelations = relations(users, ({ many, one }) => ({
   shifts: many(shifts),
   shiftCollaborations: many(shiftCollaborators),
-  collaboratorConsumptions: many(collaboratorConsumption),
+  collaboratorConsumptions: many(collaboratorConsumptions),
   timelineEntries: many(timeline),
   transportMode: one(transportModes, { fields: [users.transportModeId], references: [transportModes.id] }),
 }));
@@ -268,7 +259,7 @@ export const shiftsRelations = relations(shifts, ({ one, many }) => ({
   user: one(users, { fields: [shifts.userId], references: [users.id] }),
   closedByUser: one(users, { fields: [shifts.closedBy], references: [users.id] }),
   collaborators: many(shiftCollaborators),
-  collaboratorConsumptions: many(collaboratorConsumption),
+  collaboratorConsumptions: many(collaboratorConsumptions),
   records: many(shiftRecords),
   payments: one(shiftPayments),
 }));
@@ -280,6 +271,7 @@ export const shiftCollaboratorsRelations = relations(shiftCollaborators, ({ one 
 
 export const productsRelations = relations(products, ({ many }) => ({
   records: many(shiftRecords),
+  collaboratorConsumptions: many(collaboratorConsumptions),
 }));
 
 export const shiftRecordsRelations = relations(shiftRecords, ({ one }) => ({
@@ -295,9 +287,10 @@ export const timelineRelations = relations(timeline, ({ one }) => ({
   user: one(users, { fields: [timeline.userId], references: [users.id] }),
 }));
 
-export const collaboratorConsumptionRelations = relations(collaboratorConsumption, ({ one }) => ({
-  shift: one(shifts, { fields: [collaboratorConsumption.shiftId], references: [shifts.id] }),
-  collaborator: one(users, { fields: [collaboratorConsumption.collaboratorId], references: [users.id] }),
+export const collaboratorConsumptionsRelations = relations(collaboratorConsumptions, ({ one }) => ({
+  shift: one(shifts, { fields: [collaboratorConsumptions.shiftId], references: [shifts.id] }),
+  collaborator: one(users, { fields: [collaboratorConsumptions.collaboratorUserId], references: [users.id] }),
+  product: one(products, { fields: [collaboratorConsumptions.productId], references: [products.id] }),
 }));
 
 export const correctionsRelations = relations(corrections, ({ one }) => ({
@@ -387,25 +380,18 @@ export const insertPayrollConfigSchema = createInsertSchema(payrollConfig).pick(
   transportRates: true,
 });
 
-export const insertCollaboratorConsumptionSchema = createInsertSchema(collaboratorConsumption).pick({
+export const insertCollaboratorConsumptionSchema = createInsertSchema(collaboratorConsumptions).pick({
   shiftId: true,
-  collaboratorId: true,
-  hoursWorked: true,
-  beveragesValue: true,
-  pastriesValue: true,
-  waterQuantity: true,
-  consumedProducts: true,
+  collaboratorUserId: true,
+  productId: true,
+  quantity: true,
+  priceSnapshot: true,
 }).extend({
-  hoursWorked: z.number().min(0, "Horas trabalhadas deve ser um número positivo"),
-  beveragesValue: z.number().min(0, "Valor de bebidas deve ser um número positivo"),
-  pastriesValue: z.number().min(0, "Valor de pastéis deve ser um número positivo"),
-  waterQuantity: z.number().int().min(0, "Quantidade de águas deve ser um número inteiro positivo"),
-  consumedProducts: z.array(z.object({
-    productId: z.number().int().positive("ID do produto deve ser um número inteiro positivo"),
-    name: z.string().min(1, "Nome do produto é obrigatório"),
-    quantity: z.number().int().positive("Quantidade deve ser um número inteiro positivo"),
-    price: z.string().min(1, "Preço é obrigatório"),
-  })).default([]),
+  shiftId: z.number().int().positive("ID do turno deve ser um número inteiro positivo"),
+  collaboratorUserId: z.number().int().positive("ID do colaborador deve ser um número inteiro positivo"),
+  productId: z.number().int().positive("ID do produto deve ser um número inteiro positivo"),
+  quantity: z.number().int().positive("Quantidade deve ser um número inteiro positivo"),
+  priceSnapshot: z.string().min(1, "Preço é obrigatório"),
 });
 
 export type User = typeof users.$inferSelect;
@@ -431,5 +417,5 @@ export type CashAdjustment = typeof cashAdjustments.$inferSelect;
 export type ShiftSnapshot = typeof shiftSnapshots.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type InsertCorrection = z.infer<typeof insertCorrectionSchema>;
-export type CollaboratorConsumption = typeof collaboratorConsumption.$inferSelect;
+export type CollaboratorConsumption = typeof collaboratorConsumptions.$inferSelect;
 export type InsertCollaboratorConsumption = z.infer<typeof insertCollaboratorConsumptionSchema>;

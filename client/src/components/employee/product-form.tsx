@@ -158,10 +158,16 @@ export default function ProductForm() {
   const handleSave = (productId: number) => {
     const record = getRecord(productId);
     if (record && currentShift) {
+      // Garante que todos os campos numéricos sejam enviados com valores válidos
+      // mesmo quando são 0, evitando problemas com valores undefined
       saveRecordMutation.mutate({
-        ...record,
         productId: productId,
         shiftId: currentShift.id,
+        entryQty: record.entryQty ?? 0,
+        arrivalQty: record.arrivalQty ?? 0,
+        leftoverQty: record.leftoverQty ?? 0,
+        discardQty: record.discardQty ?? 0,
+        consumedQty: record.consumedQty ?? 0,
       });
     }
   };
@@ -237,7 +243,7 @@ export default function ProductForm() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <Label className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                      Entrada
+                      Início
                       <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                         <Lock className="h-3 w-3 mr-1" />
                         Bloqueado
@@ -262,7 +268,7 @@ export default function ProductForm() {
                     </div>
                   </div>
                   <div>
-                    <Label className="text-xs font-medium text-gray-700">Chegada</Label>
+                    <Label className="text-xs font-medium text-gray-700">Entrada</Label>
                     <Input
                       type="number"
                       value={arrivalQty}

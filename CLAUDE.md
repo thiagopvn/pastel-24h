@@ -61,11 +61,14 @@ The application manages restaurant operations through interconnected tables:
 - **Shifts**: Work periods with cash tracking, payments, and status management
 - **Products**: Inventory items with categories and pricing
 - **Shift Records**: Product quantities and sales during shifts
+- **Shift Collaborators**: Tracks employees who worked during shifts
+- **Shift Payments**: Payment method breakdown for each shift
 - **Transport Modes**: Employee transportation options with pricing
 - **Weekly Reports**: Payroll calculations and employee hours
 - **Timeline**: Activity logging for audit trails
 - **Corrections**: Administrative corrections for closed shifts (quantities, payments, cash counts)
 - **Cash Adjustments**: Cash withdrawal and adjustment records
+- **Collaborator Consumptions**: Internal product consumption tracking
 
 ## Development Notes
 
@@ -194,6 +197,7 @@ Complex shift calculations are handled by specialized processors:
 - `server/lib/shift-processor.ts` - ORM-based shift processing
 - `server/lib/shift-processor-sql.ts` - Optimized SQL-based processing  
 - `server/corrections-utils.ts` - Handles administrative corrections and data integrity
+- `server/collaborator-consumption-service.ts` - Manages internal product consumption
 - Always use the appropriate processor based on performance needs
 
 **Error Handling & Data Validation:**
@@ -295,6 +299,9 @@ try {
 - Business calculations: `client/src/lib/calculations.ts` - contains inventory formulas and payroll calculations  
 - API client with credentials: `client/src/lib/apiClient.ts` - ALWAYS use this for API calls to maintain session cookies
 - Database schema: `shared/schema.ts` - shared between client and server for type safety
+- Authentication logic: `server/auth.ts` - Passport.js configuration and middleware
+- Route definitions: `server/routes.ts` - All API endpoints and middleware
+- WebSocket server: `server/ws.ts` - Real-time updates implementation
 
 **Critical Implementation Requirements:**
 - NEVER use direct `fetch()` - always use the centralized `apiClient` from `@/lib/apiClient`
@@ -302,8 +309,11 @@ try {
 - Frontend components MUST use optional chaining (`?.`) for all nested property access
 - Wouter routing: use `useRoute('/path/:param')` hook for dynamic parameters, NOT `useParams`
 - WebSocket connections: use path '/ws-api' with shiftId parameter for real-time updates
+- Session management: Use `credentials: 'include'` in all API requests
+- Authentication middleware: `requireAuth` and `requireAdmin` for route protection
 
 **Business Logic Validation:**
 - Inventory formula: `Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno`
 - Cash divergence: `Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)`
 - Always validate quantities are non-negative before calculations
+- Payment method rates are configurable in `client/src/lib/constants.ts`

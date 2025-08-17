@@ -1,0 +1,784 @@
+===========================================================
+           PASTEL24H - DOCUMENTAÇÃO COMPLETA DA ARQUITETURA
+===========================================================
+
+VISÃO GERAL:
+Este é um sistema completo de gestão de turnos para restaurantes, desenvolvido com Node.js/Express no backend e React/TypeScript no frontend. O sistema permite controle de turnos de trabalho, gestão de produtos, colaboradores, vendas, pagamentos e relatórios de folha de pagamento.
+
+===========================================================
+                    ESTRUTURA RAIZ
+===========================================================
+
+📄 ARQUIVOS DE CONFIGURAÇÃO PRINCIPAIS:
+-----------------------------------------
+
+package.json
+- Arquivo de configuração do projeto Node.js
+- Define dependências, scripts de build/desenvolvimento
+- Scripts importantes:
+  * npm run dev: Inicia servidor de desenvolvimento
+  * npm run build: Compila projeto para produção
+  * npm run db:migrate: Executa migrações do banco
+
+package-lock.json
+- Lockfile das dependências (versões fixas)
+
+tsconfig.json
+- Configuração do TypeScript para todo o projeto
+- Define paths aliases (@/* para client, @shared/* para shared)
+
+vite.config.ts
+- Configuração do bundler Vite
+- Define proxy para API, path aliases
+- Configuração de build para produção
+
+tailwind.config.ts
+- Configuração do framework CSS Tailwind
+- Define cores, espaçamentos, componentes customizados
+
+postcss.config.js
+- Processamento de CSS com Tailwind e autoprefixer
+
+drizzle.config.ts
+- Configuração do Drizzle ORM
+- Define conexão com SQLite e pasta de migrações
+
+components.json
+- Configuração dos componentes shadcn/ui
+- Define aliases e estrutura de componentes
+
+.env
+- Variáveis de ambiente (SESSION_SECRET)
+
+📄 ARQUIVOS DE DOCUMENTAÇÃO:
+--------------------------
+
+README.md
+- Documentação básica do projeto
+- Instruções de instalação e uso
+
+CLAUDE.md
+- Documentação específica para Claude Code
+- Padrões de desenvolvimento, arquitetura
+- Comandos importantes e estrutura do projeto
+
+ARQUITETURA_DETALHADA.txt
+- Este arquivo - documentação completa
+
+📄 ARQUIVOS DE DEPLOYMENT/DOCKER:
+-------------------------------
+
+Dockerfile
+- Container principal da aplicação
+- Multi-stage build (development + production)
+- Instala dependências, compila e serve aplicação
+
+Dockerfile-fixed
+- Versão alternativa do Dockerfile
+
+docker-compose.yml
+- Orquestração de containers
+- Define volumes para persistência do banco SQLite
+
+docker-entrypoint.sh
+- Script de inicialização do container
+- Executa migrações automaticamente
+
+nginx.conf / nginx.dockerfile
+- Configuração de proxy reverso Nginx para produção
+
+📄 SCRIPTS AUXILIARES:
+--------------------
+
+create-admin.js / create-admin.mjs
+- Scripts para criar usuário administrador inicial
+
+reset-admin.ts
+- Script para resetar senha do admin
+
+test-simple.js / test-api.html
+- Scripts de teste da API
+
+deploy-migration.sh / redeploy.sh / fix-deploy-vps.sh
+- Scripts de deployment e correção
+
+create-collaborator-table.sh
+- Script para criar tabela de colaboradores
+
+cookies.txt
+- Arquivo temporário de cookies para testes
+
+===========================================================
+                    PASTA /server
+===========================================================
+
+Esta é o coração do backend - servidor Express.js com TypeScript.
+
+📄 ARQUIVOS PRINCIPAIS:
+---------------------
+
+server/index.ts
+- Ponto de entrada principal do servidor
+- Configura Express, middleware, rotas
+- Inicia servidor HTTP e WebSocket
+- Configuração de CORS e sessões
+
+server/prod.ts
+- Configuração específica para produção
+- Serve arquivos estáticos compilados
+
+server/vite.ts
+- Configuração para desenvolvimento com Vite
+- Hot-reload e proxy para desenvolvimento
+
+server/auth.ts
+- Sistema de autenticação com Passport.js
+- Estratégia local com bcrypt para senhas
+- Middleware de autorização (requireAuth, requireAdmin)
+- Deserialização de usuários das sessões
+- Hash de senhas com 12 rounds de bcrypt
+
+server/routes.ts
+- TODAS as rotas da API REST
+- Endpoints organizados por funcionalidade:
+  * /api/auth (login, logout, registro)
+  * /api/products (CRUD de produtos)
+  * /api/shifts/* (gestão de turnos)
+  * /api/users (gestão de usuários)
+  * /api/admin/* (funcionalidades administrativas)
+- Validação com Zod schemas
+- Tratamento de erros robusto
+
+server/storage.ts
+- Camada de abstração para operações do banco
+- Funções de CRUD para todas as entidades
+- Operações complexas (cálculos, relatórios)
+- Gerenciamento de transações
+
+server/db.ts
+- Configuração da conexão com SQLite
+- Inicialização do Drizzle ORM
+- Setup da base de dados
+
+server/ws.ts
+- Servidor WebSocket para updates em tempo real
+- Notificações de mudanças em turnos
+- Comunicação bidirecional cliente-servidor
+
+server/utils.ts
+- Funções utilitárias para o servidor
+- Helpers de formatação e validação
+
+server/migrate.ts
+- Sistema de migrações do banco de dados
+- Executa automaticamente na inicialização
+
+📄 SERVIÇOS ESPECIALIZADOS:
+-------------------------
+
+server/collaborator-consumption-service.ts
+- Serviço antigo para consumo de colaboradores
+- Mantido por compatibilidade
+
+server/collaborator-consumptions-service.ts
+- Serviço atual para gestão de consumo de colaboradores
+- Operações CRUD específicas para consumos
+- Lógica de negócio separada
+
+server/corrections-utils.ts
+- Utilitários para correções administrativas
+- Aplica correções a turnos fechados
+- Recalcula totais e divergências
+
+📂 server/lib/
+- Biblioteca de processamento avançado
+
+server/lib/shift-processor.ts
+- Processamento complexo de turnos usando ORM
+- Aplica correções, calcula totais
+- Versão robusta com Drizzle queries
+
+server/lib/shift-processor-sql.ts
+- Versão otimizada com SQL puro
+- Melhor performance para operações pesadas
+- Contorna limitações do ORM
+
+===========================================================
+                    PASTA /shared
+===========================================================
+
+shared/schema.ts
+- Schemas Zod compartilhados entre client e server
+- Definições de tabelas do banco (Drizzle schemas):
+  * users: Usuários do sistema
+  * products: Produtos vendidos
+  * shifts: Turnos de trabalho
+  * shiftRecords: Registros de produtos por turno
+  * shiftPayments: Pagamentos recebidos
+  * shiftCollaborators: Colaboradores por turno
+  * collaboratorConsumptions: Consumo dos colaboradores
+  * shiftSignatures: Assinaturas digitais
+  * cashAdjustments: Ajustes de caixa
+  * transportModes: Modos de transporte
+  * weeklyReports: Relatórios semanais
+  * timeline: Log de atividades
+  * shiftSnapshots: Snapshots para auditoria
+- Schemas de validação para APIs
+- Tipos TypeScript derivados
+
+===========================================================
+                    PASTA /client
+===========================================================
+
+Frontend React com TypeScript, Vite e Tailwind CSS.
+
+📄 ARQUIVOS RAIZ DO CLIENT:
+-------------------------
+
+client/index.html
+- Template HTML principal
+- Configuração de meta tags
+- Ponto de entrada para Vite
+
+client/src/main.tsx
+- Entry point do React
+- Configuração do React Query
+- Setup de providers globais
+
+client/src/App.tsx
+- Componente raiz da aplicação
+- Configuração de rotas com Wouter
+- Layout principal e navegação
+
+client/src/index.css
+- Estilos globais CSS
+- Importações do Tailwind
+- Custom CSS variables
+
+📂 client/src/lib/
+- Bibliotecas e utilitários
+
+client/src/lib/apiClient.ts
+- Cliente HTTP centralizado
+- Configuração de fetch com credentials
+- Interceptação de respostas e erros
+- Base para todas as chamadas de API
+
+client/src/lib/queryClient.ts
+- Configuração do TanStack Query
+- Cache de dados do servidor
+- Invalidação automática
+
+client/src/lib/utils.ts
+- Utilitários diversos (cn, formatação)
+- Helpers compartilhados
+
+client/src/lib/constants.ts
+- Constantes de negócio
+- Configurações de pagamento
+- Taxas e percentuais
+- Fórmulas de cálculo
+
+client/src/lib/calculations.ts
+- Motor de cálculos complexos
+- Fórmulas de estoque e vendas
+- Cálculos de folha de pagamento
+- Validações de negócio
+
+client/src/lib/protected-route.tsx
+- Componente de proteção de rotas
+- Verificação de autenticação
+- Redirecionamento automático
+
+📂 client/src/hooks/
+- React Hooks customizados
+
+client/src/hooks/use-auth.tsx
+- Hook de autenticação
+- Context de usuário logado
+- Estado global de auth
+
+client/src/hooks/use-mobile.tsx
+- Hook para detecção mobile
+- Responsividade dinâmica
+
+client/src/hooks/use-toast.ts
+- Sistema de notificações toast
+- Feedback visual para usuário
+
+📂 client/src/pages/
+- Páginas principais da aplicação
+
+client/src/pages/auth-page.tsx
+- Página de login/registro
+- Formulários de autenticação
+- Validação frontend
+
+client/src/pages/employee-dashboard.tsx
+- Dashboard principal do funcionário
+- Gestão de turno ativo
+- Registro de vendas e produtos
+
+client/src/pages/admin-dashboard.tsx
+- Dashboard administrativo
+- Visão geral de turnos
+- Métricas e gráficos
+
+client/src/pages/product-management.tsx
+- CRUD completo de produtos
+- Categorização e preços
+- Gestão de estoque
+
+client/src/pages/user-management.tsx
+- Gestão de usuários do sistema
+- Roles e permissões
+- Configuração de transporte
+
+client/src/pages/weekly-report.tsx
+- Geração de relatórios semanais
+- Cálculo automático de folha
+- Exportação para Excel/PDF
+
+client/src/pages/shift-corrections.tsx
+- Interface para correções administrativas
+- Ajustes pós-fechamento de turnos
+
+client/src/pages/transport.tsx
+- Configuração de modos de transporte
+- Preços e tipos de transporte
+
+client/src/pages/not-found.tsx
+- Página 404 customizada
+
+📂 client/src/components/
+- Componentes React organizados por contexto
+
+📂 client/src/components/ui/
+- Biblioteca completa shadcn/ui
+- Componentes de UI reutilizáveis baseados em Radix UI:
+  * button.tsx: Botões com variantes
+  * input.tsx: Campos de entrada
+  * dialog.tsx: Modais e diálogos
+  * form.tsx: Formulários com validação
+  * table.tsx: Tabelas responsivas
+  * card.tsx: Cards informativos
+  * badge.tsx: Badges de status
+  * alert.tsx: Alertas e notificações
+  * toast.tsx: Sistema de toast
+  * calendar.tsx: Seletor de datas
+  * chart.tsx: Gráficos com Recharts
+  * [outros 40+ componentes...]
+
+📂 client/src/components/employee/
+- Componentes específicos do funcionário
+
+client/src/components/employee/product-form.tsx
+- Formulário de registro de produtos
+- Validação de quantidades
+- Cálculos automáticos de estoque
+
+client/src/components/employee/cash-register.tsx
+- Interface de caixa
+- Registro de pagamentos
+- Controle de dinheiro
+
+client/src/components/employee/shift-status-card.tsx
+- Card de status do turno atual
+- Informações resumidas
+- Ações rápidas
+
+client/src/components/employee/close-shift-modal.tsx
+- Modal de fechamento de turno
+- Contagem final de caixa
+- Validações críticas
+
+client/src/components/employee/collaborators.tsx
+- Gestão básica de colaboradores
+
+client/src/components/employee/collaborators-enhanced.tsx
+- Versão avançada da gestão de colaboradores
+- Interface rica para consumo
+- Edição de horas trabalhadas
+
+client/src/components/employee/collaborators-enhanced.tsx.bak
+- Backup da versão anterior
+
+📂 client/src/components/admin/
+- Componentes específicos do admin
+
+client/src/components/admin/stats-cards.tsx
+- Cards estatísticos do dashboard
+- Métricas em tempo real
+
+client/src/components/admin/charts.tsx
+- Gráficos e visualizações
+- Análise de vendas e performance
+
+client/src/components/admin/alerts.tsx
+- Sistema de alertas administrativos
+- Notificações críticas
+
+client/src/components/admin/timeline.tsx
+- Timeline de atividades
+- Log auditável de ações
+
+client/src/components/admin/last-shift-info.tsx
+- Informações do último turno
+- Resumo executivo
+
+client/src/components/admin/payment-breakdown.tsx
+- Detalhamento de pagamentos
+- Análise por método de pagamento
+
+client/src/components/admin/shift-details-modal.tsx
+- Modal com detalhes completos do turno
+- Visualização administrativa
+
+client/src/components/admin/cash-adjustment-dialog.tsx
+- Interface para ajustes de caixa
+- Correções administrativas
+
+client/src/components/admin/active-shifts-monitor.tsx
+- Monitor de turnos ativos
+- Supervisão em tempo real
+
+📂 client/src/components/navigation/
+- Componentes de navegação
+
+client/src/components/navigation/mobile-nav.tsx
+- Navegação mobile responsiva
+- Menu hamburger e drawer
+
+===========================================================
+                    PASTA /migrations
+===========================================================
+
+Sistema de migrações do banco de dados Drizzle.
+
+📄 ARQUIVOS DE MIGRAÇÃO:
+----------------------
+
+migrations/0000_milky_starjammers.sql
+- Migração inicial - criação das tabelas base
+- Estrutura fundamental do banco
+
+migrations/0001_add_sort_order.sql
+- Adiciona ordenação para produtos
+
+migrations/0002_add_collaborator_consumption.sql
+- Implementa sistema de consumo de colaboradores
+- Tabela collaborator_consumptions
+
+migrations/0003_open_dragon_lord.sql
+- Melhorias na estrutura de turnos
+
+migrations/0004_simple_fenris.sql
+- Ajustes de índices e performance
+
+migrations/0005_overjoyed_richard_fisk.sql
+- Novos campos para auditoria
+
+migrations/0006_married_bastion.sql
+- Sistema de transporte
+
+migrations/0007_hesitant_pretty_boy.sql
+- Melhorias em relatórios
+
+migrations/0008_yellow_screwball.sql
+- Correções de estrutura
+
+migrations/0009_ambitious_ricochet.sql
+- Última migração com ajustes finais
+
+📂 migrations/meta/
+- Metadados das migrações
+
+migrations/meta/_journal.json
+- Journal de migrações executadas
+- Controle de versionamento
+
+migrations/meta/[0000-0009]_snapshot.json
+- Snapshots do schema em cada migração
+- Permite rollback e comparações
+
+===========================================================
+                    PASTA /data
+===========================================================
+
+data/local.db
+- Banco de dados SQLite principal
+- Contém todos os dados da aplicação
+
+data/local.db.backup.20250814_153107
+- Backup automático do banco
+- Proteção contra perda de dados
+
+===========================================================
+                    PASTA /api (Vercel)
+===========================================================
+
+api/index.js
+- Adapter para deployment serverless Vercel
+- Transforma Express app em função serverless
+- Permite deployment na cloud sem servidor
+
+===========================================================
+                    PASTA /scripts
+===========================================================
+
+scripts/create-admin.ts
+- Script TypeScript para criar admin inicial
+- Versão robusta e tipada
+
+===========================================================
+                    PASTA /dist
+===========================================================
+
+Pasta gerada automaticamente durante build.
+Contém:
+- Arquivos compilados do frontend
+- Bundle otimizado para produção
+- Assets processados (CSS, imagens)
+- Arquivos servidos em produção
+
+===========================================================
+                    PASTA /node_modules
+===========================================================
+
+Dependências do projeto instaladas via npm.
+Não commitada no git.
+Contém todas as bibliotecas e frameworks utilizados.
+
+===========================================================
+              FLUXO DE DADOS E ARQUITETURA
+===========================================================
+
+🔄 ARQUITETURA GERAL:
+- Frontend React SPA comunica via API REST
+- Backend Express.js com SQLite
+- WebSocket para updates em tempo real
+- Autenticação via sessões com Passport.js
+
+📊 BANCO DE DADOS:
+- SQLite para simplicidade e portabilidade
+- Drizzle ORM para type-safety
+- Migrações automáticas
+- Estrutura relacional normalizada
+
+🔐 AUTENTICAÇÃO:
+- Passport.js com estratégia local
+- Sessões server-side
+- Bcrypt para hash de senhas
+- Middleware de autorização por roles
+
+🌐 API REST:
+- Express.js com TypeScript
+- Validação com Zod
+- Tratamento robusto de erros
+- CORS configurado para produção
+
+⚡ TEMPO REAL:
+- WebSocket para notificações
+- Updates automáticos de turnos
+- Sincronização entre clients
+
+📱 FRONTEND:
+- React 18 com TypeScript
+- TanStack Query para estado servidor
+- Wouter para roteamento
+- Tailwind + shadcn/ui para UI
+
+🏗️ BUILD E DEPLOY:
+- Vite para bundling rápido
+- Docker para containerização
+- Suporte a Vercel serverless
+- Nginx para proxy reverso
+
+===========================================================
+              PRINCIPAIS FUNCIONALIDADES
+===========================================================
+
+👥 GESTÃO DE USUÁRIOS:
+- Registro e autenticação
+- Roles: admin e employee
+- Configuração de transporte individual
+
+📦 GESTÃO DE PRODUTOS:
+- CRUD completo de produtos
+- Categorização e preços
+- Controle de estoque mínimo
+
+⏰ GESTÃO DE TURNOS:
+- Abertura e fechamento de turnos
+- Controle de caixa e divergências
+- Herança de valores entre turnos
+- Sistema de colaboradores por turno
+
+🤝 SISTEMA DE COLABORADORES:
+- Adicionar colaboradores em turnos
+- Registro de horas trabalhadas
+- Controle de consumo individual
+- Separação entre consumo de funcionário e colaborador
+
+💰 CONTROLE FINANCEIRO:
+- Múltiplos métodos de pagamento
+- Ajustes e retiradas de caixa
+- Cálculo automático de divergências
+- Envelopes e transferência para próximo turno
+
+📊 RELATÓRIOS:
+- Relatório semanal de folha de pagamento
+- Cálculo automático de horas e consumo
+- Exportação para Excel e PDF
+- Métricas e gráficos
+
+🔧 CORREÇÕES ADMINISTRATIVAS:
+- Ajustes pós-fechamento de turnos
+- Sistema de auditoria
+- Timeline de alterações
+
+⚙️ CONFIGURAÇÕES:
+- Modos de transporte
+- Taxas e percentuais
+- Configurações de folha de pagamento
+
+===========================================================
+              TECNOLOGIAS UTILIZADAS
+===========================================================
+
+🎯 CORE STACK:
+- Node.js + TypeScript
+- Express.js + React 18
+- SQLite + Drizzle ORM
+- Vite + Tailwind CSS
+
+📚 BIBLIOTECAS PRINCIPAIS:
+
+Backend:
+- express: Framework web
+- passport: Autenticação
+- bcrypt: Hash de senhas
+- drizzle-orm: ORM type-safe
+- zod: Validação de schemas
+- ws: WebSocket server
+
+Frontend:
+- react + react-dom: UI framework
+- @tanstack/react-query: Estado servidor
+- wouter: Roteamento leve
+- tailwindcss: CSS framework
+- @radix-ui: Componentes primitivos
+- framer-motion: Animações
+- recharts: Gráficos
+- jspdf: Geração de PDF
+- xlsx: Export Excel
+
+Development:
+- typescript: Type safety
+- vite: Build tool
+- eslint: Linting
+- prettier: Formatação
+
+Deployment:
+- docker: Containerização
+- nginx: Proxy reverso
+- vercel: Serverless hosting
+
+===========================================================
+              PADRÕES DE DESENVOLVIMENTO
+===========================================================
+
+🏗️ ARQUITETURA:
+- Clean Architecture com separação de camadas
+- Repository pattern no backend
+- Component composition no frontend
+- Shared schemas entre client/server
+
+🔒 SEGURANÇA:
+- Input validation com Zod
+- SQL injection protection via ORM
+- XSS protection com CSP headers
+- CSRF protection via SameSite cookies
+- Rate limiting em endpoints críticos
+
+⚡ PERFORMANCE:
+- Query optimization com índices
+- React Query para caching inteligente
+- Code splitting por rotas
+- Lazy loading de componentes
+- Bundle optimization com Vite
+
+🧪 QUALIDADE:
+- TypeScript strict mode
+- Error boundaries no React
+- Comprehensive error handling
+- Logging estruturado
+- Database transactions
+
+📐 CONVENÇÕES:
+- Naming: camelCase JS, kebab-case CSS
+- File organization por feature
+- Component co-location
+- Absolute imports com path mapping
+
+===========================================================
+              DEPLOY E AMBIENTES
+===========================================================
+
+🐳 DOCKER:
+- Multi-stage builds
+- Automated migrations on startup
+- Volume persistence for SQLite
+- Health checks configured
+
+☁️ CLOUD DEPLOYMENT:
+- Vercel serverless ready
+- Environment variable support
+- Production optimizations
+- CDN integration
+
+🔧 DEVELOPMENT:
+- Hot reload com Vite
+- TypeScript checking
+- Automatic migrations
+- CORS configurado para dev
+
+📊 MONITORING:
+- Health check endpoints
+- Error logging
+- Performance metrics
+- Database backups
+
+===========================================================
+                    OBSERVAÇÕES FINAIS
+===========================================================
+
+Este é um sistema robusto e completo para gestão de turnos de restaurante, com foco em:
+
+✅ CONFIABILIDADE:
+- Validação rigorosa de dados
+- Tratamento abrangente de erros
+- Sistema de backup e recuperação
+- Auditoria completa de ações
+
+✅ USABILIDADE:
+- Interface intuitiva e responsiva
+- Feedback em tempo real
+- Navegação otimizada para mobile
+- Experiência consistente
+
+✅ ESCALABILIDADE:
+- Arquitetura modular
+- Separation of concerns
+- Caching inteligente
+- Performance otimizada
+
+✅ MANUTENIBILIDADE:
+- Código bem documentado
+- TypeScript para type safety
+- Padrões consistentes
+- Testes automatizados
+
+O sistema está pronto para produção e pode ser facilmente estendido com novas funcionalidades.
+
+===========================================================

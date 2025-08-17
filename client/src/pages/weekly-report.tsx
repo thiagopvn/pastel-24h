@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, RefreshCw, Save, FileText, Download, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { Calendar, RefreshCw, Save, FileText, Download, ChevronLeft, ChevronRight, Eye, Info } from "lucide-react";
 import { format, startOfWeek, endOfWeek, addWeeks, subWeeks } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { User, WeeklyReport, TransportMode } from "@shared/schema";
@@ -27,6 +28,7 @@ interface EmployeeData {
   transport: number;
   food: number;
   consumption: number;
+  consumptionDetails?: string[]; // Novo campo para detalhes do consumo
   bonus: number;
   deduction: number;
   total: number;
@@ -369,8 +371,9 @@ export default function WeeklyReportPage() {
   const totals = calculateTotals();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 py-8">
+    <TooltipProvider>
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 py-8">
         <Card>
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -584,7 +587,24 @@ export default function WeeklyReportPage() {
                       <TableCell className="text-right">{formatCurrency(employee.transport)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(employee.food)}</TableCell>
                       <TableCell className="text-right text-red-600">
-                        -{formatCurrency(employee.consumption)}
+                        <div className="flex items-center justify-end gap-2">
+                          <span>-{formatCurrency(employee.consumption)}</span>
+                          {employee.consumptionDetails && employee.consumptionDetails.length > 0 && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 cursor-pointer text-blue-500 hover:text-blue-700" />
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="max-w-sm">
+                                <div className="space-y-1">
+                                  <p className="font-bold text-sm">Itens Consumidos:</p>
+                                  {employee.consumptionDetails.map((item, index) => (
+                                    <p key={index} className="text-xs">{item}</p>
+                                  ))}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
                         {consumptionDiscount > 0 && (
                           <div className="text-xs text-gray-500">
                             {consumptionDiscount}% desconto
@@ -682,10 +702,11 @@ export default function WeeklyReportPage() {
         </Card>
       </div>
 
-      <MobileNav currentPath="/admin/weekly" />
-      
-      {/* Mobile bottom padding to prevent content overlap */}
-      <div className="xl:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}></div>
-    </div>
+        <MobileNav currentPath="/admin/weekly" />
+        
+        {/* Mobile bottom padding to prevent content overlap */}
+        <div className="xl:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}></div>
+      </div>
+    </TooltipProvider>
   );
 }

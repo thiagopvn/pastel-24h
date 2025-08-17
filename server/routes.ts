@@ -10,7 +10,6 @@ import {
   getProcessedShiftById, 
   getLastClosedShift
 } from "./lib/shift-processor-sql";
-import { collaboratorConsumptionService } from "./collaborator-consumption-service";
 import { 
   shifts, 
   shiftRecords, 
@@ -24,7 +23,7 @@ import {
   users,
   transportModes,
   products,
-  collaboratorConsumption,
+  collaboratorConsumptions,
   insertProductSchema, 
   insertShiftSchema, 
   insertShiftRecordSchema, 
@@ -520,9 +519,9 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/shifts/add-collaborator", requireAuth, async (req, res) => {
     try {
-      const { shiftId, userId, hoursWorked, internalConsumption } = req.body;
+      const { shiftId, userId, hoursWorked } = req.body;
 
-      const success = await storage.addShiftCollaborator(shiftId, userId, hoursWorked, internalConsumption);
+      const success = await storage.addShiftCollaborator(shiftId, userId, hoursWorked);
       if (success) {
         res.json({ success: true });
       } else {
@@ -577,158 +576,187 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  app.put("/api/shifts/:shiftId/collaborators/:userId", requireAuth, async (req, res) => {
+  // GET collaborators for a specific shift
+  app.get("/api/shifts/:shiftId/collaborators", requireAuth, async (req, res) => {
     try {
-      const { shiftId, userId } = req.params;
-      const { hoursWorked, internalConsumption } = req.body;
-
-      const success = await storage.updateShiftCollaborator(
-        parseInt(shiftId), 
-        parseInt(userId),
-        hoursWorked,
-        internalConsumption
-      );
-      if (success) {
-        res.json({ success: true });
-      } else {
-        res.status(400).json({ message: "Failed to update collaborator" });
-      }
+      const { shiftId } = req.params;
+      const collaborators = await db.query.shiftCollaborators.findMany({
+        where: eq(shiftCollaborators.shiftId, parseInt(shiftId)),
+        with: {
+          user: true
+        }
+      });
+      res.json(collaborators);
     } catch (error) {
-      res.status(500).json({ message: "Failed to update collaborator" });
+      console.error("Error getting shift collaborators:", error);
+      res.status(500).json({ message: "Failed to get shift collaborators" });
     }
   });
 
-  app.delete("/api/shifts/:shiftId/collaborators/:userId", requireAuth, async (req, res) => {
+  // POST - Add collaborator to shift
+  app.post("/api/shifts/:shiftId/collaborators", requireAuth, async (req, res) => {
     try {
-      const { shiftId, userId } = req.params;
+      const { shiftId } = req.params;
+      const { userId } = req.body;
 
-      const success = await storage.removeShiftCollaborator(parseInt(shiftId), parseInt(userId));
-      if (success) {
-        res.json({ success: true });
-      } else {
-        res.status(400).json({ message: "Failed to remove collaborator" });
-      }
+      const [collaborator] = await db.insert(shiftCollaborators)
+        .values({
+          shiftId: parseInt(shiftId),
+          userId: userId,
+          hoursWorked: "0.00",
+          addedAt: new Date()
+        })
+        .returning();
+
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "collaborator_added",
+        description: `Colaborador adicionado ao turno ${shiftId}`,
+        metadata: null
+      });
+
+      res.json(collaborator);
     } catch (error) {
+      console.error("Error adding collaborator:", error);
+      res.status(500).json({ message: "Failed to add collaborator" });
+    }
+  });
+
+  // DELETE - Remove collaborator from shift
+  app.delete("/api/shifts/:shiftId/collaborators/:collaboratorId", requireAuth, async (req, res) => {
+    try {
+      const { shiftId, collaboratorId } = req.params;
+
+      await db.delete(shiftCollaborators)
+        .where(and(
+          eq(shiftCollaborators.id, parseInt(collaboratorId)),
+          eq(shiftCollaborators.shiftId, parseInt(shiftId))
+        ));
+
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "collaborator_removed",
+        description: `Colaborador removido do turno ${shiftId}`,
+        metadata: null
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing collaborator:", error);
       res.status(500).json({ message: "Failed to remove collaborator" });
     }
   });
 
-  // Collaborator Consumption Endpoints
-  app.post("/api/shifts/:shiftId/collaborator-consumption", requireAuth, async (req, res) => {
+  app.put("/api/shifts/:shiftId/collaborators/:collaboratorId", requireAuth, async (req, res) => {
     try {
-      const { shiftId } = req.params;
-      const validatedData = insertCollaboratorConsumptionSchema.parse({
-        ...req.body,
-        shiftId: parseInt(shiftId)
-      });
+      const { shiftId, collaboratorId } = req.params;
+      const { hoursWorked } = req.body;
 
-      // Verify shift exists and user has access
-      const shift = await storage.getShift(parseInt(shiftId));
-      if (!shift) {
-        return res.status(404).json({ message: "Shift not found" });
-      }
-
-      // Use the new service to create consumption with proper stock management
-      const result = await collaboratorConsumptionService.createConsumption(validatedData);
+      await db.update(shiftCollaborators)
+        .set({ 
+          hoursWorked: hoursWorked || "0.00"
+        })
+        .where(and(
+          eq(shiftCollaborators.id, parseInt(collaboratorId)),
+          eq(shiftCollaborators.shiftId, parseInt(shiftId))
+        ));
 
       await storage.addTimelineEntry({
         userId: req.user!.id,
-        action: "collaborator_consumption_added",
-        description: `Consumo de colaborador adicionado - ${validatedData.hoursWorked}h, Bebidas: R$ ${validatedData.beveragesValue}, Pastéis: R$ ${validatedData.pastriesValue}, Águas: ${validatedData.waterQuantity}`,
-        metadata: { shiftId: parseInt(shiftId), collaboratorId: validatedData.collaboratorId }
+        action: "collaborator_hours_updated",
+        description: `Horas do colaborador atualizadas no turno ${shiftId}`,
+        metadata: null
       });
 
-      res.json(result);
+      res.json({ success: true });
     } catch (error) {
-      console.error("Error creating collaborator consumption:", error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
-      }
-      res.status(500).json({ message: "Failed to create collaborator consumption" });
+      console.error("Error updating collaborator:", error);
+      res.status(500).json({ message: "Failed to update collaborator" });
     }
   });
 
-  app.get("/api/shifts/:shiftId/collaborator-consumption", requireAuth, async (req, res) => {
+
+  // ROUTES FOR DETAILED COLLABORATOR CONSUMPTIONS
+  
+  // POST - Add a consumption item for a collaborator
+  app.post("/api/shifts/:shiftId/collaborator-consumptions", requireAuth, async (req, res) => {
     try {
       const { shiftId } = req.params;
+      const { collaboratorUserId, productId, quantity } = req.body;
+
+      // Import the new service
+      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
+
+      const consumption = await collaboratorConsumptionsService.addConsumptionItem(
+        parseInt(shiftId),
+        collaboratorUserId,
+        productId,
+        quantity
+      );
+
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "collaborator_consumption_item_added",
+        description: `Added consumption item for collaborator ${collaboratorUserId} in shift ${shiftId}`,
+        metadata: null
+      });
+
+      res.json(consumption);
+    } catch (error) {
+      console.error("Error adding collaborator consumption item:", error);
+      res.status(500).json({ message: "Failed to add consumption item" });
+    }
+  });
+
+  // GET - Get all consumption items for a collaborator
+  app.get("/api/shifts/:shiftId/collaborator-consumptions/:userId", requireAuth, async (req, res) => {
+    try {
+      const { shiftId, userId } = req.params;
       
-      // Disable caching for this endpoint to ensure fresh data after mutations
+      // Disable caching
       res.set({
         'Cache-Control': 'no-cache, no-store, must-revalidate',
         'Pragma': 'no-cache',
         'Expires': '0'
       });
-      
-      const consumptions = await db.query.collaboratorConsumption.findMany({
-        where: eq(collaboratorConsumption.shiftId, parseInt(shiftId)),
-        with: {
-          collaborator: true
-        }
-      });
+
+      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
+
+      const consumptions = await collaboratorConsumptionsService.getCollaboratorConsumptions(
+        parseInt(shiftId),
+        parseInt(userId)
+      );
 
       res.json(consumptions);
     } catch (error) {
       console.error("Error getting collaborator consumptions:", error);
-      res.status(500).json({ message: "Failed to get collaborator consumptions" });
+      res.status(500).json({ message: "Failed to get consumption items" });
     }
   });
 
-  app.put("/api/shifts/:shiftId/collaborator-consumption/:consumptionId", requireAuth, async (req, res) => {
-    try {
-      const { shiftId, consumptionId } = req.params;
-      const validatedData = insertCollaboratorConsumptionSchema.partial().parse(req.body);
-
-      // Use the new service to update consumption with proper stock management
-      const result = await collaboratorConsumptionService.updateConsumption(
-        parseInt(consumptionId),
-        parseInt(shiftId),
-        validatedData
-      );
-
-      await storage.addTimelineEntry({
-        userId: req.user!.id,
-        action: "collaborator_consumption_updated",
-        description: `Consumo de colaborador atualizado`,
-        metadata: { shiftId: parseInt(shiftId), consumptionId: parseInt(consumptionId) }
-      });
-
-      res.json(result);
-    } catch (error) {
-      console.error("Error updating collaborator consumption:", error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid data", errors: error.errors });
-      }
-      if (error instanceof Error && error.message === "Collaborator consumption not found") {
-        return res.status(404).json({ message: error.message });
-      }
-      res.status(500).json({ message: "Failed to update collaborator consumption" });
-    }
-  });
-
-  app.delete("/api/shifts/:shiftId/collaborator-consumption/:consumptionId", requireAuth, async (req, res) => {
+  // DELETE - Remove a consumption item
+  app.delete("/api/shifts/:shiftId/collaborator-consumptions/:consumptionId", requireAuth, async (req, res) => {
     try {
       const { shiftId, consumptionId } = req.params;
 
-      // Use the new service to delete consumption with proper stock management
-      await collaboratorConsumptionService.deleteConsumption(
+      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
+
+      await collaboratorConsumptionsService.removeConsumptionItem(
         parseInt(consumptionId),
         parseInt(shiftId)
       );
 
       await storage.addTimelineEntry({
         userId: req.user!.id,
-        action: "collaborator_consumption_deleted",
-        description: `Consumo de colaborador removido`,
-        metadata: { shiftId: parseInt(shiftId), consumptionId: parseInt(consumptionId) }
+        action: "collaborator_consumption_item_removed",
+        description: `Removed consumption item ${consumptionId} from shift ${shiftId}`,
+        metadata: null
       });
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error deleting collaborator consumption:", error);
-      if (error instanceof Error && error.message === "Collaborator consumption not found") {
-        return res.status(404).json({ message: error.message });
-      }
-      res.status(500).json({ message: "Failed to delete collaborator consumption" });
+      console.error("Error removing collaborator consumption item:", error);
+      res.status(500).json({ message: "Failed to remove consumption item" });
     }
   });
 
@@ -1466,6 +1494,14 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Função auxiliar para verificar se um produto é água (gratuito)
+  const isWaterProduct = (productName: string | null | undefined): boolean => {
+    if (!productName) return false;
+    const lowerName = productName.toLowerCase();
+    // Verificar variações de água com e sem acento
+    return lowerName.includes('água') || lowerName.includes('agua') || lowerName === 'água' || lowerName === 'agua';
+  };
+
   app.post("/api/admin/weekly-report/calculate", requireAdmin, async (req, res) => {
     try {
       console.log('[INFO] Starting weekly report calculation');
@@ -1512,6 +1548,7 @@ export function registerRoutes(app: Express): Server {
 
         let totalHours = 0;
         let totalConsumption = 0;
+        const consumptionDetails = []; // Array para armazenar detalhes dos itens consumidos
 
         // Processar turnos onde foi funcionário principal
         for (const shift of employeeShifts) {
@@ -1520,30 +1557,126 @@ export function registerRoutes(app: Express): Server {
             totalHours += duration;
           }
 
-          // Calcular consumo interno apenas para o funcionário principal do turno
+          // NOVA LÓGICA: Particionar o consumo corretamente
+          // 1. Buscar o consumo TOTAL registrado no turno
           const correctedShiftData = await applyCorrectionsToShiftData(shift.id);
           const records = correctedShiftData ? correctedShiftData.records : await storage.getShiftRecords(shift.id);
           
+          let totalShiftConsumption = 0;
+          const shiftConsumptionItems = []; // Para rastrear itens deste turno
           for (const record of records) {
-            totalConsumption += (record.consumedQty || 0) * parseFloat(record.priceSnapshot || '0');
+            const consumedQty = record.consumedQty || 0;
+            const price = parseFloat(record.priceSnapshot || '0');
+            const productName = record.product?.name || 'Produto desconhecido';
+            
+            if (consumedQty > 0) {
+              // Adicionar ao array de detalhes (incluindo água para exibição)
+              shiftConsumptionItems.push({
+                name: productName,
+                quantity: consumedQty,
+                unitPrice: price,
+                totalPrice: consumedQty * price,
+                isWater: isWaterProduct(productName)
+              });
+              
+              // Ignorar produtos de água no cálculo do valor do consumo
+              if (!isWaterProduct(productName)) {
+                totalShiftConsumption += consumedQty * price;
+              }
+            }
+          }
+
+          // 2. Buscar o consumo TOTAL atribuído a TODOS OS COLABORADORES neste turno
+          const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
+          const shiftCollaboratorConsumptions = await db.query.collaboratorConsumptions.findMany({
+            where: eq(collaboratorConsumptions.shiftId, shift.id),
+            with: { product: true }
+          });
+
+          let totalCollaboratorsConsumption = 0;
+          const collaboratorConsumptionItems = [];
+          for (const consumption of shiftCollaboratorConsumptions) {
+            const productName = consumption.product?.name || 'Produto desconhecido';
+            const price = parseFloat(consumption.priceSnapshot);
+            
+            collaboratorConsumptionItems.push({
+              name: productName,
+              quantity: consumption.quantity,
+              unitPrice: price,
+              totalPrice: consumption.quantity * price,
+              isWater: isWaterProduct(productName)
+            });
+            
+            // Ignorar produtos de água no cálculo do valor do consumo
+            if (!isWaterProduct(productName)) {
+              totalCollaboratorsConsumption += consumption.quantity * price;
+            }
+          }
+
+          // 3. Calcular o consumo do FUNCIONÁRIO PRINCIPAL (proporcionalmente)
+          // Distribuir os itens entre funcionário principal e colaboradores
+          for (const item of shiftConsumptionItems) {
+            // Verificar quanto deste item foi consumido por colaboradores
+            const collaboratorItem = collaboratorConsumptionItems.find(c => c.name === item.name);
+            const collaboratorQty = collaboratorItem ? collaboratorItem.quantity : 0;
+            
+            // Quantidade restante é do funcionário principal
+            const mainEmployeeQty = Math.max(0, item.quantity - collaboratorQty);
+            
+            if (mainEmployeeQty > 0) {
+              const mainEmployeeItemTotal = mainEmployeeQty * item.unitPrice;
+              consumptionDetails.push({
+                name: item.name,
+                quantity: mainEmployeeQty,
+                unitPrice: item.unitPrice,
+                totalPrice: mainEmployeeItemTotal,
+                isWater: item.isWater
+              });
+              
+              // Somar ao total apenas se não for água
+              if (!item.isWater) {
+                totalConsumption += mainEmployeeItemTotal;
+              }
+            }
           }
         }
 
-        // Processar consumo quando foi colaborador (nova lógica correta)
-        const collaboratorConsumptions = await collaboratorConsumptionService.getConsumptionsForWeeklyReport(startDate, endDate);
-        const employeeCollaboratorConsumptions = collaboratorConsumptions.filter(
-          (c: any) => c.collaboratorId === employee.id
+        // Processar consumo quando foi colaborador
+        const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
+        const allCollaboratorConsumptions = await collaboratorConsumptionsService.getConsumptionsForWeeklyReport(startDate, endDate);
+        const employeeCollaboratorConsumptions = allCollaboratorConsumptions.filter(
+          (c: any) => c.collaboratorUserId === employee.id
         );
 
         // Adicionar horas trabalhadas como colaborador
-        for (const consumption of employeeCollaboratorConsumptions) {
-          totalHours += consumption.hoursWorked;
+        for (const collaboratorShift of collaboratorShifts) {
+          const hoursWorked = parseFloat(collaboratorShift.collaboratorData.hoursWorked || "0");
+          totalHours += hoursWorked;
         }
 
-        // Calcular consumo de colaborador com 50% de desconto
-        const collaboratorConsumptionValue = collaboratorConsumptionService.calculateCollaboratorWeeklyCost(
-          employeeCollaboratorConsumptions
-        );
+        // Calcular consumo quando foi colaborador (valor integral, sem desconto ainda)
+        let collaboratorConsumptionValue = 0;
+        for (const consumption of employeeCollaboratorConsumptions) {
+          const productName = consumption.product?.name || 'Produto desconhecido';
+          const price = parseFloat(consumption.priceSnapshot);
+          const totalPrice = consumption.quantity * price;
+          
+          // Adicionar aos detalhes do consumo
+          consumptionDetails.push({
+            name: productName,
+            quantity: consumption.quantity,
+            unitPrice: price,
+            totalPrice: totalPrice,
+            isWater: isWaterProduct(productName)
+          });
+          
+          // Ignorar produtos de água no cálculo do valor do consumo
+          if (!isWaterProduct(productName)) {
+            collaboratorConsumptionValue += totalPrice;
+          }
+        }
+        
+        // Adicionar o consumo do colaborador ao total (ainda sem desconto)
         totalConsumption += collaboratorConsumptionValue;
 
         // Total de dias trabalhados (como funcionário principal ou colaborador)
@@ -1577,6 +1710,30 @@ export function registerRoutes(app: Express): Server {
         const hoursPay = totalHours * hourlyRate;
         const total = hoursPay + transportCost + foodCost - finalConsumption;
 
+        // Consolidar itens iguais nos detalhes do consumo
+        const consolidatedDetails: string[] = [];
+        const itemMap = new Map<string, any>();
+        
+        for (const item of consumptionDetails) {
+          const key = item.name;
+          if (itemMap.has(key)) {
+            const existing = itemMap.get(key);
+            existing.quantity += item.quantity;
+            existing.totalPrice += item.totalPrice;
+          } else {
+            itemMap.set(key, { ...item });
+          }
+        }
+        
+        // Converter para array formatado
+        itemMap.forEach((item, name) => {
+          const formattedPrice = item.totalPrice.toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          });
+          consolidatedDetails.push(`${item.quantity}x ${name} - ${formattedPrice}${item.isWater ? ' (não descontado)' : ''}`);
+        });
+
         employeeData.push({
           userId: employee.id,
           name: employee.name || employee.email,
@@ -1584,6 +1741,7 @@ export function registerRoutes(app: Express): Server {
           transport: Math.round(transportCost * 100) / 100,
           food: Math.round(foodCost * 100) / 100,
           consumption: Math.round(finalConsumption * 100) / 100, // Show consumption AFTER discount
+          consumptionDetails: consolidatedDetails, // Novo campo com detalhes
           bonus: 0,
           deduction: 0,
           total: Math.round(total * 100) / 100,

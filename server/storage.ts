@@ -38,8 +38,8 @@ export interface IStorage {
     collaborators: User[];
   } | undefined>;
 
-  addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string, internalConsumption?: string): Promise<boolean>;
-  updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string, internalConsumption: string): Promise<boolean>;
+  addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string): Promise<boolean>;
+  updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string): Promise<boolean>;
   removeShiftCollaborator(shiftId: number, userId: number): Promise<boolean>;
   getShiftCollaborators(shiftId: number): Promise<User[]>;
 
@@ -471,13 +471,12 @@ export class DatabaseStorage implements IStorage {
     };
   }
 
-  async addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string, internalConsumption?: string): Promise<boolean> {
+  async addShiftCollaborator(shiftId: number, userId: number, hoursWorked?: string): Promise<boolean> {
     try {
       await db.insert(shiftCollaborators).values({ 
         shiftId, 
         userId,
-        hoursWorked: hoursWorked || "0.00",
-        internalConsumption: internalConsumption || "0.00"
+        hoursWorked: hoursWorked || "0.00"
       });
       return true;
     } catch {
@@ -485,10 +484,10 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string, internalConsumption: string): Promise<boolean> {
+  async updateShiftCollaborator(shiftId: number, userId: number, hoursWorked: string): Promise<boolean> {
     try {
       const result = await db.update(shiftCollaborators)
-        .set({ hoursWorked, internalConsumption })
+        .set({ hoursWorked })
         .where(and(
           eq(shiftCollaborators.shiftId, shiftId),
           eq(shiftCollaborators.userId, userId)
@@ -516,8 +515,7 @@ export class DatabaseStorage implements IStorage {
     
     return result.map(r => ({
       ...r.user,
-      hoursWorked: r.collaborator.hoursWorked,
-      internalConsumption: r.collaborator.internalConsumption
+      hoursWorked: r.collaborator.hoursWorked
     }));
   }
 

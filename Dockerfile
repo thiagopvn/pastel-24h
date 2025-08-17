@@ -1,43 +1,65 @@
-# Estágio 2: Build da aplicação
+# Multi-stage build otimizado
 FROM node:20-slim AS builder
+
+# Instalar dependências mínimas para build
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Copia todo o código-fonte e os arquivos de pacotes
+# Copiar apenas arquivos de configuração primeiro
+COPY package*.json ./
+COPY tsconfig.json ./
+COPY vite.config.ts ./
+COPY drizzle.config.ts ./
+
+# Instalar dependências
+RUN npm install
+
+# Copiar resto do código
 COPY . .
-# Instala TODAS as dependências (incluindo as de desenvolvimento) para os scripts de build e migração
-RUN npm ci
-# Aumenta o limite de memória do Node.js para 4GB durante o build e roda o script
-RUN NODE_OPTIONS=--max-old-space-size=4096 npm run build
-# RODA A MIGRAÇÃO AQUI para criar o banco de dados dentro do próprio build
-RUN npm run db:migrate
-# Remove as dependências de desenvolvimento para a próxima etapa
+
+# Build
+RUN NODE_OPTIONS=--max-old-space-size=2048 npm run build
+
+# Executar migrações
+RUN mkdir -p data && npm run db:migrate
+
+# Limpar dev dependencies
 RUN npm prune --omit=dev
 
-# Estágio 3: Imagem final de produção
-FROM node:20-slim AS runner
+# Stage de produção
+FROM node:20-slim AS production
+
+# Instalar apenas o necessário
+RUN apt-get update && apt-get install -y \
+    sqlite3 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-ENV NODE_ENV=production
-
-# Copia as dependências de produção já filtradas do estágio 'builder'
+# Copiar arquivos do builder
 COPY --from=builder /app/node_modules ./node_modules
-# Copia a aplicação buildada do estágio 'builder'
 COPY --from=builder /app/dist ./dist
-# Copia o diretório 'data' com o banco de dados SQLite já migrado do estágio de build
 COPY --from=builder /app/data ./data
-# Copia o package.json para que o script 'npm run start' funcione
-COPY package.json .
-# Copia as migrações para poder executá-las no runtime se necessário
-COPY migrations ./migrations
-# Copia o arquivo de configuração do drizzle
-COPY drizzle.config.ts .
-# Copia o entrypoint script
-COPY docker-entrypoint.sh .
-# Torna o script executável
-RUN chmod +x docker-entrypoint.sh
+COPY --from=builder /app/package.json ./
 
-# Expõe a porta em que a aplicação roda
+# Criar entrypoint simples
+RUN echo '#!/bin/sh\nset -e\necho "🚀 Iniciando aplicação..."\nif [ ! -f /app/data/local.db ]; then\n  echo "📦 Criando banco..."\n  mkdir -p /app/data\nfi\necho "🎯 Iniciando servidor..."\nexec node dist/index.js' > /app/start.sh
+
+RUN chmod +x /app/start.sh
+
+ENV NODE_ENV=production
+ENV PORT=5000
+
 EXPOSE 5000
 
-# Define o entrypoint
-ENTRYPOINT ["./docker-entrypoint.sh"]
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:5000/api/health || exit 1
+
+CMD ["/app/start.sh"]

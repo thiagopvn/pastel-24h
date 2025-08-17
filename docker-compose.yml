@@ -1,32 +1,53 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
     container_name: pastel24h_app
     restart: unless-stopped
+    ports:
+      - "5000:5000"
     volumes:
       - ./data:/app/data
+      - app_logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
     env_file:
-      - ./.env
+      - .env
     networks:
       - pastel24h-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on: []
 
-  nginx:
-    build:
-      context: .
-      dockerfile: nginx.dockerfile
-    container_name: pastel24h_nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    depends_on:
-      - app
-    networks:
-      - pastel24h-network
+  # Nginx opcional - descomente se quiser usar proxy reverso
+  # nginx:
+  #   build:
+  #     context: .
+  #     dockerfile: nginx.dockerfile
+  #   container_name: pastel24h_nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - pastel24h-network
+
+volumes:
+  app_logs:
+    driver: local
 
 networks:
   pastel24h-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
