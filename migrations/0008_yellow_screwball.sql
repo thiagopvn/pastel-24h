@@ -1,1 +1,0 @@
-ALTER TABLE `shift_collaborators_new` RENAME TO `shift_collaborators`;

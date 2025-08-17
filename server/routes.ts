@@ -1497,15 +1497,18 @@ export function registerRoutes(app: Express): Server {
   // Função auxiliar para verificar se um produto é água (gratuito)
   const isWaterProduct = (productName: string | null | undefined): boolean => {
     if (!productName) return false;
-    const lowerName = productName.toLowerCase();
-    // Verificar variações de água com e sem acento
-    return lowerName.includes('água') || lowerName.includes('agua') || lowerName === 'água' || lowerName === 'agua';
+    const lowerName = productName.toLowerCase().trim();
+    // Verificar apenas água pura/mineral - NÃO incluir água com gás
+    return lowerName === 'água' || 
+           lowerName === 'agua' || 
+           lowerName === 'água mineral' || 
+           lowerName === 'agua mineral';
   };
 
   app.post("/api/admin/weekly-report/calculate", requireAdmin, async (req, res) => {
     try {
       console.log('[INFO] Starting weekly report calculation');
-      const { weekStart, weekEnd, hourlyRate, foodBenefit, consumptionDiscount, transportRates } = req.body;
+      const { weekStart, weekEnd, hourlyRate, foodBenefit, consumptionDiscount, transportRates, reportId } = req.body;
 
       const startDate = new Date(weekStart);
       const endDate = new Date(weekEnd);
@@ -1573,6 +1576,7 @@ export function registerRoutes(app: Express): Server {
               // Adicionar ao array de detalhes (incluindo água para exibição)
               shiftConsumptionItems.push({
                 name: productName,
+                productId: record.productId,
                 quantity: consumedQty,
                 unitPrice: price,
                 totalPrice: consumedQty * price,
@@ -1627,6 +1631,7 @@ export function registerRoutes(app: Express): Server {
               const mainEmployeeItemTotal = mainEmployeeQty * item.unitPrice;
               consumptionDetails.push({
                 name: item.name,
+                productId: item.productId,
                 quantity: mainEmployeeQty,
                 unitPrice: item.unitPrice,
                 totalPrice: mainEmployeeItemTotal,
@@ -1664,6 +1669,7 @@ export function registerRoutes(app: Express): Server {
           // Adicionar aos detalhes do consumo
           consumptionDetails.push({
             name: productName,
+            productId: consumption.productId,
             quantity: consumption.quantity,
             unitPrice: price,
             totalPrice: totalPrice,
@@ -1703,6 +1709,7 @@ export function registerRoutes(app: Express): Server {
 
         const foodCost = daysWorked * foodBenefit;
 
+
         // Correct consumption discount calculation: discount % of consumption FROM consumption
         const consumptionDiscountAmount = totalConsumption * (consumptionDiscount / 100);
         const finalConsumption = totalConsumption - consumptionDiscountAmount;
@@ -1711,7 +1718,7 @@ export function registerRoutes(app: Express): Server {
         const total = hoursPay + transportCost + foodCost - finalConsumption;
 
         // Consolidar itens iguais nos detalhes do consumo
-        const consolidatedDetails: string[] = [];
+        const consolidatedDetails: any[] = [];
         const itemMap = new Map<string, any>();
         
         for (const item of consumptionDetails) {
@@ -1725,13 +1732,24 @@ export function registerRoutes(app: Express): Server {
           }
         }
         
-        // Converter para array formatado
+        // Converter para array formatado com productId preservado
         itemMap.forEach((item, name) => {
           const formattedPrice = item.totalPrice.toLocaleString('pt-BR', {
             style: 'currency',
             currency: 'BRL'
           });
-          consolidatedDetails.push(`${item.quantity}x ${name} - ${formattedPrice}${item.isWater ? ' (não descontado)' : ''}`);
+          const displayText = `${item.quantity}x ${name} - ${formattedPrice}${item.isWater ? ' (não descontado)' : ''}`;
+          const detailItem = {
+            productId: item.productId,
+            display: displayText,
+            name: name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalPrice: item.totalPrice,
+            isWater: item.isWater
+          };
+          console.log("Adding consumption detail item:", detailItem);
+          consolidatedDetails.push(detailItem);
         });
 
         employeeData.push({
@@ -1810,6 +1828,7 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ message: "Failed to create weekly report", error: message });
     }
   });
+
 
   app.get("/api/admin/payment-config", requireAdmin, async (req, res) => {
     try {

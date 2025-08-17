@@ -1,5 +1,5 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -418,4 +418,20 @@ export type ShiftSnapshot = typeof shiftSnapshots.$inferSelect;
 export type Correction = typeof corrections.$inferSelect;
 export type InsertCorrection = z.infer<typeof insertCorrectionSchema>;
 export type CollaboratorConsumption = typeof collaboratorConsumptions.$inferSelect;
+
+// Tabela para ajustes de consumo no relatório semanal
+export const weeklyReportConsumptionAdjustments = sqliteTable('weekly_report_consumption_adjustments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  reportId: integer('report_id').notNull().references(() => weeklyReports.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+  adjustmentType: text('adjustment_type', { enum: ['include', 'exclude'] }).notNull(),
+  reason: text('reason'),
+  adjustedByUserId: integer('adjusted_by_user_id').notNull().references(() => users.id),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const insertWeeklyReportConsumptionAdjustmentSchema = createInsertSchema(weeklyReportConsumptionAdjustments);
+export type WeeklyReportConsumptionAdjustment = typeof weeklyReportConsumptionAdjustments.$inferSelect;
+export type InsertWeeklyReportConsumptionAdjustment = z.infer<typeof insertWeeklyReportConsumptionAdjustmentSchema>;
 export type InsertCollaboratorConsumption = z.infer<typeof insertCollaboratorConsumptionSchema>;

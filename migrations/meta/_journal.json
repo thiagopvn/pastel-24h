@@ -71,6 +71,41 @@
       "when": 1755254407798,
       "tag": "0009_ambitious_ricochet",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1755322000000,
+      "tag": "0010_consumption_adjustments",
+      "breakpoints": false
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1755322100000,
+      "tag": "0011_optional_reason",
+      "breakpoints": false
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1755322200000,
+      "tag": "0012_finish_optional_reason",
+      "breakpoints": false
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1755322300000,
+      "tag": "0013_drop_old_table",
+      "breakpoints": false
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1755322400000,
+      "tag": "0014_rename_table",
+      "breakpoints": false
     }
   ]
 }

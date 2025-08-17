@@ -28,7 +28,7 @@ interface EmployeeData {
   transport: number;
   food: number;
   consumption: number;
-  consumptionDetails?: string[]; // Novo campo para detalhes do consumo
+  consumptionDetails?: any[]; // Novo campo para detalhes do consumo
   bonus: number;
   deduction: number;
   total: number;
@@ -54,6 +54,19 @@ export default function WeeklyReportPage() {
     app: 15.00,
   });
   const [employeeData, setEmployeeData] = useState<EmployeeData[]>([]);
+  const [openTooltips, setOpenTooltips] = useState<Set<number>>(new Set());
+
+  const toggleTooltip = (userId: number) => {
+    setOpenTooltips(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
 
   if (user?.role !== 'admin') {
     return <Redirect to="/" />;
@@ -590,16 +603,77 @@ export default function WeeklyReportPage() {
                         <div className="flex items-center justify-end gap-2">
                           <span>-{formatCurrency(employee.consumption)}</span>
                           {employee.consumptionDetails && employee.consumptionDetails.length > 0 && (
-                            <Tooltip>
+                            <Tooltip open={openTooltips.has(employee.userId)} onOpenChange={(open) => {
+                              if (!open) {
+                                setOpenTooltips(prev => {
+                                  const newSet = new Set(prev);
+                                  newSet.delete(employee.userId);
+                                  return newSet;
+                                });
+                              }
+                            }}>
                               <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 cursor-pointer text-blue-500 hover:text-blue-700" />
+                                <div 
+                                  className={`relative p-1 rounded-full hover:bg-blue-50 transition-all duration-200 cursor-pointer group ${
+                                    openTooltips.has(employee.userId) ? 'bg-blue-100' : ''
+                                  }`}
+                                  onClick={() => toggleTooltip(employee.userId)}
+                                >
+                                  <Info className={`h-4 w-4 transition-colors ${
+                                    openTooltips.has(employee.userId) 
+                                      ? 'text-blue-600' 
+                                      : 'text-blue-500 group-hover:text-blue-600'
+                                  }`} />
+                                  <div className="absolute inset-0 rounded-full bg-blue-200 opacity-0 group-hover:opacity-20 transition-opacity duration-200"></div>
+                                  {openTooltips.has(employee.userId) && (
+                                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                  )}
+                                </div>
                               </TooltipTrigger>
-                              <TooltipContent side="left" className="max-w-sm">
-                                <div className="space-y-1">
-                                  <p className="font-bold text-sm">Itens Consumidos:</p>
-                                  {employee.consumptionDetails.map((item, index) => (
-                                    <p key={index} className="text-xs">{item}</p>
-                                  ))}
+                              <TooltipContent side="left" className="max-w-80 p-0 bg-white shadow-xl border border-gray-200 rounded-xl">
+                                <div className="p-4">
+                                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                    <h3 className="font-semibold text-sm text-gray-800">Itens Consumidos</h3>
+                                  </div>
+                                  <div className="space-y-2">
+                                    {employee.consumptionDetails.map((item, index) => {
+                                      const itemText = item.display || item;
+                                      const isWater = itemText.includes('(não descontado)');
+                                      const cleanText = itemText.replace(' (não descontado)', '');
+                                      
+                                      return (
+                                        <div 
+                                          key={index} 
+                                          className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+                                            isWater ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50 hover:bg-gray-100'
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${
+                                              isWater ? 'bg-blue-400' : 'bg-gray-400'
+                                            }`}></div>
+                                            <span className="text-xs font-medium text-gray-700">
+                                              {cleanText}
+                                            </span>
+                                          </div>
+                                          {isWater && (
+                                            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-medium">
+                                              Gratuita
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {consumptionDiscount > 0 && (
+                                    <div className="mt-3 pt-2 border-t border-gray-100">
+                                      <div className="flex items-center gap-2 text-xs text-green-700 bg-green-50 px-2 py-1 rounded-lg">
+                                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                        <span className="font-medium">{consumptionDiscount}% desconto aplicado</span>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               </TooltipContent>
                             </Tooltip>
@@ -707,6 +781,7 @@ export default function WeeklyReportPage() {
         {/* Mobile bottom padding to prevent content overlap */}
         <div className="xl:hidden h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}></div>
       </div>
+
     </TooltipProvider>
   );
 }
