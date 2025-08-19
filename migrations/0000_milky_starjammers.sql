@@ -210,3 +210,18 @@ CREATE TABLE `weekly_reports` (
 	`employee_data` text,
 	`created_at` integer DEFAULT '"2025-08-10T02:24:51.303Z"'
 );
+--> statement-breakpoint
+CREATE TABLE `weekly_report_consumption_adjustments` (
+	`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`report_id` integer NOT NULL,
+	`user_id` integer NOT NULL,
+	`product_id` integer NOT NULL,
+	`adjustment_type` text NOT NULL,
+	`reason` text,
+	`adjusted_by_user_id` integer NOT NULL,
+	`created_at` integer NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (`report_id`) REFERENCES `weekly_reports`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`product_id`) REFERENCES `products`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`adjusted_by_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+);
