@@ -10,6 +10,7 @@ import {
   getProcessedShiftById, 
   getLastClosedShift
 } from "./lib/shift-processor-sql";
+import { collaboratorConsumptionsService } from "./collaborator-consumptions-service";
 import { 
   shifts, 
   shiftRecords, 
@@ -685,7 +686,6 @@ export function registerRoutes(app: Express): Server {
       const { collaboratorUserId, productId, quantity } = req.body;
 
       // Import the new service
-      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
 
       const consumption = await collaboratorConsumptionsService.addConsumptionItem(
         parseInt(shiftId),
@@ -720,8 +720,6 @@ export function registerRoutes(app: Express): Server {
         'Expires': '0'
       });
 
-      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
-
       const consumptions = await collaboratorConsumptionsService.getCollaboratorConsumptions(
         parseInt(shiftId),
         parseInt(userId)
@@ -738,8 +736,6 @@ export function registerRoutes(app: Express): Server {
   app.delete("/api/shifts/:shiftId/collaborator-consumptions/:consumptionId", requireAuth, async (req, res) => {
     try {
       const { shiftId, consumptionId } = req.params;
-
-      const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
 
       await collaboratorConsumptionsService.removeConsumptionItem(
         parseInt(consumptionId),
@@ -1591,7 +1587,6 @@ export function registerRoutes(app: Express): Server {
           }
 
           // 2. Buscar o consumo TOTAL atribuído a TODOS OS COLABORADORES neste turno
-          const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
           const shiftCollaboratorConsumptions = await db.query.collaboratorConsumptions.findMany({
             where: eq(collaboratorConsumptions.shiftId, shift.id),
             with: { product: true }
@@ -1647,7 +1642,6 @@ export function registerRoutes(app: Express): Server {
         }
 
         // Processar consumo quando foi colaborador
-        const { collaboratorConsumptionsService } = await import("./collaborator-consumptions-service");
         const allCollaboratorConsumptions = await collaboratorConsumptionsService.getConsumptionsForWeeklyReport(startDate, endDate);
         const employeeCollaboratorConsumptions = allCollaboratorConsumptions.filter(
           (c: any) => c.collaboratorUserId === employee.id
