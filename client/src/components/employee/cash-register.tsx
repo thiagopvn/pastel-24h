@@ -13,15 +13,25 @@ import { Button } from "@/components/ui/button";
 import { CreditCard, AlertTriangle, Flame, Save, HelpCircle, Calculator, Coins, Banknote, DollarSign, Info } from "lucide-react";
 import type { Shift, ShiftPayment } from "@shared/schema";
 
-export default function CashRegister() {
+interface CashRegisterProps {
+  payments: {
+    cash: number;
+    pix: number;
+    stoneCard: number;
+    stoneVoucher: number;
+    pagBankCard: number;
+  };
+  onPaymentsChange: (newPayments: {
+    cash: number;
+    pix: number;
+    stoneCard: number;
+    stoneVoucher: number;
+    pagBankCard: number;
+  }) => void;
+}
+
+export default function CashRegister({ payments, onPaymentsChange }: CashRegisterProps) {
   const { toast } = useToast();
-  const [payments, setPayments] = useState({
-    cash: 0,
-    pix: 0,
-    stoneCard: 0,
-    stoneVoucher: 0,
-    pagBankCard: 0,
-  });
   const [finalCash, setFinalCash] = useState(0);
   const [finalCoins, setFinalCoins] = useState(0);
   const [gasExchange, setGasExchange] = useState(false);
@@ -47,6 +57,8 @@ export default function CashRegister() {
       queryClient.invalidateQueries({ queryKey: ["/api/shift-payments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/current"] });
       toast({ title: "Pagamentos salvos com sucesso!" });
+      // Notify parent that payments were saved
+      onPaymentsChange(payments);
     },
     onError: () => {
       toast({ title: "Erro ao salvar pagamentos", variant: "destructive" });
@@ -99,7 +111,7 @@ export default function CashRegister() {
   });
 
   const updatePayment = (field: string, value: number) => {
-    setPayments(prev => ({ ...prev, [field]: value }));
+    onPaymentsChange({ ...payments, [field]: value });
   };
 
   const handleSaveValues = () => {

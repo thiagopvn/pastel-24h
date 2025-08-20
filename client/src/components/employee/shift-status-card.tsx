@@ -21,7 +21,17 @@ import { formatCurrency } from "@/lib/calculations";
 
 type ShiftForm = z.infer<typeof insertShiftSchema>;
 
-export default function ShiftStatusCard() {
+interface ShiftStatusCardProps {
+  paymentsData: {
+    cash: number;
+    pix: number;
+    stoneCard: number;
+    stoneVoucher: number;
+    pagBankCard: number;
+  };
+}
+
+export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) {
   console.log(`%c--- ShiftStatusCard RENDERIZOU --- (${new Date().toLocaleTimeString()})`, 'color: orange; font-weight: bold;');
   const { user } = useAuth();
   const { toast } = useToast();
@@ -486,6 +496,7 @@ export default function ShiftStatusCard() {
               onConfirm={handleCloseShift}
               isClosing={closeShiftMutation.isPending}
               divergenceDetails={divergenceDetails}
+              livePayments={paymentsData}
             />
           </>
         )}

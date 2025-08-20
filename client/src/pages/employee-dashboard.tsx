@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect } from "wouter";
 import { Utensils, LogOut } from "lucide-react";
@@ -8,6 +9,19 @@ import CollaboratorsEnhanced from "@/components/employee/collaborators-enhanced"
 
 export default function EmployeeDashboard() {
   const { user, logoutMutation } = useAuth();
+  
+  // Centralized payments state
+  const [paymentsData, setPaymentsData] = useState({
+    cash: 0,
+    pix: 0,
+    stoneCard: 0,
+    stoneVoucher: 0,
+    pagBankCard: 0,
+  });
+
+  const handlePaymentsChange = (newPayments: typeof paymentsData) => {
+    setPaymentsData(newPayments);
+  };
 
   if (user?.role === 'admin') {
     return <Redirect to="/admin" />;
@@ -48,9 +62,12 @@ export default function EmployeeDashboard() {
       {/* Main Content */}
       <main className="pb-4">
         <div className="p-4 space-y-4">
-          <ShiftStatusCard />
+          <ShiftStatusCard paymentsData={paymentsData} />
           <ProductForm />
-          <CashRegister />
+          <CashRegister 
+            payments={paymentsData}
+            onPaymentsChange={handlePaymentsChange}
+          />
           <CollaboratorsEnhanced />
         </div>
       </main>

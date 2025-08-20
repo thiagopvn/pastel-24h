@@ -51,7 +51,7 @@ interface CloseShiftModalProps {
   onConfirm: (data: any) => void;
   isClosing: boolean;
   divergenceDetails?: any;
-  currentPayments?: {
+  livePayments?: {
     cash: number;
     pix: number;
     stoneCard: number;
@@ -67,7 +67,7 @@ export function CloseShiftModal({
   onConfirm,
   isClosing,
   divergenceDetails,
-  currentPayments
+  livePayments
 }: CloseShiftModalProps) {
   const { user } = useAuth();
   const [cashDivergence, setCashDivergence] = useState(0);
@@ -146,8 +146,8 @@ export function CloseShiftModal({
   // Calculate expected cash considering withdrawals
   const initialCash = parseFloat(shift.initialCash || "200.00");
   const initialCoins = parseFloat(shift.initialCoins || "50.00");
-  // Use currentPayments if provided (real-time), otherwise fallback to API data
-  const cashSales = currentPayments?.cash ?? parseFloat((paymentData as any)?.cash || "0");
+  // Use livePayments if provided (real-time), otherwise fallback to API data
+  const cashSales = livePayments?.cash ?? parseFloat((paymentData as any)?.cash || "0");
 
   // Calculate total withdrawals made during this shift
   let totalWithdrawals = 0;
@@ -194,10 +194,10 @@ export function CloseShiftModal({
         return sum + parseFloat(record.itemTotal || "0");
       }, 0);
 
-      // Calculate total from payments - use currentPayments if available for real-time calculation
-      const totalPayments = currentPayments 
-        ? (currentPayments.cash + currentPayments.pix + currentPayments.stoneCard + 
-           currentPayments.stoneVoucher + currentPayments.pagBankCard)
+      // Calculate total from payments - use livePayments if available for real-time calculation
+      const totalPayments = livePayments 
+        ? (livePayments.cash + livePayments.pix + livePayments.stoneCard + 
+           livePayments.stoneVoucher + livePayments.pagBankCard)
         : ((parseFloat((paymentData as any)?.cash || "0")) +
            (parseFloat((paymentData as any)?.pix || "0")) +
            (parseFloat((paymentData as any)?.stoneCard || "0")) +
@@ -217,7 +217,7 @@ export function CloseShiftModal({
         setSalesDifference(0);
       }
     }
-  }, [isOpen, shiftRecords, paymentData, currentPayments]); // Added currentPayments to dependencies
+  }, [isOpen, shiftRecords, paymentData, livePayments]); // Added livePayments to dependencies
 
   const generateShiftClosurePDF = async (pdfData: any) => {
     const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
@@ -262,7 +262,7 @@ export function CloseShiftModal({
       head: [['Descrição', 'Valor (R$)']],
       body: [
         ['Caixa Inicial', formatCurrencyPDF(parseFloat(shift.initialCash) + parseFloat(shift.initialCoins))],
-        ['Vendas em Dinheiro', formatCurrencyPDF(currentPayments?.cash ?? paymentData?.cash ?? 0)],
+        ['Vendas em Dinheiro', formatCurrencyPDF(livePayments?.cash ?? paymentData?.cash ?? 0)],
         ['Retiradas Administrativas', formatCurrencyPDF(totalWithdrawals)],
         ['Caixa Esperado', formatCurrencyPDF(totalExpectedFinal)],
         ['Caixa Final Contado', formatCurrencyPDF(parseFloat(formData.countedFinalCash) + parseFloat(formData.countedFinalCoins))],
@@ -303,11 +303,11 @@ export function CloseShiftModal({
     doc.setFontSize(12);
     doc.text("Vendas por Forma de Pagamento", 14, finalY);
     
-    const currentCash = currentPayments?.cash ?? paymentData?.cash ?? 0;
-    const currentPix = currentPayments?.pix ?? paymentData?.pix ?? 0;
-    const currentStoneCard = currentPayments?.stoneCard ?? paymentData?.stoneCard ?? 0;
-    const currentStoneVoucher = currentPayments?.stoneVoucher ?? paymentData?.stoneVoucher ?? 0;
-    const currentPagBank = currentPayments?.pagBankCard ?? paymentData?.pagBankCard ?? 0;
+    const currentCash = livePayments?.cash ?? paymentData?.cash ?? 0;
+    const currentPix = livePayments?.pix ?? paymentData?.pix ?? 0;
+    const currentStoneCard = livePayments?.stoneCard ?? paymentData?.stoneCard ?? 0;
+    const currentStoneVoucher = livePayments?.stoneVoucher ?? paymentData?.stoneVoucher ?? 0;
+    const currentPagBank = livePayments?.pagBankCard ?? paymentData?.pagBankCard ?? 0;
     
     const paymentMethods = [
       ['Dinheiro', formatCurrencyPDF(currentCash)],
