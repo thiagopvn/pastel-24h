@@ -50,6 +50,7 @@ interface CloseShiftModalProps {
   shift: Shift;
   onConfirm: (data: any) => void;
   isClosing: boolean;
+  divergenceDetails?: any;
 }
 
 export function CloseShiftModal({
@@ -57,10 +58,13 @@ export function CloseShiftModal({
   onClose,
   shift,
   onConfirm,
-  isClosing
+  isClosing,
+  divergenceDetails
 }: CloseShiftModalProps) {
   const { user } = useAuth();
   const [cashDivergence, setCashDivergence] = useState(0);
+  const [salesInconsistency, setSalesInconsistency] = useState(false);
+  const [salesDifference, setSalesDifference] = useState(0);
 
   const form = useForm<CloseShiftForm>({
     resolver: zodResolver(closeShiftSchema),
@@ -80,6 +84,19 @@ export function CloseShiftModal({
       form.setValue("countedFinalCoins", shift.tempFinalCoins);
     }
   }, [shift.tempFinalCash, shift.tempFinalCoins, form]);
+
+  // Handle divergence details from error response
+  useEffect(() => {
+    if (divergenceDetails) {
+      if (divergenceDetails.salesInconsistency) {
+        setSalesInconsistency(true);
+        setSalesDifference(parseFloat(divergenceDetails.salesDifference || 0));
+      }
+      if (divergenceDetails.cashDivergence) {
+        setCashDivergence(parseFloat(divergenceDetails.cashDivergence || 0));
+      }
+    }
+  }, [divergenceDetails]);
 
   // Get expected cash from API
   const { data: paymentData } = useQuery({
@@ -157,6 +174,36 @@ export function CloseShiftModal({
       setCashDivergence(divergence);
     }
   }, [countedFinalCash, countedFinalCoins, totalExpectedFinal]);
+
+  // Calculate sales inconsistency when data is loaded
+  useEffect(() => {
+    if (isOpen && shiftRecords && paymentData) {
+      // Calculate total from records using itemTotal (já calculado no backend)
+      const totalRecordsValue = shiftRecords.reduce((sum: number, record: any) => {
+        return sum + parseFloat(record.itemTotal || "0");
+      }, 0);
+
+      // Calculate total from payments
+      const totalPayments = (parseFloat((paymentData as any)?.cash || "0")) +
+                           (parseFloat((paymentData as any)?.pix || "0")) +
+                           (parseFloat((paymentData as any)?.stoneCard || "0")) +
+                           (parseFloat((paymentData as any)?.stoneVoucher || "0")) +
+                           (parseFloat((paymentData as any)?.pagBankCard || "0"));
+
+      // Check for sales inconsistency
+      const difference = Math.abs(totalPayments - totalRecordsValue);
+      
+      console.log(`Modal Sales Check - Records Total: R$ ${totalRecordsValue.toFixed(2)}, Payments Total: R$ ${totalPayments.toFixed(2)}, Difference: R$ ${difference.toFixed(2)}`);
+      
+      if (difference > 0.01) {
+        setSalesInconsistency(true);
+        setSalesDifference(difference);
+      } else {
+        setSalesInconsistency(false);
+        setSalesDifference(0);
+      }
+    }
+  }, [isOpen, shiftRecords, paymentData]);
 
   const generateShiftClosurePDF = async (pdfData: any) => {
     const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
@@ -432,11 +479,24 @@ export function CloseShiftModal({
   };
 
   const handleSubmit = async (data: CloseShiftForm) => {
-    // Check cash divergence
-    if (Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE && !data.notes) {
-      form.setError("notes", { 
-        message: `Divergência de ${formatCurrency(cashDivergence)}. Observação obrigatória.` 
-      });
+    // Check cash divergence and sales inconsistency
+    const requiresNotes = Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE || salesInconsistency;
+    
+    if (requiresNotes && !data.notes) {
+      let message = "Observação obrigatória devido a: ";
+      const reasons = [];
+      
+      if (Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE) {
+        reasons.push(`divergência de caixa de ${formatCurrency(cashDivergence)}`);
+      }
+      
+      if (salesInconsistency) {
+        reasons.push(`inconsistência de vendas de ${formatCurrency(salesDifference)}`);
+      }
+      
+      message += reasons.join(" e ");
+      
+      form.setError("notes", { message });
       return;
     }
 
@@ -695,49 +755,68 @@ export function CloseShiftModal({
             </div>
 
             {/* Divergence Analysis */}
-            {countedFinalCash > 0 && expectedCash > 0 && (
+            {(countedFinalCash > 0 && expectedCash > 0) || salesInconsistency ? (
               <div className="space-y-4 border rounded-lg p-4">
                 <h3 className="font-medium">Análise de Divergência</h3>
 
-                {Math.abs(cashDivergence) <= MAX_CASH_DIVERGENCE ? (
-                  <Alert>
-                    <CheckCircle className="h-4 w-4" />
-                    <AlertDescription>
-                      Divergência dentro do limite aceitável: {formatCurrency(cashDivergence)}
-                    </AlertDescription>
-                  </Alert>
-                ) : (
+                {/* Sales Inconsistency Alert */}
+                {salesInconsistency && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>
-                      <strong>Divergência detectada: {formatCurrency(cashDivergence)}</strong>
+                      <strong>Inconsistência de vendas detectada: {formatCurrency(salesDifference)}</strong>
                       <br />
-                      Observação obrigatória para prosseguir com o fechamento.
+                      Diferença entre total de pagamentos e total de produtos vendidos.
                     </AlertDescription>
                   </Alert>
                 )}
 
-                {Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE && (
+                {/* Cash Divergence Alert */}
+                {countedFinalCash > 0 && expectedCash > 0 && (
+                  Math.abs(cashDivergence) <= MAX_CASH_DIVERGENCE && !salesInconsistency ? (
+                    <Alert>
+                      <CheckCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Divergência de caixa dentro do limite aceitável: {formatCurrency(cashDivergence)}
+                      </AlertDescription>
+                    </Alert>
+                  ) : Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        <strong>Divergência de caixa detectada: {formatCurrency(cashDivergence)}</strong>
+                        <br />
+                        Diferença entre valor contado e valor esperado.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null
+                )}
+
+                {/* Notes Field - Show when there's any divergence */}
+                {(Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE || salesInconsistency) && (
                   <FormField
                     control={form.control}
                     name="notes"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Observações (Obrigatório)</FormLabel>
+                        <FormLabel className="text-red-600">Observações (Obrigatório)</FormLabel>
                         <FormControl>
                           <Textarea
                             placeholder="Explique o motivo da divergência..."
-                            className="min-h-[80px]"
+                            className="min-h-[80px] border-red-300 focus:border-red-400"
                             {...field}
                           />
                         </FormControl>
+                        <FormDescription className="text-red-600">
+                          É necessário justificar as divergências para continuar com o fechamento.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
                 )}
               </div>
-            )}
+            ) : null}
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>

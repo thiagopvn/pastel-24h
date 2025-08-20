@@ -405,12 +405,14 @@ export function registerRoutes(app: Express): Server {
         return sum + parseFloat(record.itemTotal || "0");
       }, 0);
 
-      if (Math.abs(totalSales - totalRecordsValue) > 0.01) {
-        return res.status(422).json({ 
-          message: "A soma dos pagamentos não corresponde ao total de vendas",
-          expected: totalRecordsValue.toFixed(2),
-          received: totalSales.toFixed(2)
-        });
+      // Nova flag para controlar a inconsistência de vendas
+      let salesInconsistency = false;
+      const salesDifference = Math.abs(totalSales - totalRecordsValue);
+
+      // Verifica a inconsistência de vendas, mas NÃO bloqueia
+      if (salesDifference > 0.01) { // 0.01 para lidar com arredondamento de float
+        salesInconsistency = true;
+        console.log(`Inconsistência de vendas detectada: R$ ${salesDifference.toFixed(2)}`);
       }
 
       const totalCashSales = parseFloat(payments.cash) || 0;
@@ -440,17 +442,41 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`Cash calculation: Initial=${shift.initialCash}, Sales=${totalCashSales}, Withdrawals=${totalWithdrawals}, Expected=${expectedCash}, Actual=${actualCash}, Divergence=${cashDivergence}`);
 
-      if (Math.abs(cashDivergence) > 0.99 && (!notes || notes.trim() === "")) {
-        const message = totalWithdrawals > 0 
-          ? `Divergência de caixa detectada (após ${totalWithdrawals} em retiradas). Observação obrigatória.`
-          : "Divergência de caixa detectada. Observação obrigatória.";
-          
+      // Verifica a divergência de caixa
+      const cashDivergenceSignificant = Math.abs(cashDivergence) > 0.99;
+
+      // Validação UNIFICADA para ambas as divergências
+      if ((cashDivergenceSignificant || salesInconsistency) && (!notes || notes.trim() === "")) {
+        // Constrói uma mensagem de erro clara
+        let errorMessage = "Observação obrigatória devido a divergências: ";
+        const errorDetails = [];
+        
+        if (cashDivergenceSignificant) {
+          const cashMessage = totalWithdrawals > 0 
+            ? `Divergência de caixa de R$ ${cashDivergence.toFixed(2)} (após ${totalWithdrawals.toFixed(2)} em retiradas)`
+            : `Divergência de caixa de R$ ${cashDivergence.toFixed(2)}`;
+          errorDetails.push(cashMessage);
+        }
+        
+        if (salesInconsistency) {
+          errorDetails.push(`Inconsistência de vendas de R$ ${salesDifference.toFixed(2)}`);
+        }
+        
+        errorMessage += errorDetails.join(' e ');
+
         return res.status(422).json({ 
-          message,
-          divergence: cashDivergence.toFixed(2),
-          expected: expectedCash.toFixed(2),
-          counted: actualCash.toFixed(2),
-          withdrawals: totalWithdrawals.toFixed(2)
+          message: errorMessage,
+          // Envia os detalhes para o frontend, se necessário
+          details: { 
+            cashDivergence: cashDivergence.toFixed(2),
+            salesInconsistency,
+            salesDifference: salesDifference.toFixed(2),
+            expected: expectedCash.toFixed(2),
+            counted: actualCash.toFixed(2),
+            withdrawals: totalWithdrawals.toFixed(2),
+            totalRecordsValue: totalRecordsValue.toFixed(2),
+            totalSales: totalSales.toFixed(2)
+          }
         });
       }
 
@@ -1504,298 +1530,394 @@ export function registerRoutes(app: Express): Server {
   app.post("/api/admin/weekly-report/calculate", requireAdmin, async (req, res) => {
     try {
       console.log('[INFO] Starting weekly report calculation');
+      console.log('[DEBUG] Request body:', JSON.stringify(req.body, null, 2));
+      
       const { weekStart, weekEnd, hourlyRate, foodBenefit, consumptionDiscount, transportRates, reportId } = req.body;
+
+      // Validação básica dos parâmetros
+      if (!weekStart || !weekEnd) {
+        console.error('[ERROR] Missing required parameters: weekStart or weekEnd');
+        return res.status(400).json({ 
+          message: "Data de início e fim da semana são obrigatórias",
+          error: "Missing weekStart or weekEnd parameters"
+        });
+      }
 
       const startDate = new Date(weekStart);
       const endDate = new Date(weekEnd);
+      
+      console.log('[DEBUG] Date range:', { startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 
+      // Buscar usuários com transportModes usando query mais robusta
+      console.log('[DEBUG] Fetching employees with transport modes...');
       const allUsers = await db.select({
         user: users,
         transportMode: transportModes
       })
       .from(users)
       .leftJoin(transportModes, eq(users.transportModeId, transportModes.id))
-      .where(eq(users.role, 'employee'));
+      .where(eq(users.role, 'employee'))
+      .catch((dbError) => {
+        console.error('[ERROR] Database query failed when fetching users:', dbError);
+        throw new Error(`Database error fetching users: ${dbError.message}`);
+      });
+
+      console.log('[DEBUG] Found employees:', allUsers.length);
 
       const employees = allUsers.map(({ user, transportMode }) => ({
         ...user,
         transportModeName: transportMode?.name || 'bus',
-        transportModePrice: transportMode ? parseFloat(transportMode.roundTripPrice) : transportRates.bus
+        transportModePrice: transportMode ? parseFloat(transportMode.roundTripPrice) : (transportRates?.bus || 8.80)
       }));
 
-      const shifts = await storage.getShiftsByDateRange(startDate, endDate);
+      console.log('[DEBUG] Fetching shifts for date range...');
+      const shifts = await storage.getShiftsByDateRange(startDate, endDate).catch((storageError) => {
+        console.error('[ERROR] Storage error when fetching shifts:', storageError);
+        throw new Error(`Storage error fetching shifts: ${storageError.message}`);
+      });
+
+      console.log('[DEBUG] Found shifts:', shifts.length);
 
       const employeeData = [];
 
       for (const employee of employees) {
-        // Turnos onde o funcionário foi o responsável principal
-        const employeeShifts = shifts.filter(shift => 
-          shift.userId === employee.id && shift.endTime
-        );
+        console.log(`[DEBUG] Processing employee: ${employee.name} (ID: ${employee.id})`);
+        
+        try {
+          // Turnos onde o funcionário foi o responsável principal
+          const employeeShifts = shifts.filter(shift => 
+            shift.userId === employee.id && shift.endTime
+          );
 
-        // Buscar também turnos onde o funcionário foi colaborador
-        const collaboratorShifts = [];
-        for (const shift of shifts) {
-          if (shift.endTime) {
-            const collaborators = await storage.getShiftCollaborators(shift.id);
-            const isCollaborator = collaborators.find(c => c.id === employee.id);
-            if (isCollaborator) {
-              collaboratorShifts.push({ shift, collaboratorData: isCollaborator });
+          console.log(`[DEBUG] Employee ${employee.name} has ${employeeShifts.length} primary shifts`);
+
+          // Buscar também turnos onde o funcionário foi colaborador
+          const collaboratorShifts = [];
+          for (const shift of shifts) {
+            if (shift.endTime) {
+              try {
+                const collaborators = await storage.getShiftCollaborators(shift.id);
+                const isCollaborator = collaborators.find(c => c.id === employee.id);
+                if (isCollaborator) {
+                  collaboratorShifts.push({ shift, collaboratorData: isCollaborator });
+                }
+              } catch (collaboratorError) {
+                console.warn(`[WARN] Error fetching collaborators for shift ${shift.id}:`, collaboratorError);
+                // Continue processing other shifts
+              }
             }
           }
-        }
 
-        let totalHours = 0;
-        let totalConsumption = 0;
-        const consumptionDetails = []; // Array para armazenar detalhes dos itens consumidos
+          console.log(`[DEBUG] Employee ${employee.name} has ${collaboratorShifts.length} collaborator shifts`);
 
-        // Processar turnos onde foi funcionário principal
-        for (const shift of employeeShifts) {
-          if (shift.startTime && shift.endTime) {
-            const duration = (new Date(shift.endTime).getTime() - new Date(shift.startTime).getTime()) / (1000 * 60 * 60);
-            totalHours += duration;
+          let totalHours = 0;
+          let totalConsumption = 0;
+          const consumptionDetails = []; // Array para armazenar detalhes dos itens consumidos
+
+          // Processar turnos onde foi funcionário principal
+          for (const shift of employeeShifts) {
+            try {
+              if (shift.startTime && shift.endTime) {
+                const duration = (new Date(shift.endTime).getTime() - new Date(shift.startTime).getTime()) / (1000 * 60 * 60);
+                totalHours += duration;
+              }
+
+              // NOVA LÓGICA: Particionar o consumo corretamente
+              // 1. Buscar o consumo TOTAL registrado no turno
+              const correctedShiftData = await applyCorrectionsToShiftData(shift.id);
+              const records = correctedShiftData ? correctedShiftData.records : await storage.getShiftRecords(shift.id);
+              
+              let totalShiftConsumption = 0;
+              const shiftConsumptionItems = []; // Para rastrear itens deste turno
+              for (const record of records) {
+                const consumedQty = record.consumedQty || 0;
+                const price = parseFloat(record.priceSnapshot || '0');
+                const productName = record.product?.name || 'Produto desconhecido';
+                
+                if (consumedQty > 0) {
+                  // Adicionar ao array de detalhes (incluindo água para exibição)
+                  shiftConsumptionItems.push({
+                    name: productName,
+                    productId: record.productId,
+                    quantity: consumedQty,
+                    unitPrice: price,
+                    totalPrice: consumedQty * price,
+                    isWater: isWaterProduct(productName)
+                  });
+                  
+                  // Ignorar produtos de água no cálculo do valor do consumo
+                  if (!isWaterProduct(productName)) {
+                    totalShiftConsumption += consumedQty * price;
+                  }
+                }
+              }
+
+              // 2. Buscar o consumo TOTAL atribuído a TODOS OS COLABORADORES neste turno
+              const shiftCollaboratorConsumptions = await db.query.collaboratorConsumptions.findMany({
+                where: eq(collaboratorConsumptions.shiftId, shift.id),
+                with: { product: true }
+              }).catch((consumptionError) => {
+                console.warn(`[WARN] Error fetching collaborator consumptions for shift ${shift.id}:`, consumptionError);
+                return []; // Return empty array if query fails
+              });
+
+              let totalCollaboratorsConsumption = 0;
+              const collaboratorConsumptionItems = [];
+              for (const consumption of shiftCollaboratorConsumptions) {
+                const productName = consumption.product?.name || 'Produto desconhecido';
+                const price = parseFloat(consumption.priceSnapshot || '0');
+                
+                collaboratorConsumptionItems.push({
+                  name: productName,
+                  quantity: consumption.quantity,
+                  unitPrice: price,
+                  totalPrice: consumption.quantity * price,
+                  isWater: isWaterProduct(productName)
+                });
+                
+                // Ignorar produtos de água no cálculo do valor do consumo
+                if (!isWaterProduct(productName)) {
+                  totalCollaboratorsConsumption += consumption.quantity * price;
+                }
+              }
+
+              // 3. Calcular o consumo do FUNCIONÁRIO PRINCIPAL (proporcionalmente)
+              // Distribuir os itens entre funcionário principal e colaboradores
+              for (const item of shiftConsumptionItems) {
+                // Verificar quanto deste item foi consumido por colaboradores
+                const collaboratorItem = collaboratorConsumptionItems.find(c => c.name === item.name);
+                const collaboratorQty = collaboratorItem ? collaboratorItem.quantity : 0;
+                
+                // Quantidade restante é do funcionário principal
+                const mainEmployeeQty = Math.max(0, item.quantity - collaboratorQty);
+                
+                if (mainEmployeeQty > 0) {
+                  const mainEmployeeItemTotal = mainEmployeeQty * item.unitPrice;
+                  consumptionDetails.push({
+                    name: item.name,
+                    productId: item.productId,
+                    quantity: mainEmployeeQty,
+                    unitPrice: item.unitPrice,
+                    totalPrice: mainEmployeeItemTotal,
+                    isWater: item.isWater
+                  });
+                  
+                  // Somar ao total apenas se não for água
+                  if (!item.isWater) {
+                    totalConsumption += mainEmployeeItemTotal;
+                  }
+                }
+              }
+            } catch (shiftError) {
+              console.error(`[ERROR] Error processing shift ${shift.id} for employee ${employee.name}:`, shiftError);
+              // Continue processing other shifts
+            }
           }
 
-          // NOVA LÓGICA: Particionar o consumo corretamente
-          // 1. Buscar o consumo TOTAL registrado no turno
-          const correctedShiftData = await applyCorrectionsToShiftData(shift.id);
-          const records = correctedShiftData ? correctedShiftData.records : await storage.getShiftRecords(shift.id);
-          
-          let totalShiftConsumption = 0;
-          const shiftConsumptionItems = []; // Para rastrear itens deste turno
-          for (const record of records) {
-            const consumedQty = record.consumedQty || 0;
-            const price = parseFloat(record.priceSnapshot || '0');
-            const productName = record.product?.name || 'Produto desconhecido';
-            
-            if (consumedQty > 0) {
-              // Adicionar ao array de detalhes (incluindo água para exibição)
-              shiftConsumptionItems.push({
+          // Processar consumo quando foi colaborador
+          try {
+            const allCollaboratorConsumptions = await collaboratorConsumptionsService.getConsumptionsForWeeklyReport(startDate, endDate);
+            const employeeCollaboratorConsumptions = allCollaboratorConsumptions.filter(
+              (c: any) => c.collaboratorUserId === employee.id
+            );
+
+            // Adicionar horas trabalhadas como colaborador
+            for (const collaboratorShift of collaboratorShifts) {
+              const hoursWorked = parseFloat(collaboratorShift.collaboratorData.hoursWorked || "0");
+              totalHours += hoursWorked;
+            }
+
+            // Calcular consumo quando foi colaborador (valor integral, sem desconto ainda)
+            let collaboratorConsumptionValue = 0;
+            for (const consumption of employeeCollaboratorConsumptions) {
+              const productName = consumption.product?.name || 'Produto desconhecido';
+              const price = parseFloat(consumption.priceSnapshot || '0');
+              const totalPrice = consumption.quantity * price;
+              
+              // Adicionar aos detalhes do consumo
+              consumptionDetails.push({
                 name: productName,
-                productId: record.productId,
-                quantity: consumedQty,
+                productId: consumption.productId,
+                quantity: consumption.quantity,
                 unitPrice: price,
-                totalPrice: consumedQty * price,
+                totalPrice: totalPrice,
                 isWater: isWaterProduct(productName)
               });
               
               // Ignorar produtos de água no cálculo do valor do consumo
               if (!isWaterProduct(productName)) {
-                totalShiftConsumption += consumedQty * price;
+                collaboratorConsumptionValue += totalPrice;
               }
             }
-          }
-
-          // 2. Buscar o consumo TOTAL atribuído a TODOS OS COLABORADORES neste turno
-          const shiftCollaboratorConsumptions = await db.query.collaboratorConsumptions.findMany({
-            where: eq(collaboratorConsumptions.shiftId, shift.id),
-            with: { product: true }
-          });
-
-          let totalCollaboratorsConsumption = 0;
-          const collaboratorConsumptionItems = [];
-          for (const consumption of shiftCollaboratorConsumptions) {
-            const productName = consumption.product?.name || 'Produto desconhecido';
-            const price = parseFloat(consumption.priceSnapshot);
             
-            collaboratorConsumptionItems.push({
-              name: productName,
-              quantity: consumption.quantity,
-              unitPrice: price,
-              totalPrice: consumption.quantity * price,
-              isWater: isWaterProduct(productName)
-            });
+            // Adicionar o consumo do colaborador ao total (ainda sem desconto)
+            totalConsumption += collaboratorConsumptionValue;
+
+            // Total de dias trabalhados (como funcionário principal ou colaborador)
+            const uniqueDays = new Set();
             
-            // Ignorar produtos de água no cálculo do valor do consumo
-            if (!isWaterProduct(productName)) {
-              totalCollaboratorsConsumption += consumption.quantity * price;
+            // Adicionar dias dos turnos como funcionário principal
+            for (const shift of employeeShifts) {
+              if (shift.startTime) {
+                const date = new Date(shift.startTime).toDateString();
+                uniqueDays.add(date);
+              }
             }
-          }
+            
+            // Adicionar dias dos turnos como colaborador
+            for (const consumption of employeeCollaboratorConsumptions) {
+              if (consumption.shift?.startTime) {
+                const date = new Date(consumption.shift.startTime).toDateString();
+                uniqueDays.add(date);
+              }
+            }
+            
+            const daysWorked = uniqueDays.size;
+            const transportCost = daysWorked * employee.transportModePrice;
+            const foodCost = daysWorked * (foodBenefit || 0);
 
-          // 3. Calcular o consumo do FUNCIONÁRIO PRINCIPAL (proporcionalmente)
-          // Distribuir os itens entre funcionário principal e colaboradores
-          for (const item of shiftConsumptionItems) {
-            // Verificar quanto deste item foi consumido por colaboradores
-            const collaboratorItem = collaboratorConsumptionItems.find(c => c.name === item.name);
-            const collaboratorQty = collaboratorItem ? collaboratorItem.quantity : 0;
+            // Correct consumption discount calculation: discount % of consumption FROM consumption
+            const consumptionDiscountAmount = totalConsumption * ((consumptionDiscount || 0) / 100);
+            const finalConsumption = totalConsumption - consumptionDiscountAmount;
+
+            const hoursPay = totalHours * (hourlyRate || 0);
+            const total = hoursPay + transportCost + foodCost - finalConsumption;
+
+            // Consolidar itens iguais nos detalhes do consumo
+            const consolidatedDetails: any[] = [];
+            const itemMap = new Map<string, any>();
             
-            // Quantidade restante é do funcionário principal
-            const mainEmployeeQty = Math.max(0, item.quantity - collaboratorQty);
+            for (const item of consumptionDetails) {
+              const key = item.name;
+              if (itemMap.has(key)) {
+                const existing = itemMap.get(key);
+                existing.quantity += item.quantity;
+                existing.totalPrice += item.totalPrice;
+              } else {
+                itemMap.set(key, { ...item });
+              }
+            }
             
-            if (mainEmployeeQty > 0) {
-              const mainEmployeeItemTotal = mainEmployeeQty * item.unitPrice;
-              consumptionDetails.push({
-                name: item.name,
-                productId: item.productId,
-                quantity: mainEmployeeQty,
-                unitPrice: item.unitPrice,
-                totalPrice: mainEmployeeItemTotal,
-                isWater: item.isWater
+            // Converter para array formatado com productId preservado
+            itemMap.forEach((item, name) => {
+              const formattedPrice = item.totalPrice.toLocaleString('pt-BR', {
+                style: 'currency',
+                currency: 'BRL'
               });
-              
-              // Somar ao total apenas se não for água
-              if (!item.isWater) {
-                totalConsumption += mainEmployeeItemTotal;
-              }
-            }
+              const displayText = `${item.quantity}x ${name} - ${formattedPrice}${item.isWater ? ' (não descontado)' : ''}`;
+              const detailItem = {
+                productId: item.productId,
+                display: displayText,
+                name: name,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                totalPrice: item.totalPrice,
+                isWater: item.isWater
+              };
+              console.log("Adding consumption detail item:", detailItem);
+              consolidatedDetails.push(detailItem);
+            });
+
+            employeeData.push({
+              userId: employee.id,
+              name: employee.name || employee.email,
+              hours: Math.round(totalHours * 100) / 100,
+              transport: Math.round(transportCost * 100) / 100,
+              food: Math.round(foodCost * 100) / 100,
+              consumption: Math.round(finalConsumption * 100) / 100, // Show consumption AFTER discount
+              consumptionDetails: consolidatedDetails, // Novo campo com detalhes
+              bonus: 0,
+              deduction: 0,
+              total: Math.round(total * 100) / 100,
+              daysWorked,
+              shiftsCount: employeeShifts.length,
+              transportType: employee.transportModeName
+            });
+
+            console.log(`[DEBUG] Successfully processed employee ${employee.name}`);
+          } catch (collaboratorError) {
+            console.error(`[ERROR] Error processing collaborator data for employee ${employee.name}:`, collaboratorError);
+            // Add employee with basic data even if collaborator processing fails
+            employeeData.push({
+              userId: employee.id,
+              name: employee.name || employee.email,
+              hours: totalHours,
+              transport: 0,
+              food: 0,
+              consumption: 0,
+              consumptionDetails: [],
+              bonus: 0,
+              deduction: 0,
+              total: totalHours * (hourlyRate || 0),
+              daysWorked: 0,
+              shiftsCount: employeeShifts.length,
+              transportType: employee.transportModeName
+            });
           }
+        } catch (employeeError) {
+          console.error(`[ERROR] Critical error processing employee ${employee.name}:`, employeeError);
+          // Continue with next employee
         }
-
-        // Processar consumo quando foi colaborador
-        const allCollaboratorConsumptions = await collaboratorConsumptionsService.getConsumptionsForWeeklyReport(startDate, endDate);
-        const employeeCollaboratorConsumptions = allCollaboratorConsumptions.filter(
-          (c: any) => c.collaboratorUserId === employee.id
-        );
-
-        // Adicionar horas trabalhadas como colaborador
-        for (const collaboratorShift of collaboratorShifts) {
-          const hoursWorked = parseFloat(collaboratorShift.collaboratorData.hoursWorked || "0");
-          totalHours += hoursWorked;
-        }
-
-        // Calcular consumo quando foi colaborador (valor integral, sem desconto ainda)
-        let collaboratorConsumptionValue = 0;
-        for (const consumption of employeeCollaboratorConsumptions) {
-          const productName = consumption.product?.name || 'Produto desconhecido';
-          const price = parseFloat(consumption.priceSnapshot);
-          const totalPrice = consumption.quantity * price;
-          
-          // Adicionar aos detalhes do consumo
-          consumptionDetails.push({
-            name: productName,
-            productId: consumption.productId,
-            quantity: consumption.quantity,
-            unitPrice: price,
-            totalPrice: totalPrice,
-            isWater: isWaterProduct(productName)
-          });
-          
-          // Ignorar produtos de água no cálculo do valor do consumo
-          if (!isWaterProduct(productName)) {
-            collaboratorConsumptionValue += totalPrice;
-          }
-        }
-        
-        // Adicionar o consumo do colaborador ao total (ainda sem desconto)
-        totalConsumption += collaboratorConsumptionValue;
-
-        // Total de dias trabalhados (como funcionário principal ou colaborador)
-        const uniqueDays = new Set();
-        
-        // Adicionar dias dos turnos como funcionário principal
-        for (const shift of employeeShifts) {
-          if (shift.startTime) {
-            const date = new Date(shift.startTime).toDateString();
-            uniqueDays.add(date);
-          }
-        }
-        
-        // Adicionar dias dos turnos como colaborador
-        for (const consumption of employeeCollaboratorConsumptions) {
-          if (consumption.shift?.startTime) {
-            const date = new Date(consumption.shift.startTime).toDateString();
-            uniqueDays.add(date);
-          }
-        }
-        
-        const daysWorked = uniqueDays.size;
-        const transportCost = daysWorked * employee.transportModePrice;
-
-        const foodCost = daysWorked * foodBenefit;
-
-
-        // Correct consumption discount calculation: discount % of consumption FROM consumption
-        const consumptionDiscountAmount = totalConsumption * (consumptionDiscount / 100);
-        const finalConsumption = totalConsumption - consumptionDiscountAmount;
-
-        const hoursPay = totalHours * hourlyRate;
-        const total = hoursPay + transportCost + foodCost - finalConsumption;
-
-        // Consolidar itens iguais nos detalhes do consumo
-        const consolidatedDetails: any[] = [];
-        const itemMap = new Map<string, any>();
-        
-        for (const item of consumptionDetails) {
-          const key = item.name;
-          if (itemMap.has(key)) {
-            const existing = itemMap.get(key);
-            existing.quantity += item.quantity;
-            existing.totalPrice += item.totalPrice;
-          } else {
-            itemMap.set(key, { ...item });
-          }
-        }
-        
-        // Converter para array formatado com productId preservado
-        itemMap.forEach((item, name) => {
-          const formattedPrice = item.totalPrice.toLocaleString('pt-BR', {
-            style: 'currency',
-            currency: 'BRL'
-          });
-          const displayText = `${item.quantity}x ${name} - ${formattedPrice}${item.isWater ? ' (não descontado)' : ''}`;
-          const detailItem = {
-            productId: item.productId,
-            display: displayText,
-            name: name,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            totalPrice: item.totalPrice,
-            isWater: item.isWater
-          };
-          console.log("Adding consumption detail item:", detailItem);
-          consolidatedDetails.push(detailItem);
-        });
-
-        employeeData.push({
-          userId: employee.id,
-          name: employee.name || employee.email,
-          hours: Math.round(totalHours * 100) / 100,
-          transport: Math.round(transportCost * 100) / 100,
-          food: Math.round(foodCost * 100) / 100,
-          consumption: Math.round(finalConsumption * 100) / 100, // Show consumption AFTER discount
-          consumptionDetails: consolidatedDetails, // Novo campo com detalhes
-          bonus: 0,
-          deduction: 0,
-          total: Math.round(total * 100) / 100,
-          daysWorked,
-          shiftsCount: employeeShifts.length,
-          transportType: employee.transportModeName
-        });
       }
 
+      console.log(`[INFO] Weekly report calculation completed successfully. Processed ${employeeData.length} employees.`);
       res.json({ employeeData });
-    } catch (error) {
-      console.error("[ERROR] Failed to calculate weekly data:", error);
       
+    } catch (error) {
+      console.error("[CRITICAL ERROR] Failed to calculate weekly data:", error);
+      console.error("[STACK TRACE]", error instanceof Error ? error.stack : 'No stack trace available');
+      
+      // Detailed error analysis for debugging
       if (error instanceof z.ZodError) {
+        console.error("[VALIDATION ERROR] Zod validation failed:", error.errors);
         return res.status(400).json({ 
-          message: "Invalid data provided", 
-          errors: error.errors 
+          message: "Dados de entrada inválidos", 
+          errors: error.errors,
+          error: "Validation failed"
         });
       }
       
       if (error instanceof Error) {
-        // Verificar erros de banco de dados
+        // Database schema errors
         if (error.message.includes('no such column')) {
-          console.error('[CRITICAL] Database schema mismatch in weekly report calculation');
+          console.error('[CRITICAL DATABASE ERROR] Schema mismatch detected:', error.message);
           return res.status(500).json({ 
-            message: "Database schema error. Please ensure migrations have been run.",
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            message: "Erro de schema do banco de dados. As migrações podem não ter sido executadas corretamente.",
+            error: "Database schema mismatch",
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Schema validation failed'
           });
         }
         
-        if (error.message.includes('SQLITE') || error.message.includes('database')) {
+        // Database connection/operation errors
+        if (error.message.includes('SQLITE') || error.message.includes('database') || error.message.includes('Database')) {
+          console.error('[DATABASE ERROR] Database operation failed:', error.message);
           return res.status(500).json({ 
-            message: "Database operation failed during calculation.",
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+            message: "Erro de operação no banco de dados durante o cálculo.",
+            error: "Database operation failed",
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Database operation error'
+          });
+        }
+
+        // Storage layer errors
+        if (error.message.includes('Storage')) {
+          console.error('[STORAGE ERROR] Storage layer error:', error.message);
+          return res.status(500).json({ 
+            message: "Erro na camada de armazenamento durante o cálculo.",
+            error: "Storage layer error",
+            details: process.env.NODE_ENV === 'development' ? error.message : 'Storage operation failed'
           });
         }
       }
       
-      const message = error instanceof Error ? error.message : "An unknown error occurred";
+      const message = error instanceof Error ? error.message : "Erro desconhecido ocorreu";
+      const errorType = error instanceof Error ? error.constructor.name : "UnknownError";
+      
+      console.error(`[GENERIC ERROR] Error type: ${errorType}, Message: ${message}`);
+      
       res.status(500).json({ 
-        message: "Failed to calculate weekly data", 
-        error: process.env.NODE_ENV === 'development' ? message : undefined 
+        message: "Falha ao calcular dados do relatório semanal", 
+        error: "Weekly report calculation failed",
+        details: process.env.NODE_ENV === 'development' ? message : 'Internal server error during calculation'
       });
     }
   });

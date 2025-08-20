@@ -27,6 +27,7 @@ export default function ShiftStatusCard() {
   const { toast } = useToast();
   const [isOpenDialogOpen, setIsOpenDialogOpen] = useState(false);
   const [isCloseDialogOpen, setIsCloseDialogOpen] = useState(false);
+  const [divergenceDetails, setDivergenceDetails] = useState<any>(null);
 
   const { data: currentShift, isLoading, refetch } = useQuery<Shift>({
     queryKey: ["/api/shifts/current"],
@@ -139,6 +140,18 @@ export default function ShiftStatusCard() {
       if (!res.ok) {
         const errorData = await res.json();
         console.error("Erro no fechamento:", errorData);
+        
+        // Check if it's a 422 error with divergence details
+        if (res.status === 422 && errorData.details) {
+          // Store divergence details and keep modal open
+          setDivergenceDetails(errorData.details);
+          // Throw a special error that we'll handle differently
+          const error = new Error(errorData.message || 'Erro ao fechar turno');
+          (error as any).isDivergenceError = true;
+          (error as any).details = errorData.details;
+          throw error;
+        }
+        
         throw new Error(errorData.message || 'Erro ao fechar turno');
       }
       const result = await res.json();
@@ -162,9 +175,18 @@ export default function ShiftStatusCard() {
       }, 500);
       toast({ title: "Turno fechado com sucesso!" });
       setIsCloseDialogOpen(false);
+      setDivergenceDetails(null); // Clear divergence details on success
     },
     onError: (error: any) => {
       console.error("Erro ao fechar turno:", error);
+      
+      // If it's a divergence error, don't close the modal and don't show toast
+      if (error.isDivergenceError) {
+        // The modal will stay open and show the notes field
+        return;
+      }
+      
+      // For other errors, show toast and close modal
       toast({ 
         title: "Erro ao fechar turno", 
         description: error.message || "Erro desconhecido",
@@ -456,10 +478,14 @@ export default function ShiftStatusCard() {
 
             <CloseShiftModal
               isOpen={isCloseDialogOpen}
-              onClose={() => setIsCloseDialogOpen(false)}
+              onClose={() => {
+                setIsCloseDialogOpen(false);
+                setDivergenceDetails(null); // Clear divergence details when closing
+              }}
               shift={currentShift}
               onConfirm={handleCloseShift}
               isClosing={closeShiftMutation.isPending}
+              divergenceDetails={divergenceDetails}
             />
           </>
         )}
