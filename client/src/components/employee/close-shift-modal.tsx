@@ -51,6 +51,13 @@ interface CloseShiftModalProps {
   onConfirm: (data: any) => void;
   isClosing: boolean;
   divergenceDetails?: any;
+  currentPayments?: {
+    cash: number;
+    pix: number;
+    stoneCard: number;
+    stoneVoucher: number;
+    pagBankCard: number;
+  };
 }
 
 export function CloseShiftModal({
@@ -59,7 +66,8 @@ export function CloseShiftModal({
   shift,
   onConfirm,
   isClosing,
-  divergenceDetails
+  divergenceDetails,
+  currentPayments
 }: CloseShiftModalProps) {
   const { user } = useAuth();
   const [cashDivergence, setCashDivergence] = useState(0);
@@ -98,10 +106,12 @@ export function CloseShiftModal({
     }
   }, [divergenceDetails]);
 
-  // Get expected cash from API
+  // Get expected cash from API with real-time refresh
   const { data: paymentData } = useQuery({
     queryKey: [`/api/shift-payments?shiftId=${shift.id}`],
     enabled: isOpen,
+    refetchInterval: 2000, // Refetch every 2 seconds when modal is open
+    staleTime: 0, // Always consider data stale for fresh updates
   });
 
   // Get cash adjustments/withdrawals from the current shift
@@ -136,7 +146,8 @@ export function CloseShiftModal({
   // Calculate expected cash considering withdrawals
   const initialCash = parseFloat(shift.initialCash || "200.00");
   const initialCoins = parseFloat(shift.initialCoins || "50.00");
-  const cashSales = parseFloat((paymentData as any)?.cash || "0");
+  // Use currentPayments if provided (real-time), otherwise fallback to API data
+  const cashSales = currentPayments?.cash ?? parseFloat((paymentData as any)?.cash || "0");
 
   // Calculate total withdrawals made during this shift
   let totalWithdrawals = 0;
@@ -183,12 +194,15 @@ export function CloseShiftModal({
         return sum + parseFloat(record.itemTotal || "0");
       }, 0);
 
-      // Calculate total from payments
-      const totalPayments = (parseFloat((paymentData as any)?.cash || "0")) +
-                           (parseFloat((paymentData as any)?.pix || "0")) +
-                           (parseFloat((paymentData as any)?.stoneCard || "0")) +
-                           (parseFloat((paymentData as any)?.stoneVoucher || "0")) +
-                           (parseFloat((paymentData as any)?.pagBankCard || "0"));
+      // Calculate total from payments - use currentPayments if available for real-time calculation
+      const totalPayments = currentPayments 
+        ? (currentPayments.cash + currentPayments.pix + currentPayments.stoneCard + 
+           currentPayments.stoneVoucher + currentPayments.pagBankCard)
+        : ((parseFloat((paymentData as any)?.cash || "0")) +
+           (parseFloat((paymentData as any)?.pix || "0")) +
+           (parseFloat((paymentData as any)?.stoneCard || "0")) +
+           (parseFloat((paymentData as any)?.stoneVoucher || "0")) +
+           (parseFloat((paymentData as any)?.pagBankCard || "0")));
 
       // Check for sales inconsistency
       const difference = Math.abs(totalPayments - totalRecordsValue);
@@ -203,7 +217,7 @@ export function CloseShiftModal({
         setSalesDifference(0);
       }
     }
-  }, [isOpen, shiftRecords, paymentData]);
+  }, [isOpen, shiftRecords, paymentData, currentPayments]); // Added currentPayments to dependencies
 
   const generateShiftClosurePDF = async (pdfData: any) => {
     const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
@@ -248,7 +262,7 @@ export function CloseShiftModal({
       head: [['Descrição', 'Valor (R$)']],
       body: [
         ['Caixa Inicial', formatCurrencyPDF(parseFloat(shift.initialCash) + parseFloat(shift.initialCoins))],
-        ['Vendas em Dinheiro', formatCurrencyPDF(paymentData?.cash || 0)],
+        ['Vendas em Dinheiro', formatCurrencyPDF(currentPayments?.cash ?? paymentData?.cash ?? 0)],
         ['Retiradas Administrativas', formatCurrencyPDF(totalWithdrawals)],
         ['Caixa Esperado', formatCurrencyPDF(totalExpectedFinal)],
         ['Caixa Final Contado', formatCurrencyPDF(parseFloat(formData.countedFinalCash) + parseFloat(formData.countedFinalCoins))],
@@ -289,17 +303,21 @@ export function CloseShiftModal({
     doc.setFontSize(12);
     doc.text("Vendas por Forma de Pagamento", 14, finalY);
     
+    const currentCash = currentPayments?.cash ?? paymentData?.cash ?? 0;
+    const currentPix = currentPayments?.pix ?? paymentData?.pix ?? 0;
+    const currentStoneCard = currentPayments?.stoneCard ?? paymentData?.stoneCard ?? 0;
+    const currentStoneVoucher = currentPayments?.stoneVoucher ?? paymentData?.stoneVoucher ?? 0;
+    const currentPagBank = currentPayments?.pagBankCard ?? paymentData?.pagBankCard ?? 0;
+    
     const paymentMethods = [
-      ['Dinheiro', formatCurrencyPDF(paymentData?.cash || 0)],
-      ['PIX', formatCurrencyPDF(paymentData?.pix || 0)],
-      ['Stone Cartão', formatCurrencyPDF(paymentData?.stoneCard || 0)],
-      ['Stone Voucher', formatCurrencyPDF(paymentData?.stoneVoucher || 0)],
-      ['PagBank Cartão', formatCurrencyPDF(paymentData?.pagBankCard || 0)],
+      ['Dinheiro', formatCurrencyPDF(currentCash)],
+      ['PIX', formatCurrencyPDF(currentPix)],
+      ['Stone Cartão', formatCurrencyPDF(currentStoneCard)],
+      ['Stone Voucher', formatCurrencyPDF(currentStoneVoucher)],
+      ['PagBank Cartão', formatCurrencyPDF(currentPagBank)],
     ];
     
-    const totalPayments = (paymentData?.cash || 0) + (paymentData?.pix || 0) + 
-                         (paymentData?.stoneCard || 0) + (paymentData?.stoneVoucher || 0) + 
-                         (paymentData?.pagBankCard || 0);
+    const totalPayments = currentCash + currentPix + currentStoneCard + currentStoneVoucher + currentPagBank;
     
     autoTable(doc, {
       startY: finalY + 5,
