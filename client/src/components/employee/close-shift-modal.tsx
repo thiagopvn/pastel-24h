@@ -93,6 +93,28 @@ export function CloseShiftModal({
     }
   }, [shift.tempFinalCash, shift.tempFinalCoins, form]);
 
+  // Reset all divergence states when modal opens/closes
+  useEffect(() => {
+    if (isOpen && !divergenceDetails) {
+      // Reset divergence states when opening modal without previous divergence
+      setCashDivergence(0);
+      setSalesInconsistency(false);
+      setSalesDifference(0);
+      // Clear form errors and reset notes field
+      form.clearErrors("notes");
+      form.setValue("notes", "");
+    }
+  }, [isOpen, divergenceDetails, form]);
+
+  // Reset states when modal is closed
+  useEffect(() => {
+    if (!isOpen) {
+      setCashDivergence(0);
+      setSalesInconsistency(false);
+      setSalesDifference(0);
+    }
+  }, [isOpen]);
+
   // Handle divergence details from error response
   useEffect(() => {
     if (divergenceDetails) {
@@ -176,19 +198,24 @@ export function CloseShiftModal({
 
   // Calculate divergence when counted cash changes
   useEffect(() => {
-    if (countedFinalCash >= 0 && totalExpectedFinal >= 0) {
+    // Only calculate divergence if we have valid values and modal is open without previous divergence details
+    if (isOpen && countedFinalCash >= 0 && countedFinalCoins >= 0 && totalExpectedFinal >= 0) {
       // Total contado = dinheiro contado + moedas contadas
       const totalCounted = countedFinalCash + countedFinalCoins;
       
       // Divergência total considerando dinheiro + moedas
       const divergence = totalCounted - totalExpectedFinal;
-      setCashDivergence(divergence);
+      
+      // Only set if we don't have divergenceDetails from server (avoid overriding server response)
+      if (!divergenceDetails) {
+        setCashDivergence(divergence);
+      }
     }
-  }, [countedFinalCash, countedFinalCoins, totalExpectedFinal]);
+  }, [countedFinalCash, countedFinalCoins, totalExpectedFinal, isOpen, divergenceDetails]);
 
   // Calculate sales inconsistency when data is loaded
   useEffect(() => {
-    if (isOpen && shiftRecords && paymentData) {
+    if (isOpen && shiftRecords && paymentData && !divergenceDetails) {
       // Calculate total from records using itemTotal (já calculado no backend)
       const totalRecordsValue = shiftRecords.reduce((sum: number, record: any) => {
         return sum + parseFloat(record.itemTotal || "0");
@@ -209,6 +236,7 @@ export function CloseShiftModal({
       
       console.log(`Modal Sales Check - Records Total: R$ ${totalRecordsValue.toFixed(2)}, Payments Total: R$ ${totalPayments.toFixed(2)}, Difference: R$ ${difference.toFixed(2)}`);
       
+      // Only set if we don't have divergenceDetails from server (avoid overriding server response)
       if (difference > 0.01) {
         setSalesInconsistency(true);
         setSalesDifference(difference);
@@ -217,7 +245,7 @@ export function CloseShiftModal({
         setSalesDifference(0);
       }
     }
-  }, [isOpen, shiftRecords, paymentData, livePayments]); // Added livePayments to dependencies
+  }, [isOpen, shiftRecords, paymentData, livePayments, divergenceDetails]); // Added divergenceDetails to dependencies
 
   const generateShiftClosurePDF = async (pdfData: any) => {
     const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
@@ -499,6 +527,11 @@ export function CloseShiftModal({
   const handleSubmit = async (data: CloseShiftForm) => {
     // Check cash divergence and sales inconsistency
     const requiresNotes = Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE || salesInconsistency;
+    
+    // Clear previous errors if divergence is resolved
+    if (!requiresNotes) {
+      form.clearErrors("notes");
+    }
     
     if (requiresNotes && !data.notes) {
       let message = "Observação obrigatória devido a: ";

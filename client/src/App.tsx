@@ -14,6 +14,7 @@ import UserManagement from "@/pages/user-management";
 import WeeklyReport from "@/pages/weekly-report";
 import TransportManagement from "@/pages/transport";
 import ShiftCorrections from "@/pages/shift-corrections";
+import { FinancialControl } from "@/pages/financial-control";
 
 function Router() {
   return (
@@ -24,6 +25,7 @@ function Router() {
       <ProtectedRoute path="/admin/users" component={UserManagement} />
       <ProtectedRoute path="/admin/weekly" component={WeeklyReport} />
       <ProtectedRoute path="/admin/transport" component={TransportManagement} />
+      <ProtectedRoute path="/admin/financial" component={FinancialControl} />
       <ProtectedRoute path="/admin/shifts/:shiftId/corrections" component={ShiftCorrections} />
       <Route path="/auth" component={AuthPage} />
       <Route component={NotFound} />

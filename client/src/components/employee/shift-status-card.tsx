@@ -491,6 +491,9 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
               onClose={() => {
                 setIsCloseDialogOpen(false);
                 setDivergenceDetails(null); // Clear divergence details when closing
+                // Force clear any cached data to get fresh calculations on next open
+                queryClient.invalidateQueries({ queryKey: ["/api/shift-payments"] });
+                queryClient.invalidateQueries({ queryKey: ["/api/shift-records"] });
               }}
               shift={currentShift}
               onConfirm={handleCloseShift}

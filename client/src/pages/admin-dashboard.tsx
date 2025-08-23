@@ -1,15 +1,15 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { Redirect, Link } from "wouter";
-import { Utensils, LogOut, Package, Users, Calendar } from "lucide-react";
+import { Utensils, LogOut, Package, Users, Calendar, DollarSign } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import StatsCards from "@/components/admin/stats-cards";
 import Charts from "@/components/admin/charts";
 import PaymentBreakdown from "@/components/admin/payment-breakdown";
 import Alerts from "@/components/admin/alerts";
 import Timeline from "@/components/admin/timeline";
 import MobileNav from "@/components/navigation/mobile-nav";
-import { CashAdjustmentDialog } from "@/components/admin/cash-adjustment-dialog";
 import LastShiftInfo from "@/components/admin/last-shift-info";
 import ActiveShiftsMonitor from "@/components/admin/active-shifts-monitor";
 
@@ -54,7 +54,12 @@ export default function AdminDashboard() {
                   <SelectItem value="custom">Personalizado</SelectItem>
                 </SelectContent>
               </Select>
-              <CashAdjustmentDialog />
+              <Link href="/admin/financial">
+                <Button variant="outline" size="sm">
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Financeiro
+                </Button>
+              </Link>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-600">{user.name}</span>
                 <button

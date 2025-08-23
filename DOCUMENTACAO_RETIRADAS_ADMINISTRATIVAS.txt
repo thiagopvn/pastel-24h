@@ -1,0 +1,417 @@
+================================================================================
+DOCUMENTAÇÃO DETALHADA - SISTEMA DE RETIRADAS ADMINISTRATIVAS E FLUXO DE CAIXA
+PASTEL 24H - SISTEMA DE GESTÃO DE TURNOS
+================================================================================
+
+================================================================================
+1. VISÃO GERAL DO SISTEMA
+================================================================================
+
+O sistema de retiradas administrativas e fluxo de caixa gerencia todo o dinheiro
+que entra e sai do estabelecimento, mantendo rastreabilidade completa e
+permitindo ajustes administrativos com controle de auditoria.
+
+Principais funcionalidades:
+- Retiradas de caixa (sangrias)
+- Ajustes administrativos
+- Rastreamento de divergências
+- Herança de caixa entre turnos
+- Auditoria completa de todas as operações
+
+================================================================================
+2. ESTRUTURA DE BANCO DE DADOS
+================================================================================
+
+2.1 TABELA: cashAdjustments (cash_adjustments)
+------------------------------------------------
+Localização: /shared/schema.ts (linhas 182-192)
+
+Campos:
+- id: integer (PK, auto incremento)
+- shiftId: integer (FK para shifts) - turno relacionado
+- userId: integer (FK para users) - usuário que fez o ajuste
+- type: text - tipo do ajuste ("withdraw", "adjustment", "sangria")
+- amount: text - valor do ajuste em formato string
+- reason: text - motivo/justificativa do ajuste
+- beforeAmount: text - valor do caixa antes do ajuste
+- afterAmount: text - valor do caixa após o ajuste
+- createdAt: timestamp - data/hora da criação
+
+Propósito: Registra todas as retiradas administrativas e ajustes de caixa,
+mantendo histórico completo para auditoria.
+
+2.2 TABELA: shifts
+------------------
+Campos relevantes para fluxo de caixa:
+- initialCash: text - valor inicial em notas
+- initialCoins: text - valor inicial em moedas
+- finalCash: text - valor final em notas
+- finalCoins: text - valor final em moedas
+- cashDivergence: text - divergência calculada
+- countedFinalCash: text - valor contado no fechamento
+- countedFinalCoins: text - moedas contadas no fechamento
+- envelopeCash: text - valor retirado para envelope
+- envelopeCoins: text - moedas retiradas para envelope
+- cashForNextShift: text - valor que fica para próximo turno
+- coinsForNextShift: text - moedas para próximo turno
+- openingDiscrepancy: text - divergência na abertura
+
+2.3 TABELA: shiftPayments
+--------------------------
+Campos para pagamentos:
+- cash: text - vendas em dinheiro
+- pix: text - vendas por PIX
+- stoneCard: text - vendas por cartão Stone
+- stoneVoucher: text - vendas por voucher Stone
+- pagBankCard: text - vendas por cartão PagBank
+
+2.4 TABELA: timeline
+--------------------
+Registra eventos de auditoria incluindo retiradas e ajustes.
+
+================================================================================
+3. ARQUIVOS BACKEND (SERVIDOR)
+================================================================================
+
+3.1 /server/routes.ts
+---------------------
+Rotas principais para gerenciamento de caixa:
+
+POST /api/admin/cash-withdraw (linha 977)
+- Requer autenticação de administrador
+- Recebe: amount, reason, type
+- Cria registro em cashAdjustments
+- Atualiza timeline para auditoria
+- Notifica clientes WebSocket
+
+GET /api/cash-adjustments/:shiftId (linha 266)
+- Retorna todos os ajustes de um turno específico
+
+GET /api/admin/pending-withdrawals (linha 285)
+- Retorna retiradas pendentes para processamento
+
+GET /api/shifts/last-closed (linha 108)
+- Calcula e retorna valores herdados incluindo ajustes
+
+3.2 /server/storage.ts
+----------------------
+Interface e implementação do armazenamento:
+
+createCashAdjustment() (linha 838-852)
+- Cria novo registro de ajuste/retirada
+- Valida valores antes e depois
+
+getCashAdjustments() (linha 854-859)
+- Recupera ajustes por turno ou todos
+
+getPendingWithdrawals() (linha 861-889)
+- Busca retiradas não processadas
+- Considera último turno fechado
+
+getAdjustedInheritedCash() (linha 891-933)
+- Calcula herança de caixa ajustada
+- Deduz retiradas do valor herdado
+- Trata casos de erro com valores padrão
+
+3.3 /server/lib/shift-processor-sql.ts
+---------------------------------------
+Processamento otimizado de turnos:
+
+getLastClosedShift()
+- Busca último turno fechado
+- Inclui ajustes de caixa
+- Calcula valores herdados
+
+getProcessedShiftById()
+- Processa turno com correções
+- Inclui cashAdjustments na resposta
+
+3.4 /server/corrections-utils.ts
+---------------------------------
+Utilitários para correções e ajustes:
+
+applyCorrectionsToShiftData()
+- Aplica correções administrativas
+- Mantém integridade dos dados
+
+================================================================================
+4. ARQUIVOS FRONTEND (CLIENTE)
+================================================================================
+
+4.1 /client/src/components/admin/cash-adjustment-dialog.tsx
+------------------------------------------------------------
+Componente principal para retiradas administrativas:
+
+Funcionalidades:
+- Dialog modal para registro de retiradas
+- Validação com Zod schema
+- Exibe valor atual do caixa
+- Calcula dedução de ajustes anteriores
+- Tipos de operação: "withdraw" e "adjustment"
+
+CurrentCashDisplay (linhas 40-118)
+- Calcula e exibe valor atual do caixa
+- Considera: caixa inicial + vendas - ajustes
+- Mostra breakdown dos valores
+
+CashAdjustmentDialog (linhas 120-310)
+- Interface para criar novo ajuste
+- Campos: valor, motivo, tipo
+- Validação mínima de 10 caracteres no motivo
+- Notificações de sucesso/erro
+- Invalida queries relacionadas após sucesso
+
+4.2 /client/src/components/employee/cash-register.tsx
+------------------------------------------------------
+Gerenciamento de caixa no fechamento:
+
+Funcionalidades (linhas 131-160):
+- Query para buscar ajustes do turno
+- Cálculo de divergências considerando ajustes
+- Dedução automática de retiradas administrativas
+
+calculateDivergence()
+- Valor esperado = inicial + vendas - ajustes
+- Divergência = contado - esperado
+
+4.3 /client/src/components/employee/close-shift-modal.tsx
+----------------------------------------------------------
+Modal de fechamento de turno:
+
+- Considera ajustes ao calcular divergências
+- Exibe avisos sobre retiradas administrativas
+- Integra com cálculos de herança
+
+4.4 /client/src/components/admin/timeline.tsx
+----------------------------------------------
+Exibe histórico de eventos incluindo retiradas.
+
+================================================================================
+5. FLUXO DE DADOS - RETIRADA ADMINISTRATIVA
+================================================================================
+
+1. INICIAÇÃO DA RETIRADA
+   - Admin clica em "Retirada de Caixa"
+   - CashAdjustmentDialog abre
+
+2. CÁLCULO DO VALOR ATUAL
+   - CurrentCashDisplay busca turno atual
+   - Calcula: inicial + vendas - ajustes anteriores
+   - Exibe breakdown dos valores
+
+3. REGISTRO DA RETIRADA
+   - Admin informa valor e motivo
+   - Validação no frontend (Zod)
+   - POST para /api/admin/cash-withdraw
+
+4. PROCESSAMENTO NO BACKEND
+   - requireAdmin valida permissão
+   - Busca turno atual
+   - Calcula valores antes/depois
+   - Cria registro em cashAdjustments
+   - Adiciona evento na timeline
+   - Notifica via WebSocket
+
+5. ATUALIZAÇÃO DO FRONTEND
+   - Invalida queries relacionadas
+   - Atualiza display do caixa
+   - Mostra toast de sucesso
+
+6. IMPACTO NO FECHAMENTO
+   - Valor deduzido automaticamente
+   - Considerado no cálculo de divergência
+   - Herdado para próximo turno
+
+================================================================================
+6. FLUXO DE HERANÇA DE CAIXA ENTRE TURNOS
+================================================================================
+
+1. FECHAMENTO DO TURNO
+   - Colaborador conta dinheiro físico
+   - Sistema calcula divergências
+   - Registra valores finais e para próximo turno
+   - Campos: cashForNextShift, coinsForNextShift
+
+2. ABERTURA DO NOVO TURNO
+   - Sistema busca último turno fechado
+   - getLastClosedShift() processa dados
+   - getAdjustedInheritedCash() ajusta valores
+   - Calcula discrepância de abertura
+
+3. CÁLCULO DE HERANÇA AJUSTADA
+   - Valor base = finalCash do turno anterior
+   - Deduz retiradas administrativas
+   - inheritedCash = base - totalWithdrawals
+   - Registra openingDiscrepancy se houver
+
+4. RASTREAMENTO DE DIVERGÊNCIAS
+   - openingDiscrepancy: diferença na abertura
+   - cashDivergence: diferença no fechamento
+   - timeline registra todas as anomalias
+
+================================================================================
+7. QUERIES E MUTATIONS
+================================================================================
+
+7.1 QUERIES FRONTEND
+--------------------
+- /api/shifts/current - turno ativo
+- /api/shift-payments - pagamentos do turno
+- /api/shift-records - vendas registradas
+- /api/cash-adjustments/:id - ajustes do turno
+- /api/shifts/last-closed - último turno com herança
+- /api/admin/pending-withdrawals - retiradas pendentes
+
+7.2 MUTATIONS
+-------------
+- POST /api/admin/cash-withdraw - criar retirada
+- POST /api/shift-payments - salvar pagamentos
+- POST /api/shifts/temp-cash - salvar valores temporários
+
+7.3 INVALIDAÇÕES APÓS AJUSTE
+-----------------------------
+- /api/shifts/current
+- /api/shift-payments
+- /api/shift-records
+- /api/cash-adjustments
+- /api/timeline
+- /api/shifts/last-closed
+
+================================================================================
+8. CÁLCULOS E FÓRMULAS
+================================================================================
+
+8.1 VALOR ATUAL DO CAIXA
+------------------------
+currentCash = initialCash + cashSales - totalAdjustments
+
+Onde:
+- initialCash: valor inicial do turno
+- cashSales: vendas em dinheiro
+- totalAdjustments: soma de retiradas/ajustes
+
+8.2 DIVERGÊNCIA NO FECHAMENTO
+------------------------------
+divergence = countedCash - expectedCash
+
+Onde:
+- countedCash: valor contado fisicamente
+- expectedCash = initialCash + cashSales - adjustments
+
+8.3 HERANÇA AJUSTADA
+--------------------
+inheritedCash = lastShift.finalCash - pendingWithdrawals
+
+Onde:
+- lastShift.finalCash: caixa final do turno anterior
+- pendingWithdrawals: retiradas do turno anterior
+
+8.4 DISCREPÂNCIA NA ABERTURA
+-----------------------------
+openingDiscrepancy = informedTotal - expectedTotal
+
+Onde:
+- informedTotal: valor informado na abertura
+- expectedTotal: valor esperado (herança ajustada)
+
+================================================================================
+9. SEGURANÇA E AUDITORIA
+================================================================================
+
+9.1 CONTROLES DE ACESSO
+-----------------------
+- requireAdmin: apenas administradores podem fazer retiradas
+- requireAuth: autenticação obrigatória para consultas
+- Session-based auth com Passport.js
+
+9.2 RASTREABILIDADE
+-------------------
+- userId: quem fez a operação
+- createdAt: quando foi feita
+- reason: justificativa obrigatória
+- beforeAmount/afterAmount: valores antes/depois
+- timeline: registro de eventos
+
+9.3 VALIDAÇÕES
+--------------
+- Frontend: Zod schemas
+- Backend: validação de valores
+- Motivo mínimo 10 caracteres
+- Valores devem ser positivos
+
+9.4 NOTIFICAÇÕES
+----------------
+- WebSocket para atualizações real-time
+- Toast notifications no frontend
+- Registro em timeline para histórico
+
+================================================================================
+10. TRATAMENTO DE ERROS
+================================================================================
+
+10.1 CASOS TRATADOS
+-------------------
+- Turno não encontrado: retorna valores padrão
+- Valores inválidos: validação Zod
+- Permissão negada: requireAdmin
+- Falhas de rede: retry automático (TanStack Query)
+
+10.2 VALORES PADRÃO
+-------------------
+- inheritedCash: "200.00"
+- inheritedCoins: "50.00"
+- totalWithdrawals: 0
+- openingDiscrepancy: null
+
+10.3 LOGS E DEBUG
+-----------------
+- console.warn para casos não críticos
+- console.error para falhas
+- Mensagens descritivas em português
+
+================================================================================
+11. INTEGRAÇÃO COM OUTROS MÓDULOS
+================================================================================
+
+11.1 SHIFT PROCESSOR
+--------------------
+- Processa turnos com correções
+- Inclui ajustes nos cálculos
+- Mantém consistência de dados
+
+11.2 CORRECTIONS UTILS
+----------------------
+- Aplica correções administrativas
+- Preserva integridade referencial
+- Histórico de mudanças
+
+11.3 WEBSOCKET
+--------------
+- Notificação real-time de ajustes
+- Atualização automática de valores
+- Sincronização entre usuários
+
+11.4 TIMELINE
+-------------
+- Registro de todos os eventos
+- Auditoria completa
+- Metadados estruturados
+
+================================================================================
+12. MELHORES PRÁTICAS IMPLEMENTADAS
+================================================================================
+
+- Valores monetários como strings para precisão
+- Transações atômicas no banco de dados
+- Invalidação específica de queries
+- Tratamento robusto de erros
+- Valores padrão sensatos
+- Logs descritivos para debug
+- Validação em múltiplas camadas
+- Separação de responsabilidades
+- Componentes reutilizáveis
+- Estado centralizado com TanStack Query
+
+================================================================================
+FIM DA DOCUMENTAÇÃO
+================================================================================

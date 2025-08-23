@@ -301,6 +301,11 @@ export const correctionsRelations = relations(corrections, ({ one }) => ({
   product: one(products, { fields: [corrections.productId], references: [products.id] }),
 }));
 
+export const cashAdjustmentsRelations = relations(cashAdjustments, ({ one }) => ({
+  user: one(users, { fields: [cashAdjustments.userId], references: [users.id] }),
+  shift: one(shifts, { fields: [cashAdjustments.shiftId], references: [shifts.id] }),
+}));
+
 export const insertCorrectionSchema = createInsertSchema(corrections).pick({
   shiftId: true,
   correctionType: true,

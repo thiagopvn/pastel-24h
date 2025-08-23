@@ -16,6 +16,7 @@ export default function ProductForm() {
   const { toast } = useToast();
   const [activeCategory, setActiveCategory] = useState("Pastéis Comuns");
   const [records, setRecords] = useState<Map<number, Partial<ShiftRecord>>>(new Map());
+  const [savedProducts, setSavedProducts] = useState<Set<number>>(new Set());
 
   const { data: currentShift } = useQuery<Shift>({
     queryKey: ["/api/shifts/current"],
@@ -29,6 +30,14 @@ export default function ProductForm() {
     queryKey: ["/api/shift-records", currentShift?.id],
     enabled: !!currentShift?.id,
   });
+
+  // Atualiza os produtos salvos quando os registros existentes são carregados
+  useEffect(() => {
+    if (existingRecords) {
+      const savedIds = existingRecords.map(record => record.productId);
+      setSavedProducts(new Set(savedIds));
+    }
+  }, [existingRecords]);
 
   const saveRecordMutation = useMutation({
     mutationFn: async (record: any) => {
@@ -158,6 +167,9 @@ export default function ProductForm() {
   const handleSave = (productId: number) => {
     const record = getRecord(productId);
     if (record && currentShift) {
+      // Marca o produto como salvo
+      setSavedProducts(prev => new Set(prev).add(productId));
+      
       // Garante que todos os campos numéricos sejam enviados com valores válidos
       // mesmo quando são 0, evitando problemas com valores undefined
       saveRecordMutation.mutate({
@@ -330,6 +342,10 @@ export default function ProductForm() {
                       size="sm"
                       onClick={() => handleSave(product.id)}
                       disabled={saveRecordMutation.isPending}
+                      className={savedProducts.has(product.id) ? 
+                        "bg-green-600 hover:bg-green-700 text-white" : 
+                        ""
+                      }
                     >
                       Salvar
                     </Button>

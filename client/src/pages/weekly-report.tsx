@@ -276,7 +276,9 @@ export default function WeeklyReportPage() {
     doc.setFontSize(12);
     doc.text(`Período: ${format(weekStart, 'dd/MM/yyyy')} - ${format(weekEnd, 'dd/MM/yyyy')}`, 14, 32);
 
-    // Table data
+    let currentY = 40;
+
+    // Resumo geral - tabela principal
     const tableData = employeeData.map(emp => [
       emp.name,
       `${emp.hours}h`,
@@ -303,15 +305,82 @@ export default function WeeklyReportPage() {
       formatCurrency(totals.payroll)
     ]);
 
-    // Generate table
+    // Generate main summary table
     autoTable(doc, {
       head: [['Funcionário', 'Horas', 'Dias', 'Transporte', 'Alimentação', 'Consumo', 'Adicional', 'Desconto', 'Total']],
       body: tableData,
-      startY: 40,
+      startY: currentY,
       theme: 'grid',
       styles: { fontSize: 10 },
       headStyles: { fillColor: [41, 128, 185] },
-      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' }
+      footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
+      didDrawPage: (data) => {
+        currentY = data.cursor?.y || currentY;
+      }
+    });
+
+    // Add detailed consumption section
+    currentY += 20; // Add some space
+    
+    // Check if we need a new page
+    if (currentY > 180) { // Landscape page height consideration
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Title for consumption details
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Detalhamento de Consumo por Funcionário', 14, currentY);
+    currentY += 10;
+
+    // Add consumption details for each employee
+    employeeData.forEach((emp) => {
+      if (emp.consumptionDetails && emp.consumptionDetails.length > 0) {
+        // Check if we need a new page
+        if (currentY > 160) {
+          doc.addPage();
+          currentY = 20;
+        }
+
+        // Employee name
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${emp.name}:`, 14, currentY);
+        currentY += 8;
+
+        // Consumption items
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        
+        emp.consumptionDetails.forEach((item) => {
+          const itemText = item.display || `${item.quantity}x ${item.name} - ${formatCurrency(item.totalPrice)}${item.isWater ? ' (não descontado)' : ''}`;
+          
+          // Check if line fits, if not go to next page
+          if (currentY > 185) {
+            doc.addPage();
+            currentY = 20;
+          }
+          
+          doc.text(`  • ${itemText}`, 20, currentY);
+          currentY += 5;
+        });
+
+        // Add discount info if applicable
+        if (consumptionDiscount > 0) {
+          if (currentY > 180) {
+            doc.addPage();
+            currentY = 20;
+          }
+          doc.setFont('helvetica', 'italic');
+          doc.text(`  Desconto aplicado: ${consumptionDiscount}%`, 20, currentY);
+          currentY += 8;
+        } else {
+          currentY += 3;
+        }
+        
+        doc.setFont('helvetica', 'normal');
+      }
     });
 
     // Save PDF

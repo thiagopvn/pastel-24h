@@ -34,7 +34,7 @@ import {
   insertCollaboratorConsumptionSchema
 } from "@shared/schema";
 import { z } from "zod";
-import { eq, and, isNull, isNotNull, desc } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, desc, sql, or } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
@@ -304,6 +304,193 @@ export function registerRoutes(app: Express): Server {
       res.json(adjustments);
     } catch (error) {
       res.status(500).json({ message: "Failed to get cash adjustments" });
+    }
+  });
+
+  // Financial Control Routes - Controle Financeiro Administrativo
+  app.post("/api/admin/financial/expense", requireAdmin, async (req, res) => {
+    try {
+      const { amount, reason } = req.body;
+      
+      if (!amount || !reason) {
+        return res.status(400).json({ message: "Valor e motivo são obrigatórios" });
+      }
+
+      const parsedAmount = parseFloat(amount);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        return res.status(400).json({ message: "Valor deve ser um número positivo" });
+      }
+
+      // Calcular o saldo antes do gasto (usando a mesma lógica da rota de saldo)
+      const [totalWithdrawalsResult] = await db.select({
+        total: sql<number>`SUM(CAST(envelope_cash AS REAL) + CAST(envelope_coins AS REAL))`
+      }).from(shifts).where(eq(shifts.status, 'closed'));
+      const totalWithdrawals = totalWithdrawalsResult.total || 0;
+      
+      const [totalExpensesResult] = await db.select({
+        total: sql<number>`SUM(CAST(amount AS REAL))`
+      }).from(cashAdjustments).where(eq(cashAdjustments.type, 'expense'));
+      const totalExpenses = totalExpensesResult.total || 0;
+
+      const beforeAmount = totalWithdrawals - totalExpenses;
+      const afterAmount = beforeAmount - parsedAmount;
+
+      // Criar registro de gasto (expense)
+      const [expense] = await db.insert(cashAdjustments).values({
+        shiftId: null,
+        userId: (req as any).user.id,
+        type: 'expense',
+        amount: amount.toString(),
+        reason,
+        beforeAmount: beforeAmount.toFixed(2),
+        afterAmount: afterAmount.toFixed(2),
+        createdAt: new Date()
+      }).returning();
+
+      // Log na timeline
+      await db.insert(timeline).values({
+        userId: (req as any).user.id,
+        action: 'expense_registered',
+        description: `Gasto administrativo registrado: R$ ${amount} - ${reason}`,
+        metadata: { expenseId: expense.id, amount, reason },
+        createdAt: new Date()
+      });
+
+      res.json(expense);
+    } catch (error) {
+      console.error("Error registering expense:", error);
+      res.status(500).json({ message: "Erro ao registrar gasto" });
+    }
+  });
+
+  app.get("/api/admin/financial/statement", requireAdmin, async (req, res) => {
+    try {
+      // Buscar entradas (turnos fechados com envelope_cash ou envelope_coins > 0)
+      const shiftEntries = await db.query.shifts.findMany({
+        where: and(
+          eq(shifts.status, 'closed'),
+          or(
+            sql`CAST(envelope_cash AS REAL) > 0`,
+            sql`CAST(envelope_coins AS REAL) > 0`
+          )
+        ),
+        with: {
+          user: true
+        },
+        orderBy: [desc(shifts.endTime)]
+      });
+
+      // Buscar saídas (gastos administrativos)
+      const expenses = await db.query.cashAdjustments.findMany({
+        where: eq(cashAdjustments.type, 'expense'),
+        with: {
+          user: true
+        },
+        orderBy: [desc(cashAdjustments.createdAt)]
+      });
+
+      // Converter entradas para formato padronizado
+      const entryTransactions = shiftEntries.map(shift => {
+        const envelopeCash = parseFloat(shift.envelopeCash || '0');
+        const envelopeCoins = parseFloat(shift.envelopeCoins || '0');
+        const totalAmount = envelopeCash + envelopeCoins;
+        
+        return {
+          id: `shift-${shift.id}`,
+          type: 'entrada' as const,
+          date: shift.endTime || shift.createdAt,
+          description: `Retirada do turno #${shift.id} - ${shift.user?.name || 'Usuário'}`,
+          amount: totalAmount.toFixed(2),
+          user: shift.user?.name || 'Usuário',
+          createdAt: shift.endTime || shift.createdAt,
+          userId: shift.userId,
+          shiftId: shift.id
+        };
+      }).filter(t => parseFloat(t.amount) > 0);
+
+      // Converter saídas para formato padronizado
+      const expenseTransactions = expenses.map(expense => ({
+        id: `expense-${expense.id}`,
+        type: 'saida' as const,
+        date: expense.createdAt,
+        description: expense.reason,
+        amount: parseFloat(expense.amount).toFixed(2),
+        user: expense.user?.name || 'Usuário',
+        createdAt: expense.createdAt,
+        userId: expense.userId
+      }));
+
+      // Unir todas as transações e ordenar por data
+      const allTransactions = [...entryTransactions, ...expenseTransactions]
+        .sort((a, b) => {
+          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return dateA - dateB;
+        });
+
+      // Calcular saldo corrente (do mais antigo para o mais novo)
+      let runningBalance = 0;
+      const transactionsWithBalance = allTransactions.map(transaction => {
+        if (transaction.type === 'entrada') {
+          runningBalance += parseFloat(transaction.amount);
+        } else if (transaction.type === 'saida') {
+          runningBalance -= parseFloat(transaction.amount);
+        }
+        
+        return {
+          ...transaction,
+          runningBalance: runningBalance.toFixed(2)
+        };
+      });
+
+      // Reverter para mostrar do mais novo para o mais antigo
+      res.json(transactionsWithBalance.reverse());
+    } catch (error) {
+      console.error("Error getting financial statement:", error);
+      res.status(500).json({ message: "Erro ao buscar extrato financeiro" });
+    }
+  });
+
+  app.get("/api/admin/financial/balance", requireAdmin, async (req, res) => {
+    try {
+      // Buscar todas as entradas (envelope_cash + envelope_coins de turnos fechados)
+      const [totalWithdrawalsResult] = await db.select({
+        total: sql<number>`SUM(CAST(envelope_cash AS REAL) + CAST(envelope_coins AS REAL))`
+      }).from(shifts).where(eq(shifts.status, 'closed'));
+      const totalWithdrawals = totalWithdrawalsResult.total || 0;
+      
+      // Buscar todos os gastos (saídas da tabela cash_adjustments)
+      const [totalExpensesResult] = await db.select({
+        total: sql<number>`SUM(CAST(amount AS REAL))`
+      }).from(cashAdjustments).where(eq(cashAdjustments.type, 'expense'));
+      const totalExpenses = totalExpensesResult.total || 0;
+
+      const balance = totalWithdrawals - totalExpenses;
+
+      // Contar transações para estatísticas
+      const closedShiftsCount = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(shifts)
+        .where(and(
+          eq(shifts.status, 'closed'),
+          or(
+            sql`CAST(envelope_cash AS REAL) > 0`,
+            sql`CAST(envelope_coins AS REAL) > 0`
+          )
+        ));
+      
+      const expensesCount = await db.select({ count: sql<number>`COUNT(*)` })
+        .from(cashAdjustments)
+        .where(eq(cashAdjustments.type, 'expense'));
+
+      res.json({ 
+        balance: balance.toFixed(2),
+        totalWithdrawals: totalWithdrawals.toFixed(2),
+        totalExpenses: totalExpenses.toFixed(2),
+        transactionCount: (closedShiftsCount[0]?.count || 0) + (expensesCount[0]?.count || 0)
+      });
+    } catch (error) {
+      console.error("Error calculating balance:", error);
+      res.status(500).json({ message: "Erro ao calcular saldo" });
     }
   });
 

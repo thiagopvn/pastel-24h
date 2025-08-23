@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Divergência de Vendas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .response {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+        }
+        .error {
+            background: #ffebee;
+            color: #c62828;
+        }
+        .success {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Divergência no Fechamento de Turno</h1>
+    
+    <div class="test-section">
+        <h2>Cenário de Teste</h2>
+        <p>Este teste simula um fechamento de turno com inconsistência de vendas:</p>
+        <ul>
+            <li>Total de vendas registradas nos produtos: R$ 10,00</li>
+            <li>Total de pagamentos informados: R$ 0,00</li>
+            <li>Divergência esperada: R$ 10,00</li>
+        </ul>
+        
+        <button onclick="testCloseShift()">Testar Fechamento SEM Observações</button>
+        <button onclick="testCloseShiftWithNotes()">Testar Fechamento COM Observações</button>
+        
+        <div id="response" class="response" style="display:none;"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+        
+        // Mock data for testing
+        const mockCloseData = {
+            shiftId: 1, // Ajuste conforme necessário
+            records: [
+                {
+                    productId: 1,
+                    entryQty: 10,
+                    arrivalQty: 0,
+                    leftoverQty: 0,
+                    discardQty: 0,
+                    consumedQty: 0,
+                    soldQty: 1,
+                    itemTotal: "10.00" // R$ 10 em vendas
+                }
+            ],
+            payments: {
+                cash: "0",      // Nenhum pagamento registrado
+                pix: "0",
+                stoneCard: "0",
+                stoneVoucher: "0",
+                pagBankCard: "0"
+            },
+            countedFinalCash: "200.00",
+            countedFinalCoins: "50.00",
+            envelopeCash: "0",
+            envelopeCoins: "0",
+            notes: "" // Sem observações inicialmente
+        };
+
+        async function testCloseShift() {
+            const responseDiv = document.getElementById('response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Enviando requisição...';
+            
+            try {
+                const response = await fetch(`${API_URL}/api/shifts/close`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(mockCloseData)
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `ERRO ${response.status}: ${JSON.stringify(data, null, 2)}
+                    
+✅ TESTE PASSOU! 
+O sistema corretamente rejeitou o fechamento sem observações quando há divergência de vendas.
+
+Detalhes recebidos:
+- Divergência de vendas: R$ ${data.details?.salesDifference || 'N/A'}
+- Total de produtos: R$ ${data.details?.totalRecordsValue || 'N/A'}
+- Total de pagamentos: R$ ${data.details?.totalSales || 'N/A'}
+- Mensagem: ${data.message}`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ TESTE FALHOU!
+O sistema permitiu o fechamento sem observações mesmo com divergência de vendas.`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Erro na requisição: ${error.message}`;
+            }
+        }
+        
+        async function testCloseShiftWithNotes() {
+            const responseDiv = document.getElementById('response');
+            responseDiv.style.display = 'block';
+            responseDiv.className = 'response';
+            responseDiv.textContent = 'Enviando requisição com observações...';
+            
+            const dataWithNotes = {
+                ...mockCloseData,
+                notes: "Cliente cancelou pedido após registro no sistema"
+            };
+            
+            try {
+                const response = await fetch(`${API_URL}/api/shifts/close`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(dataWithNotes)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    responseDiv.className = 'response success';
+                    responseDiv.textContent = `✅ TESTE PASSOU!
+O sistema permitiu o fechamento COM observações mesmo com divergência de vendas.
+
+Turno fechado com sucesso!`;
+                } else {
+                    responseDiv.className = 'response error';
+                    responseDiv.textContent = `❌ TESTE FALHOU!
+O sistema não permitiu o fechamento mesmo com observações preenchidas.
+
+ERRO ${response.status}: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                responseDiv.className = 'response error';
+                responseDiv.textContent = `Erro na requisição: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
