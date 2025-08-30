@@ -73,6 +73,8 @@ export function CloseShiftModal({
   const [cashDivergence, setCashDivergence] = useState(0);
   const [salesInconsistency, setSalesInconsistency] = useState(false);
   const [salesDifference, setSalesDifference] = useState(0);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [pdfDataUri, setPdfDataUri] = useState('');
 
   const form = useForm<CloseShiftForm>({
     resolver: zodResolver(closeShiftSchema),
@@ -247,7 +249,7 @@ export function CloseShiftModal({
     }
   }, [isOpen, shiftRecords, paymentData, livePayments, divergenceDetails]); // Added divergenceDetails to dependencies
 
-  const generateShiftClosurePDF = async (pdfData: any) => {
+  const generateShiftClosurePDF = async (pdfData: any): Promise<string> => {
     const { shift, formData, paymentData, shiftRecords, collaborators, collaboratorConsumptions } = pdfData;
 
     console.log('PDF Generation - Collaborators data:', collaborators);
@@ -520,8 +522,28 @@ export function CloseShiftModal({
     doc.setFontSize(8);
     doc.text("Assinatura do Responsável", 105, finalPageY + 30, { align: "center" });
 
-    // Salvar o PDF
-    doc.save(`fechamento_turno_${shift.id}_${(user?.name || 'funcionario').replace(/\s/g, '_')}_${format(now, 'ddMMyyyy_HHmmss')}.pdf`);
+    // Retornar a Data URI do PDF
+    return doc.output('datauristring');
+  };
+
+  const handleViewPDF = async () => {
+    const formData = form.getValues();
+    const pdfData = {
+      shift,
+      formData,
+      paymentData,
+      shiftRecords,
+      collaborators,
+      collaboratorConsumptions,
+    };
+    
+    try {
+      const dataUri = await generateShiftClosurePDF(pdfData);
+      setPdfDataUri(dataUri);
+      setIsPdfModalOpen(true);
+    } catch (error) {
+      console.error('Erro ao gerar visualização do PDF:', error);
+    }
   };
 
   const handleSubmit = async (data: CloseShiftForm) => {
@@ -562,10 +584,20 @@ export function CloseShiftModal({
         collaboratorConsumptions,
       };
       
-      // 1. Gera e baixa o PDF
-      await generateShiftClosurePDF(pdfData);
+      // 1. Gera a Data URI do PDF
+      const dataUri = await generateShiftClosurePDF(pdfData);
+      
+      // 2. Força o download do PDF
+      const link = document.createElement('a');
+      link.href = dataUri;
+      const now = new Date();
+      const fileName = `fechamento_turno_${shift.id}_${(user?.name || 'funcionario').replace(/\s/g, '_')}_${format(now, 'ddMMyyyy_HHmmss')}.pdf`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-      // 2. Continua com o fechamento do turno
+      // 3. Continua com o fechamento do turno
       onConfirm(data);
     } catch (error) {
       console.error('Erro ao gerar PDF:', error);
@@ -575,8 +607,9 @@ export function CloseShiftModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Fechamento de Turno</DialogTitle>
           <DialogDescription>
@@ -873,13 +906,33 @@ export function CloseShiftModal({
               <Button type="button" variant="outline" onClick={onClose}>
                 Cancelar
               </Button>
+              <Button type="button" variant="secondary" onClick={handleViewPDF}>
+                Visualizar PDF
+              </Button>
               <Button type="submit" disabled={isClosing}>
                 {isClosing ? "Fechando..." : "Confirmar Fechamento"}
               </Button>
             </DialogFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para exibir o PDF */}
+      <Dialog open={isPdfModalOpen} onOpenChange={setIsPdfModalOpen}>
+        <DialogContent className="max-w-4xl h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Pré-visualização do Relatório</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-hidden">
+            <iframe
+              src={pdfDataUri}
+              title="Pré-visualização do PDF"
+              className="w-full h-full border-0"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
