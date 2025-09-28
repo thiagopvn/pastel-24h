@@ -1,0 +1,907 @@
+================================================================================
+                    DOCUMENTAÇÃO TÉCNICA COMPLETA - SISTEMA PASTEL24H
+================================================================================
+
+ÍNDICE
+------
+1. VISÃO GERAL DO SISTEMA
+2. ESTRUTURA DE PASTAS E ARQUIVOS
+3. FUNCIONALIDADES PRINCIPAIS
+4. LÓGICA DE FECHAMENTO DE CAIXA (DETALHADO)
+5. FORMAS DE PAGAMENTO E CÁLCULOS
+6. INTEGRAÇÃO FUNCIONÁRIO-ADMINISTRATIVO
+7. FLUXO DE DADOS E PROCESSOS
+8. EXEMPLOS DE CÓDIGO
+9. CONFIGURAÇÕES E CONSTANTES
+10. SEGURANÇA E AUTENTICAÇÃO
+
+================================================================================
+1. VISÃO GERAL DO SISTEMA
+================================================================================
+
+O Pastel24H é um sistema completo de gerenciamento de turnos para restaurante,
+desenvolvido com arquitetura full-stack moderna para deployment local.
+
+TECNOLOGIAS PRINCIPAIS:
+------------------------
+• Backend: Express.js + TypeScript + SQLite
+• Frontend: React 18 + TypeScript + Vite
+• Database: SQLite com Drizzle ORM
+• Real-time: WebSocket para atualizações ao vivo
+• UI: Shadcn/ui + Tailwind CSS + Framer Motion
+• Autenticação: Passport.js com sessões
+• Deploy: Docker com docker-compose
+
+CARACTERÍSTICAS PRINCIPAIS:
+---------------------------
+• Controle de turnos com gestão de caixa completa
+• Sistema de inventário com fórmula específica do negócio
+• Múltiplos métodos de pagamento com taxas configuráveis
+• Correções administrativas pós-fechamento
+• Relatórios PDF e Excel automáticos
+• Monitoramento em tempo real via WebSocket
+• Sistema de permissões (admin/funcionário)
+
+================================================================================
+2. ESTRUTURA DE PASTAS E ARQUIVOS
+================================================================================
+
+/root/projetos/pastel24h/
+├── server/                          # Backend Express.js
+│   ├── index.ts                    # Servidor principal
+│   ├── routes.ts                   # Todas as rotas da API
+│   ├── auth.ts                     # Configuração Passport.js
+│   ├── db.ts                       # Conexão SQLite/Drizzle
+│   ├── ws.ts                       # WebSocket server
+│   ├── storage.ts                  # Camada de abstração DB
+│   ├── corrections-utils.ts        # Sistema de correções
+│   ├── collaborator-consumptions-service.ts  # Consumo interno
+│   └── lib/
+│       ├── shift-processor.ts      # Processador ORM
+│       ├── shift-processor-sql.ts  # Processador SQL otimizado
+│       └── card-payment-calculator.ts # Cálculo pagamentos cartão
+│
+├── client/                          # Frontend React
+│   ├── src/
+│   │   ├── main.tsx                # Entry point
+│   │   ├── App.tsx                 # Componente raiz
+│   │   ├── pages/                  # Páginas da aplicação
+│   │   │   ├── auth-page.tsx       # Login/Registro
+│   │   │   ├── admin-dashboard.tsx # Painel admin
+│   │   │   ├── employee-dashboard.tsx # Painel funcionário
+│   │   │   └── shift-management.tsx # Gestão de turnos
+│   │   │
+│   │   ├── components/
+│   │   │   ├── admin/               # Componentes administrativos
+│   │   │   │   ├── shift-details-modal.tsx # Detalhes turno
+│   │   │   │   ├── corrections-modal.tsx # Correções
+│   │   │   │   ├── cash-adjustment-dialog.tsx # Ajustes caixa
+│   │   │   │   ├── payment-breakdown.tsx # Análise pagamentos
+│   │   │   │   └── weekly-report-generator.tsx # Relatórios
+│   │   │   │
+│   │   │   ├── employee/            # Componentes funcionário
+│   │   │   │   ├── cash-register.tsx # Registro de caixa
+│   │   │   │   ├── close-shift-modal.tsx # Fechamento turno
+│   │   │   │   ├── shift-status-card.tsx # Status atual
+│   │   │   │   └── product-management.tsx # Gestão produtos
+│   │   │   │
+│   │   │   └── ui/                  # Componentes Shadcn/ui
+│   │   │
+│   │   ├── lib/
+│   │   │   ├── apiClient.ts        # Cliente API com sessão
+│   │   │   ├── queryClient.ts      # React Query config
+│   │   │   ├── calculations.ts     # Cálculos do negócio
+│   │   │   └── constants.ts        # Constantes sistema
+│   │   │
+│   │   └── hooks/
+│   │       ├── use-auth.tsx        # Hook autenticação
+│   │       └── use-toast.ts        # Hook notificações
+│
+├── shared/                          # Código compartilhado
+│   └── schema.ts                   # Schema TypeScript/Zod
+│
+├── migrations/                      # Migrações Drizzle
+│   └── *.sql                       # Arquivos SQL
+│
+├── data/                           # Dados persistentes
+│   └── local.db                    # Banco SQLite
+│
+└── Configurações
+    ├── docker-compose.yml          # Orquestração containers
+    ├── Dockerfile                  # Imagem Docker
+    ├── drizzle.config.ts          # Config migrações
+    ├── vite.config.ts             # Build frontend
+    └── tailwind.config.ts         # Estilos
+
+===============================================================================
+3. FUNCIONALIDADES PRINCIPAIS
+================================================================================
+
+GESTÃO DE TURNOS
+----------------
+• Abertura com herança de caixa do turno anterior
+• Registro de produtos (entrada, chegada, sobra, descarte, consumo)
+• Contagem física de caixa (notas e moedas separadas)
+• Fechamento com cálculo automático de divergências
+• Assinatura digital do responsável
+
+SISTEMA DE INVENTÁRIO
+---------------------
+• Fórmula principal: Vendido = Entrada + Chegada - Sobra - Descarte - Consumo
+• Categorização de produtos
+• Histórico de preços
+• Consumo interno com desconto configurável
+• Validações de quantidades não-negativas
+
+GESTÃO FINANCEIRA
+-----------------
+• 5 métodos de pagamento configuráveis
+• Cálculo automático de taxas de transação
+• Sistema de sangrias administrativas
+• Divergência de caixa com tolerância configurável
+• Envelope administrativo no fechamento
+
+PAINEL ADMINISTRATIVO
+---------------------
+• Monitoramento em tempo real de turnos
+• Sistema de correções pós-fechamento
+• Relatórios semanais de folha de pagamento
+• Gestão de colaboradores e transportes
+• Análise de desempenho e métricas
+
+SISTEMA DE CORREÇÕES
+--------------------
+• Correção de quantidades de produtos
+• Ajuste de valores de pagamento
+• Modificação de contagem final de caixa
+• Correção de preços históricos
+• Auditoria completa com timeline
+
+EXPORTAÇÃO E RELATÓRIOS
+------------------------
+• PDF automático no fechamento do turno
+• Excel com dados detalhados
+• Relatório semanal de horas trabalhadas
+• Comprovante de fechamento com assinatura
+
+================================================================================
+4. LÓGICA DE FECHAMENTO DE CAIXA (DETALHADO)
+================================================================================
+
+O fechamento de caixa é um processo crítico que ocorre em 3 etapas principais:
+
+ETAPA 1: CONTAGEM FÍSICA DO CAIXA
+----------------------------------
+Local: /client/src/components/employee/close-shift-modal.tsx
+
+1. Funcionário conta TODO o dinheiro físico na loja:
+   - Separa NOTAS (cédulas de papel)
+   - Separa MOEDAS (moedas metálicas)
+   - Registra cada valor separadamente
+
+2. Sistema carrega automaticamente valores salvos anteriormente:
+   ```typescript
+   // Busca valores temporários salvos no CashRegister
+   const { tempFinalCash, tempFinalCoins } = await api.get('/api/shifts/temp-cash');
+   setFinalCash(tempFinalCash || 0);
+   setFinalCoins(tempFinalCoins || 0);
+   ```
+
+ETAPA 2: ENVELOPE ADMINISTRATIVO
+---------------------------------
+1. Define quanto do dinheiro contado vai para o envelope:
+   - Valor em notas para envelope
+   - Valor em moedas para envelope
+
+2. Cálculo automático do que sobra para próximo turno:
+   ```typescript
+   cashForNextShift = finalCash - cashToEnvelope;
+   coinsForNextShift = finalCoins - coinsToEnvelope;
+   ```
+
+ETAPA 3: CÁLCULO DE DIVERGÊNCIA
+--------------------------------
+Fórmula Principal:
+```typescript
+// De /client/src/lib/calculations.ts
+function calculateCashDivergence(shift) {
+  const initialCash = shift.initialCash + shift.initialCoins;
+  const cashSales = shift.payments.cash;
+  const withdrawals = shift.cashAdjustments
+    .filter(a => a.type === 'withdraw')
+    .reduce((sum, a) => sum + a.amount, 0);
+
+  const expectedCash = initialCash + cashSales - withdrawals;
+  const countedCash = shift.finalCash + shift.finalCoins;
+
+  return countedCash - expectedCash;
+}
+```
+
+VALIDAÇÕES DE DIVERGÊNCIA:
+---------------------------
+• Divergência Aceitável: até R$ 0,99 (MAX_CASH_DIVERGENCE)
+• Divergência Crítica: > R$ 0,99 exige observações
+• Verificação de Vendas: compara total produtos vs pagamentos
+
+PROCESSO DE FECHAMENTO FINAL:
+------------------------------
+1. Validação de todos os campos obrigatórios
+2. Cálculo de divergências e validações
+3. Geração do snapshot do turno
+4. Criação do PDF com todos os dados
+5. Atualização do status para 'closed'
+6. Notificação WebSocket para admin
+7. Limpeza de dados temporários
+
+================================================================================
+5. FORMAS DE PAGAMENTO E CÁLCULOS
+================================================================================
+
+MÉTODOS DE PAGAMENTO DISPONÍVEIS:
+----------------------------------
+1. DINHEIRO
+   - Sem taxa de transação
+   - Afeta diretamente o caixa físico
+   - Incluído no cálculo de divergência
+
+2. PIX
+   - Taxa configurável (padrão: 0%)
+   - Processamento instantâneo
+   - Não afeta caixa físico
+
+3. STONE DÉBITO/CRÉDITO
+   - Taxa padrão: 3.50%
+   - Sistema de valor cumulativo na maquininha
+   - Cálculo: Valor Real = Acumulado Atual - Acumulado Anterior
+
+4. STONE VOUCHER (Vale Refeição/Alimentação)
+   - Taxa padrão: 2.50%
+   - Sistema de valor cumulativo
+   - Separado do Stone D/C
+
+5. PAGBANK DÉBITO/CRÉDITO
+   - Taxa padrão: 3.20%
+   - Sistema de valor cumulativo
+   - Maquininha independente
+
+SISTEMA DE VALORES CUMULATIVOS:
+--------------------------------
+Local: /server/lib/card-payment-calculator.ts
+
+As maquininhas de cartão mantém um valor total acumulado do dia.
+Para calcular o valor real do turno:
+
+```typescript
+export async function calculateCardPayments(shiftId, cumulativeValues) {
+  // Busca o turno anterior do mesmo dia
+  const previousShift = await getPreviousShiftSameDay(shiftId);
+
+  // Calcula valores reais subtraindo o acumulado anterior
+  const realValues = {
+    stoneCard: cumulativeValues.stoneCard -
+               (previousShift?.stoneCardCumulative || 0),
+
+    stoneVoucher: cumulativeValues.stoneVoucher -
+                  (previousShift?.stoneVoucherCumulative || 0),
+
+    pagBankCard: cumulativeValues.pagBankCard -
+                 (previousShift?.pagBankCardCumulative || 0)
+  };
+
+  return realValues;
+}
+```
+
+CÁLCULO DE VALORES LÍQUIDOS:
+-----------------------------
+```typescript
+// De /client/src/lib/constants.ts
+const PAYMENT_RATES = {
+  pix: 0,          // 0% de taxa
+  stoneCard: 0.035,     // 3.5% de taxa
+  stoneVoucher: 0.025,  // 2.5% de taxa
+  pagBankCard: 0.032    // 3.2% de taxa
+};
+
+// Cálculo do valor líquido
+function calculateNetValue(grossValue, paymentMethod) {
+  const rate = PAYMENT_RATES[paymentMethod];
+  const fee = grossValue * rate;
+  return grossValue - fee;
+}
+```
+
+PROCESSO DE REGISTRO DE PAGAMENTOS:
+------------------------------------
+1. Funcionário registra valores no CashRegister.tsx
+2. Para maquininhas: informa valor cumulativo total
+3. Sistema calcula automaticamente valor real do turno
+4. Salva no banco: valores reais E cumulativos
+5. Admin pode corrigir posteriormente se necessário
+
+EXEMPLO PRÁTICO DE CÁLCULO:
+----------------------------
+Cenário: Stone D/C mostra R$ 1.500,00 no visor
+
+1. Turno anterior terminou com R$ 850,00 acumulado
+2. Valor real deste turno = R$ 1.500,00 - R$ 850,00 = R$ 650,00
+3. Taxa de 3.5%: Fee = R$ 650,00 × 0.035 = R$ 22,75
+4. Valor líquido = R$ 650,00 - R$ 22,75 = R$ 627,25
+
+================================================================================
+6. INTEGRAÇÃO FUNCIONÁRIO-ADMINISTRATIVO
+================================================================================
+
+FLUXO DE DADOS EM TEMPO REAL:
+------------------------------
+1. FUNCIONÁRIO registra dados durante o turno
+2. WEBSOCKET envia atualizações para admin
+3. ADMIN monitora em tempo real no painel
+4. CORREÇÕES podem ser aplicadas após fechamento
+
+WEBSOCKET - COMUNICAÇÃO BIDIRECIONAL:
+--------------------------------------
+Local: /server/ws.ts
+
+```typescript
+// Servidor WebSocket
+wss.on('connection', (ws, req) => {
+  const shiftId = parseShiftId(req.url);
+
+  // Cliente se conecta a um turno específico
+  if (!shiftConnections.has(shiftId)) {
+    shiftConnections.set(shiftId, new Set());
+  }
+  shiftConnections.get(shiftId).add(ws);
+
+  // Notifica mudanças
+  ws.on('shift-update', () => {
+    notifyShiftClients(shiftId);
+  });
+});
+
+// Função para notificar todos os clientes
+export function notifyShiftClients(shiftId: number) {
+  const clients = shiftConnections.get(shiftId);
+  clients?.forEach(client => {
+    client.send(JSON.stringify({
+      type: 'shift-updated',
+      shiftId
+    }));
+  });
+}
+```
+
+PAINEL ADMINISTRATIVO - MONITORAMENTO:
+---------------------------------------
+Local: /client/src/components/admin/shift-details-modal.tsx
+
+Funcionalidades de monitoramento:
+• Auto-refresh a cada 5 segundos
+• Visualização de produtos em tempo real
+• Acompanhamento de pagamentos
+• Status do caixa ao vivo
+• Atividade dos colaboradores
+
+SISTEMA DE CORREÇÕES ADMINISTRATIVAS:
+--------------------------------------
+Local: /client/src/components/admin/corrections-modal.tsx
+
+Tipos de correções permitidas:
+1. QUANTIDADES DE PRODUTOS
+   - Entrada, Chegada, Sobra, Descarte, Consumo
+   - Recálculo automático de valores
+
+2. VALORES DE PAGAMENTO
+   - Ajuste de qualquer método
+   - Recálculo de totais e divergências
+
+3. CONTAGEM FINAL DE CAIXA
+   - Correção de notas e moedas
+   - Atualização de divergência
+
+4. PREÇOS DE PRODUTOS
+   - Ajuste retroativo de preços
+   - Impacto no faturamento
+
+PROCESSO DE APLICAÇÃO DE CORREÇÕES:
+------------------------------------
+```typescript
+// De /server/corrections-utils.ts
+export function applyCorrectionsToShiftData(shiftId) {
+  // 1. Busca dados originais
+  const originalData = getOriginalShiftData(shiftId);
+
+  // 2. Busca todas as correções
+  const corrections = getCorrections(shiftId);
+
+  // 3. Aplica correções em sequência
+  let correctedData = { ...originalData };
+
+  corrections.forEach(correction => {
+    correctedData = applySingleCorrection(correctedData, correction);
+  });
+
+  // 4. Recalcula valores dependentes
+  correctedData = recalculateDependentValues(correctedData);
+
+  return correctedData;
+}
+```
+
+AUDITORIA E RASTREABILIDADE:
+-----------------------------
+Tabela: timeline
+
+Registra TODAS as ações administrativas:
+• Usuário responsável
+• Timestamp da ação
+• IP de origem
+• Tipo de ação
+• Dados modificados
+• Turno afetado
+
+================================================================================
+7. FLUXO DE DADOS E PROCESSOS
+================================================================================
+
+FLUXO DE ABERTURA DE TURNO:
+---------------------------
+1. Verificar se existe turno aberto (bloqueia se sim)
+2. Buscar último turno fechado
+3. Herdar valores de caixa e sobras
+4. Criar novo registro de turno
+5. Notificar via WebSocket
+6. Redirecionar para dashboard
+
+FLUXO DURANTE O TURNO:
+----------------------
+1. Registro de produtos vendidos
+2. Atualização de pagamentos recebidos
+3. Registro de consumo interno
+4. Salvamento temporário de valores
+5. Atualizações em tempo real via WebSocket
+
+FLUXO DE FECHAMENTO:
+--------------------
+1. Contagem física completa
+2. Definição do envelope
+3. Validação de divergências
+4. Geração de snapshot
+5. Criação de PDF
+6. Atualização status → 'closed'
+7. Notificação administrativa
+8. Limpeza de temporários
+
+FLUXO DE CORREÇÕES:
+-------------------
+1. Admin acessa turno fechado
+2. Identifica necessidade de correção
+3. Registra correção com justificativa
+4. Sistema recalcula automaticamente
+5. Gera registro de auditoria
+6. Atualiza relatórios
+
+DIAGRAMA DE ESTADOS DO TURNO:
+------------------------------
+```
+[FECHADO] → [ABERTO] → [FECHADO]
+    ↑           ↓           ↓
+ Último      Durante    Correções
+ Turno       Turno      (Admin)
+    ↑           ↓           ↓
+ Herança    WebSocket   Auditoria
+   ↑           ↓           ↓
+[Caixa]   [Produtos]  [Timeline]
+```
+
+================================================================================
+8. EXEMPLOS DE CÓDIGO
+================================================================================
+
+EXEMPLO 1: ABERTURA DE TURNO
+-----------------------------
+```typescript
+// Frontend - /client/src/pages/shift-management.tsx
+const openShift = async () => {
+  // Busca dados do último turno
+  const lastShift = await api.get('/api/shifts/last-closed');
+
+  // Prepara dados iniciais
+  const shiftData = {
+    userId: currentUser.id,
+    initialCash: lastShift.cashForNextShift || '200.00',
+    initialCoins: lastShift.coinsForNextShift || '50.00',
+    inheritCash: true,
+    startTime: new Date().toISOString()
+  };
+
+  // Abre novo turno
+  const newShift = await api.post('/api/shifts/open', shiftData);
+
+  // Cria registros iniciais de produtos com sobras
+  for (const product of lastShift.products) {
+    if (product.leftover > 0) {
+      await api.post('/api/shift-records', {
+        shiftId: newShift.id,
+        productId: product.id,
+        entryQty: product.leftover
+      });
+    }
+  }
+};
+```
+
+EXEMPLO 2: CÁLCULO DE DIVERGÊNCIA
+----------------------------------
+```typescript
+// Backend - /server/lib/shift-processor-sql.ts
+function calculateDivergence(shift: ProcessedShift): number {
+  const initialTotal =
+    parseFloat(shift.initialCash) +
+    parseFloat(shift.initialCoins);
+
+  const cashSales = parseFloat(shift.payments?.cash || '0');
+
+  const withdrawals = shift.cashAdjustments
+    ?.filter(adj => adj.type === 'withdraw')
+    ?.reduce((sum, adj) => sum + parseFloat(adj.amount), 0) || 0;
+
+  const expectedTotal = initialTotal + cashSales - withdrawals;
+
+  const countedTotal =
+    parseFloat(shift.finalCash || '0') +
+    parseFloat(shift.finalCoins || '0');
+
+  return countedTotal - expectedTotal;
+}
+```
+
+EXEMPLO 3: REGISTRO DE PAGAMENTO COM MAQUININHA
+------------------------------------------------
+```typescript
+// Frontend - /client/src/components/employee/cash-register.tsx
+const saveCardPayments = async () => {
+  // Valores cumulativos das maquininhas
+  const cumulativeValues = {
+    stoneCardCumulative: '1250.00',   // Total no visor
+    stoneVoucherCumulative: '450.00', // Total no visor
+    pagBankCardCumulative: '780.00'   // Total no visor
+  };
+
+  // Backend calcula valores reais
+  const response = await api.post(
+    `/api/shifts/${shiftId}/calculate-card-payments`,
+    cumulativeValues
+  );
+
+  // Salva valores reais e cumulativos
+  await api.post('/api/shift-payments', {
+    shiftId,
+    ...response.realValues,      // Valores do turno
+    ...cumulativeValues          // Valores cumulativos
+  });
+};
+```
+
+EXEMPLO 4: APLICAÇÃO DE CORREÇÃO
+---------------------------------
+```typescript
+// Backend - /server/routes.ts
+app.post('/api/admin/corrections', requireAdmin, async (req, res) => {
+  const { shiftId, corrections } = req.body;
+
+  // Registra cada correção
+  for (const correction of corrections) {
+    await db.insert(correctionsTable).values({
+      shiftId,
+      recordId: correction.recordId,
+      field: correction.field,
+      oldValue: correction.oldValue,
+      newValue: correction.newValue,
+      reason: correction.reason,
+      createdBy: req.user.id,
+      createdAt: new Date()
+    });
+  }
+
+  // Notifica clientes WebSocket
+  notifyShiftClients(shiftId);
+
+  // Recalcula dados do turno
+  const correctedShift = await getProcessedShiftById(shiftId);
+
+  res.json(correctedShift);
+});
+```
+
+EXEMPLO 5: MONITORAMENTO EM TEMPO REAL
+---------------------------------------
+```typescript
+// Frontend - /client/src/components/admin/shift-monitor.tsx
+useEffect(() => {
+  // Conecta ao WebSocket
+  const ws = new WebSocket(`ws://localhost:5000/ws-api?shiftId=${shiftId}`);
+
+  // Escuta atualizações
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === 'shift-updated') {
+      // Recarrega dados do turno
+      queryClient.invalidateQueries(['shift', shiftId]);
+    }
+  };
+
+  // Auto-refresh a cada 5 segundos
+  const interval = setInterval(() => {
+    refetch();
+  }, 5000);
+
+  return () => {
+    ws.close();
+    clearInterval(interval);
+  };
+}, [shiftId]);
+```
+
+EXEMPLO 6: FÓRMULA DE INVENTÁRIO
+---------------------------------
+```typescript
+// Frontend - /client/src/lib/calculations.ts
+export function calculateSoldQuantity(record: ShiftRecord): number {
+  const entry = parseInt(record.entryQty) || 0;
+  const arrival = parseInt(record.arrivalQty) || 0;
+  const leftover = parseInt(record.leftoverQty) || 0;
+  const discard = parseInt(record.discardQty) || 0;
+  const consumed = parseInt(record.consumedQty) || 0;
+
+  // Fórmula principal do negócio
+  const sold = entry + arrival - leftover - discard - consumed;
+
+  return Math.max(0, sold); // Nunca negativo
+}
+```
+
+================================================================================
+9. CONFIGURAÇÕES E CONSTANTES
+================================================================================
+
+CONSTANTES DE NEGÓCIO:
+-----------------------
+Local: /client/src/lib/constants.ts
+
+```typescript
+// Valores mínimos recomendados
+export const MIN_CASH_RECOMMENDED = 200;    // R$ em notas
+export const MIN_COINS_RECOMMENDED = 50;    // R$ em moedas
+export const MAX_CASH_DIVERGENCE = 0.99;    // Tolerância
+
+// Taxas de pagamento
+export const PAYMENT_RATES = {
+  cash: 0,           // Sem taxa
+  pix: 0,           // Sem taxa
+  stoneCard: 0.035,      // 3.5%
+  stoneVoucher: 0.025,   // 2.5%
+  pagBankCard: 0.032     // 3.2%
+};
+
+// Configurações de consumo interno
+export const DEFAULT_CONSUMPTION_DISCOUNT = 50;  // 50% desconto
+export const DEFAULT_PROFIT_MARGIN = 0.5;       // 50% margem
+
+// Horários e prazos
+export const SHIFT_DURATION_HOURS = 8;
+export const SESSION_DURATION_HOURS = 24;
+export const REPORT_GENERATION_TIMEOUT = 30000; // 30 segundos
+```
+
+CONFIGURAÇÕES DO SISTEMA:
+--------------------------
+```typescript
+// Ambiente (.env)
+SESSION_SECRET=<hash-seguro-32-bytes>
+NODE_ENV=production|development
+PORT=5000
+
+// Docker
+COMPOSE_PROJECT_NAME=pastel24h
+VOLUME_PATH=./data:/app/data
+HEALTHCHECK_INTERVAL=30s
+
+// Banco de Dados
+DATABASE_PATH=./data/local.db
+MIGRATIONS_PATH=./migrations
+```
+
+FÓRMULAS DE CÁLCULO:
+--------------------
+```typescript
+// Inventário
+Vendido = Entrada + Chegada - Sobra - Descarte - Consumo
+
+// Divergência de Caixa
+Divergência = CaixaFinal - (CaixaInicial + VendasDinheiro - Sangrias)
+
+// Valor Líquido
+ValorLíquido = ValorBruto - (ValorBruto × TaxaTransação)
+
+// Folha de Pagamento
+SalárioTotal = HorasTrabalhadas × ValorHora + Extras - Descontos
+
+// Consumo Interno
+ValorConsumido = QuantidadeConsumida × PreçoProduto × (1 - DescontoFuncionário)
+```
+
+CONFIGURAÇÃO DE ROUTES:
+-----------------------
+```typescript
+// Rotas de Autenticação
+POST /api/register     - Criar conta
+POST /api/login        - Fazer login
+POST /api/logout       - Sair
+GET  /api/user         - Dados do usuário
+
+// Rotas de Turnos
+GET  /api/shifts/current       - Turno atual
+GET  /api/shifts/last-closed   - Último fechado
+POST /api/shifts/open          - Abrir turno
+POST /api/shifts/close         - Fechar turno
+
+// Rotas de Produtos
+GET  /api/shift-records        - Produtos do turno
+POST /api/shift-records        - Adicionar produto
+
+// Rotas de Pagamentos
+GET  /api/shift-payments/:id   - Pagamentos do turno
+POST /api/shift-payments       - Salvar pagamentos
+
+// Rotas Administrativas
+GET  /api/admin/shifts         - Todos os turnos
+POST /api/admin/corrections    - Aplicar correções
+GET  /api/admin/shift-details/:id - Detalhes completos
+```
+
+================================================================================
+10. SEGURANÇA E AUTENTICAÇÃO
+================================================================================
+
+AUTENTICAÇÃO COM PASSPORT.JS:
+------------------------------
+Local: /server/auth.ts
+
+```typescript
+// Configuração da estratégia local
+passport.use(new LocalStrategy(
+  { usernameField: 'email' },
+  async (email, password, done) => {
+    const user = await findUserByEmail(email);
+
+    if (!user) {
+      return done(null, false, { message: 'Usuário não encontrado' });
+    }
+
+    const isValid = await bcrypt.compare(password, user.password);
+
+    if (!isValid) {
+      return done(null, false, { message: 'Senha incorreta' });
+    }
+
+    return done(null, user);
+  }
+));
+
+// Sessão com memorystore
+app.use(session({
+  secret: process.env.SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 horas
+  },
+  store: new MemoryStore({
+    checkPeriod: 86400000 // Limpa sessões expiradas diariamente
+  })
+}));
+```
+
+CONTROLE DE ACESSO (RBAC):
+---------------------------
+```typescript
+// Middleware de autorização
+const requireAuth = (req, res, next) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({
+      message: "Authentication required"
+    });
+  }
+  next();
+};
+
+const requireAdmin = (req, res, next) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({
+      message: "Authentication required"
+    });
+  }
+
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({
+      message: "Admin access required"
+    });
+  }
+
+  next();
+};
+```
+
+SEGURANÇA DE SENHAS:
+--------------------
+• Bcrypt com 12 rounds de hashing
+• Nunca armazena senhas em texto plano
+• Validação de força de senha no frontend
+• Sessão expira em 24 horas
+
+AUDITORIA E LOGS:
+-----------------
+• Todas ações administrativas são registradas
+• IP de origem capturado em cada ação
+• Timeline completa de eventos
+• Logs de erro detalhados
+
+VALIDAÇÃO DE DADOS:
+--------------------
+• Schemas Zod para toda entrada de dados
+• Sanitização de inputs
+• Proteção contra SQL injection (prepared statements)
+• Validação de tipos TypeScript
+
+ESTRUTURA DA TABELA DE AUDITORIA:
+---------------------------------
+```sql
+CREATE TABLE timeline (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  userId INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  description TEXT,
+  shiftId INTEGER,
+  metadata TEXT, -- JSON
+  ipAddress TEXT,
+  userAgent TEXT,
+  createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+================================================================================
+                              FIM DA DOCUMENTAÇÃO
+================================================================================
+
+OBSERVAÇÕES IMPORTANTES:
+------------------------
+1. Sistema NÃO é serverless - requer servidor persistente
+2. WebSocket necessário para funcionalidade em tempo real
+3. SQLite local - não adequado para múltiplos servidores
+4. Deploy via Docker em servidor local
+5. Backup regular do arquivo local.db recomendado
+6. Sessões em memória - perdidas ao reiniciar servidor
+
+COMANDOS ÚTEIS:
+---------------
+• npm run dev          - Desenvolvimento com hot-reload
+• npm run build        - Build para produção
+• npm run check        - Verificar tipos TypeScript
+• npm run db:studio    - Interface visual do banco
+• npm run db:migrate   - Executar migrações
+• docker-compose up    - Subir em produção
+
+CONTATO E SUPORTE:
+------------------
+• Documentação técnica: /CLAUDE.md
+• Logs do sistema: stdout do container Docker
+• Debug: NODE_ENV=development para logs detalhados
+• Migrações: npm run db:migrate após mudanças no schema
+
+================================================================================

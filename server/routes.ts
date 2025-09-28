@@ -559,14 +559,43 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Nova rota para calcular preview de pagamentos de cartão
+  app.post("/api/shifts/:shiftId/calculate-card-payments", requireAuth, async (req, res) => {
+    try {
+      const { shiftId } = req.params;
+      const cumulativeValues = req.body;
+
+      const CardPaymentCalculator = await import('./lib/card-payment-calculator').then(m => m.CardPaymentCalculator);
+      const cardCalculator = new CardPaymentCalculator(db);
+      const calculated = await cardCalculator.calculateRealCardPayments(
+        parseInt(shiftId),
+        cumulativeValues
+      );
+
+      res.json({
+        realValues: {
+          stoneCard: calculated.realValues.stoneCard,
+          stoneVoucher: calculated.realValues.stoneVoucher,
+          pagBankCard: calculated.realValues.pagBankCard
+        },
+        isFirstShiftOfDay: calculated.isFirstShiftOfDay,
+        previousAccumulated: calculated.previousAccumulated
+      });
+    } catch (error) {
+      console.error("Erro ao calcular pagamentos de cartão:", error);
+      res.status(500).json({ message: "Erro ao calcular pagamentos" });
+    }
+  });
+
   app.post("/api/shifts/close", requireAuth, async (req, res) => {
     try {
-      const { 
-        shiftId, 
-        records, 
-        payments, 
-        notes, 
-        gasExchange, 
+      const {
+        shiftId,
+        records,
+        payments,
+        cumulativeCardValues, // Novos valores cumulativos das maquininhas
+        notes,
+        gasExchange,
         countedFinalCash,
         countedFinalCoins,
         envelopeCash,
@@ -582,11 +611,47 @@ export function registerRoutes(app: Express): Server {
         return res.status(403).json({ message: "Apenas o usuário que abriu o turno pode fechá-lo" });
       }
 
-      const totalSales = (parseFloat(payments.cash) || 0) + 
-                        (parseFloat(payments.pix) || 0) + 
-                        (parseFloat(payments.stoneCard) || 0) + 
-                        (parseFloat(payments.stoneVoucher) || 0) + 
-                        (parseFloat(payments.pagBankCard) || 0);
+      // Calcular valores reais apenas para maquininhas de cartão
+      let finalPayments = { ...payments };
+
+      if (cumulativeCardValues) {
+        const CardPaymentCalculator = await import('./lib/card-payment-calculator').then(m => m.CardPaymentCalculator);
+        const cardCalculator = new CardPaymentCalculator(db);
+        const calculatedCards = await cardCalculator.calculateRealCardPayments(
+          shiftId,
+          { ...payments, ...cumulativeCardValues }
+        );
+
+        // Combinar valores: PIX/Cash originais + Cartões calculados
+        finalPayments = {
+          cash: payments.cash,  // Mantém original
+          pix: payments.pix,    // Mantém original
+          stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+          stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+          pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+        };
+
+        // Log na timeline sobre o cálculo automático
+        if (!calculatedCards.isFirstShiftOfDay) {
+          await storage.addTimelineEntry({
+            userId: req.user!.id,
+            action: "card_payments_calculated",
+            description: `Valores de cartão calculados automaticamente - Stone Card: R$ ${finalPayments.stoneCard}, Stone Voucher: R$ ${finalPayments.stoneVoucher}, PagBank: R$ ${finalPayments.pagBankCard}`,
+            metadata: {
+              shiftId,
+              cumulativeValues: calculatedCards.cumulativeValues,
+              previousAccumulated: calculatedCards.previousAccumulated,
+              realValues: finalPayments
+            },
+          });
+        }
+      }
+
+      const totalSales = (parseFloat(finalPayments.cash) || 0) +
+                        (parseFloat(finalPayments.pix) || 0) +
+                        (parseFloat(finalPayments.stoneCard) || 0) +
+                        (parseFloat(finalPayments.stoneVoucher) || 0) +
+                        (parseFloat(finalPayments.pagBankCard) || 0);
 
       const totalRecordsValue = records.reduce((sum: number, record: any) => {
         return sum + parseFloat(record.itemTotal || "0");
@@ -602,7 +667,7 @@ export function registerRoutes(app: Express): Server {
         console.log(`Inconsistência de vendas detectada: R$ ${salesDifference.toFixed(2)}`);
       }
 
-      const totalCashSales = parseFloat(payments.cash) || 0;
+      const totalCashSales = parseFloat(finalPayments.cash) || 0;
       
       // Get cash adjustments (withdrawals) for this shift
       const cashAdjustments = await storage.getCashAdjustments(shiftId);
@@ -692,8 +757,18 @@ export function registerRoutes(app: Express): Server {
         }
       }
 
-      if (payments) {
-        await storage.upsertShiftPayment({ ...payments, shiftId });
+      if (finalPayments) {
+        // Salvar pagamentos com valores cumulativos para referência
+        const paymentData: any = { ...finalPayments, shiftId };
+
+        if (cumulativeCardValues) {
+          paymentData.stoneCardCumulative = cumulativeCardValues.stoneCardCumulative || '0';
+          paymentData.stoneVoucherCumulative = cumulativeCardValues.stoneVoucherCumulative || '0';
+          paymentData.pagBankCardCumulative = cumulativeCardValues.pagBankCardCumulative || '0';
+          paymentData.calculatedFromCumulative = true;
+        }
+
+        await storage.upsertShiftPayment(paymentData);
       }
 
       await storage.addTimelineEntry({

@@ -1,0 +1,1176 @@
+DOCUMENTAÇÃO TÉCNICA COMPLETA - SISTEMA PASTEL24H
+========================================================
+
+Este documento apresenta uma análise minuciosa da arquitetura, estrutura de arquivos, fluxos de negócio e lógica de fechamento de caixa do sistema Pastel24H.
+
+## ÍNDICE
+=========
+1. VISÃO GERAL DA ARQUITETURA
+2. ESTRUTURA DE DIRETÓRIOS E ARQUIVOS
+3. BANCO DE DADOS E SCHEMA
+4. LÓGICA DE FECHAMENTO DE CAIXA
+5. PROCESSAMENTO DE TURNOS
+6. FLUXOS DE NEGÓCIO
+7. COMPONENTES PRINCIPAIS
+8. API ENDPOINTS
+9. AUTENTICAÇÃO E AUTORIZAÇÃO
+10. CONFIGURAÇÕES E DEPLOYMENT
+
+## 1. VISÃO GERAL DA ARQUITETURA
+================================
+
+### Tipo de Aplicação
+- **Stack**: Full-stack web application (NÃO serverless)
+- **Backend**: Express.js + SQLite + Drizzle ORM
+- **Frontend**: React 18 + TypeScript + Vite
+- **Deployment**: Docker container em servidor local
+- **Banco de Dados**: SQLite com persistência em volume Docker
+- **Autenticação**: Passport.js com estratégia local e sessões
+- **Real-time**: WebSocket para atualizações em tempo real
+
+### Características Principais
+- Sistema de gestão de turnos para restaurante
+- Controle de caixa com múltiplas formas de pagamento
+- Gestão de estoque e produtos
+- Sistema de folha de pagamento
+- Relatórios semanais automatizados
+- Controle de colaboradores e consumo interno
+- Sistema de correções administrativas
+- Geração de relatórios em PDF e Excel
+
+## 2. ESTRUTURA DE DIRETÓRIOS E ARQUIVOS
+========================================
+
+### Estrutura Raiz
+```
+/root/projetos/pastel24h/
+├── server/                     # Backend Express.js
+├── client/                     # Frontend React
+├── shared/                     # Schemas e tipos compartilhados
+├── data/                       # Banco de dados SQLite
+├── migrations/                 # Migrações do banco
+├── node_modules/               # Dependências npm
+├── api/                        # Configuração serverless (não usado)
+├── scripts/                    # Scripts auxiliares
+├── dist/                       # Build de produção
+├── .git/                       # Repositório Git
+├── CLAUDE.md                   # Instruções para Claude Code
+├── package.json                # Configuração do projeto
+├── docker-compose.yml          # Orquestração de containers
+├── Dockerfile                  # Imagem Docker
+├── vite.config.ts              # Configuração do Vite
+├── drizzle.config.ts           # Configuração do Drizzle ORM
+├── tailwind.config.ts          # Configuração do Tailwind CSS
+└── tsconfig.json               # Configuração do TypeScript
+```
+
+### 2.1 Diretório SERVER (Backend)
+```
+server/
+├── index.ts                    # Ponto de entrada do servidor
+├── vite.ts                     # Servidor de desenvolvimento
+├── prod.ts                     # Servidor de produção
+├── auth.ts                     # Configuração Passport.js
+├── db.ts                       # Conexão com banco de dados
+├── routes.ts                   # Definição de todas as rotas API
+├── ws.ts                       # Servidor WebSocket
+├── migrate.ts                  # Sistema de migrações
+├── storage.ts                  # Gerenciamento de arquivos
+├── utils.ts                    # Utilitários gerais
+├── corrections-utils.ts        # Utilitários para correções
+├── collaborator-consumptions-service.ts  # Serviço de consumo
+├── collaborator-consumption-service.ts   # Serviço alternativo
+└── lib/
+    ├── shift-processor.ts      # Processador principal de turnos
+    ├── shift-processor-sql.ts  # Processador otimizado SQL
+    └── card-payment-calculator.ts  # Calculadora de pagamentos
+```
+
+### 2.2 Diretório CLIENT (Frontend)
+```
+client/
+├── src/
+│   ├── main.tsx               # Ponto de entrada React
+│   ├── App.tsx                # Componente raiz
+│   ├── lib/                   # Bibliotecas e utilitários
+│   │   ├── apiClient.ts       # Cliente HTTP centralizado
+│   │   ├── queryClient.ts     # Configuração TanStack Query
+│   │   ├── calculations.ts    # Fórmulas de negócio
+│   │   ├── constants.ts       # Constantes do sistema
+│   │   ├── utils.ts           # Utilitários gerais
+│   │   └── protected-route.tsx # Proteção de rotas
+│   ├── hooks/                 # React Hooks customizados
+│   │   ├── use-auth.tsx       # Hook de autenticação
+│   │   ├── use-mobile.tsx     # Hook para responsividade
+│   │   └── use-toast.ts       # Hook para notificações
+│   ├── pages/                 # Páginas da aplicação
+│   │   ├── auth-page.tsx      # Página de login
+│   │   ├── admin-dashboard.tsx # Dashboard administrativo
+│   │   ├── employee-dashboard.tsx # Dashboard do funcionário
+│   │   ├── product-management.tsx # Gestão de produtos
+│   │   ├── user-management.tsx    # Gestão de usuários
+│   │   ├── financial-control.tsx  # Controle financeiro
+│   │   ├── weekly-report.tsx      # Relatórios semanais
+│   │   ├── shift-corrections.tsx  # Correções de turno
+│   │   ├── transport.tsx          # Gestão de transporte
+│   │   └── not-found.tsx          # Página 404
+│   └── components/            # Componentes React
+│       ├── ui/                # Componentes base (Shadcn/ui)
+│       ├── admin/             # Componentes administrativos
+│       │   ├── shift-details-modal.tsx
+│       │   ├── cash-adjustment-dialog.tsx
+│       │   └── register-expense-modal.tsx
+│       └── employee/          # Componentes do funcionário
+│           ├── cash-register.tsx      # Registro de caixa
+│           ├── close-shift-modal.tsx  # Modal de fechamento
+│           ├── shift-status-card.tsx  # Status do turno
+│           ├── product-form.tsx       # Formulário de produtos
+│           ├── collaborators.tsx      # Gestão de colaboradores
+│           └── collaborators-enhanced.tsx
+├── index.html                 # Template HTML
+└── public/                    # Recursos estáticos
+```
+
+### 2.3 Diretório SHARED
+```
+shared/
+└── schema.ts                  # Schema do banco e tipos TypeScript
+```
+
+### 2.4 Diretório MIGRATIONS
+```
+migrations/
+├── 0001_initial.sql
+├── 0002_add_corrections.sql
+├── 0003_add_collaborator_consumption.sql
+└── 0004_add_cumulative_card_fields.sql
+```
+
+## 3. BANCO DE DADOS E SCHEMA
+=============================
+
+### 3.1 Estrutura do Banco (SQLite)
+O sistema utiliza SQLite como banco de dados com as seguintes tabelas principais:
+
+#### Tabela `users`
+```sql
+- id: INTEGER PRIMARY KEY
+- email: TEXT UNIQUE NOT NULL
+- password: TEXT NOT NULL (bcrypt hash)
+- name: TEXT NOT NULL
+- role: TEXT DEFAULT 'employee' ('admin' | 'employee')
+- transportType: TEXT
+- transportModeId: INTEGER (FK)
+- createdAt: TIMESTAMP
+```
+
+#### Tabela `shifts` (Turnos)
+```sql
+- id: INTEGER PRIMARY KEY
+- userId: INTEGER (FK) NOT NULL
+- startTime: TIMESTAMP NOT NULL
+- endTime: TIMESTAMP
+- initialCash: TEXT NOT NULL
+- initialCoins: TEXT DEFAULT '0'
+- finalCash: TEXT
+- finalCoins: TEXT
+- gasExchange: BOOLEAN DEFAULT FALSE
+- notes: TEXT
+- cashDivergence: TEXT
+- closedBy: INTEGER (FK)
+- totalSales: TEXT
+- status: TEXT DEFAULT 'open'
+- expectedCash: TEXT
+- countedCash: TEXT
+- countedCoins: TEXT
+- inheritedFromShiftId: INTEGER
+- tempFinalCash: TEXT          # Valores temporários do caixa
+- tempFinalCoins: TEXT
+- tempGasExchange: BOOLEAN
+- countedFinalCash: TEXT       # Valor contado no fechamento
+- countedFinalCoins: TEXT
+- envelopeCash: TEXT           # Valor retirado para envelope
+- envelopeCoins: TEXT
+- cashForNextShift: TEXT       # Valor para próximo turno
+- coinsForNextShift: TEXT
+- openingDiscrepancy: TEXT     # Divergência na abertura
+- createdAt: TIMESTAMP
+```
+
+#### Tabela `products`
+```sql
+- id: INTEGER PRIMARY KEY
+- name: TEXT NOT NULL
+- category: TEXT NOT NULL
+- price: TEXT NOT NULL
+- minStock: INTEGER DEFAULT 0
+- stock: INTEGER DEFAULT 0
+- sortOrder: INTEGER DEFAULT 0
+- createdAt: TIMESTAMP
+```
+
+#### Tabela `shift_records`
+```sql
+- id: INTEGER PRIMARY KEY
+- shiftId: INTEGER (FK) NOT NULL
+- productId: INTEGER (FK) NOT NULL
+- entryQty: INTEGER DEFAULT 0     # Quantidade inicial
+- arrivalQty: INTEGER DEFAULT 0   # Chegadas durante turno
+- leftoverQty: INTEGER DEFAULT 0  # Sobras
+- discardQty: INTEGER DEFAULT 0   # Descartes
+- consumedQty: INTEGER DEFAULT 0  # Consumo interno
+- soldQty: INTEGER DEFAULT 0      # Vendidos (calculado)
+- priceSnapshot: TEXT NOT NULL    # Preço no momento
+- itemTotal: TEXT NOT NULL        # Total do item
+```
+
+#### Tabela `shift_payments`
+```sql
+- id: INTEGER PRIMARY KEY
+- shiftId: INTEGER (FK) NOT NULL
+- cash: TEXT DEFAULT '0'                    # Vendas em dinheiro
+- pix: TEXT DEFAULT '0'                     # Vendas PIX
+- stoneCard: TEXT DEFAULT '0'               # Stone cartão
+- stoneVoucher: TEXT DEFAULT '0'            # Stone voucher
+- pagBankCard: TEXT DEFAULT '0'             # PagBank cartão
+- stoneCardCumulative: TEXT DEFAULT '0'     # Total acumulado Stone
+- stoneVoucherCumulative: TEXT DEFAULT '0'  # Total acumulado voucher
+- pagBankCardCumulative: TEXT DEFAULT '0'   # Total acumulado PagBank
+- calculatedFromCumulative: BOOLEAN DEFAULT FALSE
+```
+
+#### Tabela `corrections` (Correções Administrativas)
+```sql
+- id: INTEGER PRIMARY KEY
+- shiftId: INTEGER (FK) NOT NULL
+- createdByUserId: INTEGER (FK) NOT NULL
+- correctionType: TEXT NOT NULL ('product_qty' | 'product_price' | 'payment' | 'cash_count')
+- shiftRecordId: INTEGER (FK)      # Para correções de produtos
+- productId: INTEGER (FK)
+- fieldName: TEXT                  # Campo corrigido
+- paymentMethod: TEXT              # Método de pagamento
+- cashType: TEXT                   # Tipo de caixa
+- originalValue: TEXT NOT NULL     # Valor original
+- correctedValue: TEXT NOT NULL    # Valor corrigido
+- reason: TEXT NOT NULL            # Motivo da correção
+- evidenceUrl: TEXT                # URL da evidência
+- appliedAt: TIMESTAMP
+- revokedAt: TIMESTAMP             # Soft delete
+- revokedByUserId: INTEGER (FK)
+- revokeReason: TEXT
+```
+
+#### Outras Tabelas Importantes
+- `shift_collaborators`: Colaboradores por turno
+- `cash_adjustments`: Ajustes de caixa (sangrias)
+- `collaborator_consumptions`: Consumo interno
+- `weekly_reports`: Relatórios semanais
+- `transport_modes`: Modos de transporte
+- `timeline`: Log de atividades
+- `payment_config`: Configuração de taxas
+- `payroll_config`: Configuração de folha
+
+## 4. LÓGICA DE FECHAMENTO DE CAIXA
+===================================
+
+### 4.1 Fluxo Geral do Fechamento
+O fechamento de caixa é o processo mais crítico do sistema, envolvendo:
+
+1. **Contagem Física do Caixa**
+2. **Cálculo de Divergências**
+3. **Validação de Vendas**
+4. **Geração de Relatório PDF**
+5. **Persistência dos Dados**
+6. **Herança para Próximo Turno**
+
+### 4.2 Componentes Envolvidos
+
+#### Frontend - `cash-register.tsx`
+**Localização**: `/client/src/components/employee/cash-register.tsx`
+
+**Responsabilidades**:
+- Interface para registro de valores de caixa
+- Contagem de dinheiro físico (notas e moedas)
+- Registro de métodos de pagamento
+- Cálculo de valores das maquininhas de cartão
+- Validação de divergências em tempo real
+- Salvamento de valores temporários
+
+**Funções Principais**:
+```typescript
+// Salva valores temporários para o fechamento
+const saveValuesMutation = useMutation({
+  mutationFn: async () => {
+    // Salvar pagamentos com valores cumulativos
+    const paymentsFormatted = {
+      cash: payments.cash.toString(),
+      pix: payments.pix.toString(),
+      stoneCard: payments.stoneCard.toString(),
+      stoneVoucher: payments.stoneVoucher.toString(),
+      pagBankCard: payments.pagBankCard.toString(),
+      stoneCardCumulative: cumulativeCardValues.stoneCardCumulative,
+      stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative,
+      pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative,
+    };
+
+    // Salvar valores temporários de caixa
+    await apiRequest("POST", "/api/shifts/temp-cash", {
+      shiftId: currentShift?.id,
+      tempFinalCash: finalCash.toString(),
+      tempFinalCoins: finalCoins.toString(),
+      gasExchange,
+    });
+  }
+});
+
+// Calcula divergência de caixa
+const calculateDivergence = () => {
+  const initialCash = parseFloat(shift.initialCash || '0');
+  const initialCoins = parseFloat(shift.initialCoins || '0');
+  const cashSales = payments.cash || 0;
+
+  // Valores esperados
+  const expectedCash = initialCash + cashSales;
+  const expectedCoins = initialCoins;
+
+  // Calcular ajustes administrativos
+  let totalAdjustments = 0;
+  if (cashAdjustments && Array.isArray(cashAdjustments)) {
+    totalAdjustments = cashAdjustments.reduce((total, adjustment) => {
+      if (adjustment.type === 'withdraw' || adjustment.type === 'adjustment') {
+        return total + parseFloat(adjustment.amount || '0');
+      }
+      return total;
+    }, 0);
+  }
+
+  // Divergência final
+  const totalExpected = expectedCash + expectedCoins;
+  const totalCounted = finalCash + finalCoins;
+  const baseDivergence = totalCounted - totalExpected;
+
+  return baseDivergence + totalAdjustments;
+};
+
+// Calcula valores das maquininhas
+const calculateCardPayments = async () => {
+  const response = await api.post(`/api/shifts/${currentShift.id}/calculate-card-payments`, {
+    stoneCardCumulative: cumulativeCardValues.stoneCardCumulative || '0',
+    stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative || '0',
+    pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative || '0'
+  });
+
+  if (response.realValues) {
+    setCalculatedCardValues(response.realValues);
+    onPaymentsChange({
+      ...payments,
+      stoneCard: response.realValues.stoneCard,
+      stoneVoucher: response.realValues.stoneVoucher,
+      pagBankCard: response.realValues.pagBankCard
+    });
+  }
+};
+```
+
+#### Frontend - `close-shift-modal.tsx`
+**Localização**: `/client/src/components/employee/close-shift-modal.tsx`
+
+**Responsabilidades**:
+- Modal final de fechamento de turno
+- Validação de divergências críticas
+- Coleta de observações obrigatórias
+- Geração e download de PDF
+- Confirmação final do fechamento
+
+**Funções Principais**:
+```typescript
+// Validação de formulário com divergências
+const handleSubmit = async (data: CloseShiftForm) => {
+  const requiresNotes = Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE || salesInconsistency;
+
+  if (requiresNotes && !data.notes) {
+    let message = "Observação obrigatória devido a: ";
+    const reasons = [];
+
+    if (Math.abs(cashDivergence) > MAX_CASH_DIVERGENCE) {
+      reasons.push(`divergência de caixa de ${formatCurrency(cashDivergence)}`);
+    }
+
+    if (salesInconsistency) {
+      reasons.push(`inconsistência de vendas de ${formatCurrency(salesDifference)}`);
+    }
+
+    message += reasons.join(" e ");
+    form.setError("notes", { message });
+    return;
+  }
+
+  // Gerar PDF e confirmar fechamento
+  const pdfData = {
+    shift, formData: data, paymentData, shiftRecords,
+    collaborators, collaboratorConsumptions,
+  };
+
+  const dataUri = await generateShiftClosurePDF(pdfData);
+
+  // Force download
+  const link = document.createElement('a');
+  link.href = dataUri;
+  const fileName = `fechamento_turno_${shift.id}_${user?.name}_${format(now, 'ddMMyyyy_HHmmss')}.pdf`;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  // Confirmar fechamento
+  onConfirm(data);
+};
+
+// Geração de PDF completo
+const generateShiftClosurePDF = async (pdfData: any): Promise<string> => {
+  const doc = new jsPDF();
+
+  // Informações do turno
+  autoTable(doc, {
+    startY: 35,
+    body: [
+      ["Turno ID:", `#${shift.id}`, "Funcionário:", user?.name || "N/A"],
+      ["Início:", format(new Date(shift.startTime), "dd/MM/yyyy HH:mm"),
+       "Fim:", format(now, "dd/MM/yyyy HH:mm")],
+    ],
+    theme: 'plain',
+  });
+
+  // Resumo do caixa
+  autoTable(doc, {
+    head: [['Descrição', 'Valor (R$)']],
+    body: [
+      ['Caixa Inicial', formatCurrencyPDF(parseFloat(shift.initialCash) + parseFloat(shift.initialCoins))],
+      ['Vendas em Dinheiro', formatCurrencyPDF(cashSales)],
+      ['Retiradas Administrativas', formatCurrencyPDF(totalWithdrawals)],
+      ['Caixa Esperado', formatCurrencyPDF(totalExpectedFinal)],
+      ['Caixa Final Contado', formatCurrencyPDF(parseFloat(formData.countedFinalCash) + parseFloat(formData.countedFinalCoins))],
+    ],
+    foot: [['DIVERGÊNCIA', formatCurrencyPDF(cashDivergence)]],
+  });
+
+  // Vendas por forma de pagamento
+  // Movimentação de produtos
+  // Consumo de colaboradores
+  // Informações operacionais
+
+  return doc.output('datauristring');
+};
+```
+
+### 4.3 Backend - Processador de Turnos
+
+#### `shift-processor.ts`
+**Localização**: `/server/lib/shift-processor.ts`
+
+**Função Principal**: `getProcessedShiftById(shiftId: number)`
+
+**Responsabilidades**:
+- Buscar turno com todas as relações
+- Aplicar correções administrativas
+- Calcular valores derivados
+- Garantir integridade dos dados
+
+```typescript
+export async function getProcessedShiftById(shiftId: number) {
+  try {
+    // 1. Buscar turno básico
+    const shiftResults = await db
+      .select()
+      .from(shifts)
+      .where(eq(shifts.id, shiftId))
+      .limit(1);
+
+    if (shiftResults.length === 0) return null;
+    const shift = shiftResults[0];
+
+    // 2. Buscar relações manualmente (evita problemas do Drizzle)
+    const [user, records, payments, collaborators] = await Promise.all([
+      db.select().from(users).where(eq(users.id, shift.userId)).limit(1),
+      db.select({
+        id: shiftRecords.id,
+        shiftId: shiftRecords.shiftId,
+        productId: shiftRecords.productId,
+        entryQty: shiftRecords.entryQty,
+        arrivalQty: shiftRecords.arrivalQty,
+        leftoverQty: shiftRecords.leftoverQty,
+        discardQty: shiftRecords.discardQty,
+        consumedQty: shiftRecords.consumedQty,
+        soldQty: shiftRecords.soldQty,
+        productName: products.name,
+        productPrice: products.price,
+        productCategory: products.category
+      })
+      .from(shiftRecords)
+      .leftJoin(products, eq(shiftRecords.productId, products.id))
+      .where(eq(shiftRecords.shiftId, shiftId)),
+      db.select().from(shiftPayments).where(eq(shiftPayments.shiftId, shiftId)).limit(1),
+      db.select()
+        .from(shiftCollaborators)
+        .leftJoin(users, eq(shiftCollaborators.userId, users.id))
+        .where(eq(shiftCollaborators.shiftId, shiftId))
+    ]);
+
+    // 3. Reconstruir objeto com relações
+    const shiftWithRelations = {
+      ...shift,
+      user: user[0] || null,
+      records: records.map(r => ({
+        id: r.id,
+        shiftId: r.shiftId,
+        productId: r.productId,
+        entryQty: r.entryQty,
+        arrivalQty: r.arrivalQty,
+        leftoverQty: r.leftoverQty,
+        discardQty: r.discardQty,
+        consumedQty: r.consumedQty,
+        soldQty: r.soldQty,
+        product: {
+          name: r.productName,
+          price: r.productPrice,
+          category: r.productCategory
+        }
+      })),
+      payments: payments[0] || null,
+      collaborators: collaborators.map(c => ({
+        id: c.shift_collaborators.id,
+        user: c.users
+      }))
+    };
+
+    // 4. Criar cópia profunda para evitar mutações
+    const processedShift = JSON.parse(JSON.stringify(shiftWithRelations));
+
+    // 5. Garantir estruturas padrão
+    if (!processedShift.records) processedShift.records = [];
+    if (!processedShift.payments) {
+      processedShift.payments = {
+        cash: "0.00", pix: "0.00", stoneCard: "0.00",
+        stoneVoucher: "0.00", pagBankCard: "0.00"
+      };
+    }
+    if (!processedShift.collaborators) processedShift.collaborators = [];
+
+    // 6. Buscar e aplicar correções ativas
+    const activeCorrections = await db
+      .select()
+      .from(corrections)
+      .where(and(
+        eq(corrections.shiftId, shiftId),
+        isNull(corrections.revokedAt)
+      ));
+
+    // 7. Aplicar cada correção de forma defensiva
+    for (const correction of activeCorrections) {
+      try {
+        switch (correction.correctionType) {
+          case 'product_qty':
+            if (correction.shiftRecordId && processedShift.records && correction.fieldName) {
+              const recordIndex = processedShift.records.findIndex(
+                r => r.id === correction.shiftRecordId
+              );
+              if (recordIndex !== -1) {
+                const record = processedShift.records[recordIndex];
+                record[correction.fieldName] = parseInt(correction.correctedValue) || 0;
+              }
+            }
+            break;
+
+          case 'product_price':
+            if (correction.productId && processedShift.records) {
+              for (const record of processedShift.records) {
+                if (record.productId === correction.productId && record.product) {
+                  record.product.price = correction.correctedValue || record.product.price;
+                }
+              }
+            }
+            break;
+
+          case 'payment':
+            if (correction.paymentMethod && processedShift.payments) {
+              processedShift.payments[correction.paymentMethod] = correction.correctedValue || "0.00";
+            }
+            break;
+
+          case 'cash_count':
+            if (correction.cashType === 'countedFinalCash') {
+              processedShift.countedFinalCash = correction.correctedValue;
+              processedShift.finalCash = correction.correctedValue;
+            } else if (correction.cashType === 'countedFinalCoins') {
+              processedShift.countedFinalCoins = correction.correctedValue;
+              processedShift.finalCoins = correction.correctedValue;
+            }
+            break;
+        }
+      } catch (correctionError) {
+        console.error(`Erro ao aplicar correção ${correction.id}:`, correctionError);
+      }
+    }
+
+    // 8. Buscar ajustes de caixa (sangrias)
+    const shiftAdjustments = await db
+      .select()
+      .from(cashAdjustments)
+      .where(eq(cashAdjustments.shiftId, shiftId));
+
+    processedShift.cashAdjustments = shiftAdjustments || [];
+
+    // 9. Recalcular valores derivados
+    processedShift.totalCorrections = activeCorrections.length;
+
+    // Calcular divergência de caixa
+    let cashSales = 0;
+    if (processedShift.payments && processedShift.payments.cash) {
+      cashSales = parseFloat(processedShift.payments.cash) || 0;
+    }
+
+    const initialCash = parseFloat(processedShift.initialCash) || 0;
+    const finalCash = parseFloat(processedShift.finalCash) || 0;
+    processedShift.cashDivergence = (finalCash - (initialCash + cashSales)).toFixed(2);
+
+    // Calcular total de sangrias
+    let totalWithdrawals = 0;
+    if (shiftAdjustments && Array.isArray(shiftAdjustments)) {
+      totalWithdrawals = shiftAdjustments
+        .filter(adj => adj.type === 'withdraw' || adj.type === 'sangria')
+        .reduce((sum, adj) => sum + (parseFloat(adj.amount) || 0), 0);
+    }
+    processedShift.totalWithdrawals = totalWithdrawals.toFixed(2);
+
+    // Calcular valores para próximo turno
+    if (processedShift.cashForNextShift) {
+      processedShift.cashForNextShift = processedShift.cashForNextShift;
+    } else {
+      const cashForNext = finalCash - totalWithdrawals;
+      processedShift.cashForNextShift = cashForNext.toFixed(2);
+    }
+
+    if (processedShift.coinsForNextShift) {
+      processedShift.coinsForNextShift = processedShift.coinsForNextShift;
+    } else {
+      processedShift.coinsForNextShift = processedShift.finalCoins || "0.00";
+    }
+
+    // Calcular total de vendas
+    let totalSales = 0;
+    if (processedShift.payments) {
+      totalSales = Object.values(processedShift.payments).reduce((sum, value) => {
+        return sum + (parseFloat(value) || 0);
+      }, 0);
+    }
+    processedShift.totalSales = totalSales.toFixed(2);
+
+    return processedShift;
+
+  } catch (error) {
+    console.error('Erro ao processar turno:', error);
+    return null;
+  }
+}
+```
+
+#### `card-payment-calculator.ts`
+**Localização**: `/server/lib/card-payment-calculator.ts`
+
+**Responsabilidade**: Calcular valores reais das maquininhas baseado nos acumulados
+
+```typescript
+export function calculateCardPaymentValues(
+  currentCumulative: number,
+  lastShiftCumulative: number,
+  paymentType: 'stone_card' | 'stone_voucher' | 'pagbank_card'
+): number {
+  // Valor real = diferença entre acumulados
+  const realValue = currentCumulative - lastShiftCumulative;
+
+  // Aplicar validações específicas por tipo
+  if (paymentType === 'stone_voucher') {
+    // Vouchers têm comportamento especial
+    return Math.max(0, realValue);
+  }
+
+  return Math.max(0, realValue);
+}
+```
+
+### 4.4 Fórmulas de Negócio Principais
+
+#### Fórmula Central de Estoque
+**Localização**: `/client/src/lib/calculations.ts`
+
+```
+Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno
+```
+
+#### Divergência de Caixa
+```
+Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
+```
+
+#### Caixa para Próximo Turno
+```
+Caixa Próximo Turno = Caixa Final - Envelope Administrativo - Sangrias
+```
+
+#### Inconsistência de Vendas
+```
+Inconsistência = |Total Pagamentos - Total Vendas por Produtos|
+```
+
+### 4.5 Validações e Regras de Negócio
+
+#### Divergência Máxima Permitida
+**Constante**: `MAX_CASH_DIVERGENCE = 5.00` (R$ 5,00)
+
+#### Valores Mínimos Recomendados
+- **Dinheiro mínimo**: R$ 200,00
+- **Moedas mínimas**: R$ 50,00
+
+#### Observações Obrigatórias
+- Divergência de caixa > R$ 5,00
+- Inconsistência de vendas > R$ 0,01
+- Qualquer correção administrativa aplicada
+
+## 5. PROCESSAMENTO DE TURNOS
+=============================
+
+### 5.1 Estados de Turno
+- **open**: Turno ativo, sendo trabalhado
+- **closed**: Turno finalizado, não pode ser reaberto
+
+### 5.2 Fluxo de Abertura de Turno
+1. **Validação de turno anterior fechado**
+2. **Herança de valores do turno anterior**
+3. **Definição de caixa inicial**
+4. **Criação do registro de turno**
+5. **Configuração de colaboradores**
+
+### 5.3 Fluxo de Fechamento de Turno
+1. **Contagem física do caixa**
+2. **Validação de divergências**
+3. **Aplicação de correções necessárias**
+4. **Geração de relatório PDF**
+5. **Persistência dos dados finais**
+6. **Cálculo de herança para próximo turno**
+7. **Atualização de status para 'closed'**
+
+### 5.4 Sistema de Correções
+O sistema permite correções administrativas em turnos fechados:
+
+#### Tipos de Correção
+- **product_qty**: Quantidade de produtos
+- **product_price**: Preços de produtos
+- **payment**: Valores de pagamento
+- **cash_count**: Contagem de caixa
+
+#### Aplicação de Correções
+- Correções são aplicadas em tempo real
+- Mantêm histórico completo
+- Podem ser revogadas
+- Exigem justificativa obrigatória
+
+## 6. FLUXOS DE NEGÓCIO
+======================
+
+### 6.1 Fluxo de Autenticação
+```
+1. Login → auth-page.tsx
+2. Validação → server/auth.ts (Passport.js)
+3. Sessão → Express session + cookie
+4. Autorização → requireAuth/requireAdmin middleware
+5. Contexto → use-auth.tsx hook
+```
+
+### 6.2 Fluxo de Registro de Produtos
+```
+1. Abertura turno → employee-dashboard.tsx
+2. Formulário → product-form.tsx
+3. Cálculos → calculations.ts (fórmula central)
+4. API → POST /api/shift-records
+5. Processamento → shift-processor.ts
+6. Persistência → shift_records table
+```
+
+### 6.3 Fluxo de Pagamentos
+```
+1. Registro caixa → cash-register.tsx
+2. Valores maquininhas → card-payment-calculator.ts
+3. Salvamento temporário → POST /api/shift-payments
+4. Validação divergências → calculateDivergence()
+5. Fechamento final → close-shift-modal.tsx
+```
+
+### 6.4 Fluxo de Relatórios
+```
+1. Seleção período → weekly-report.tsx
+2. Cálculos folha → payroll calculations
+3. Consumo interno → collaborator-consumptions
+4. Geração PDF/Excel → jsPDF/xlsx libraries
+5. Download → browser download
+```
+
+## 7. COMPONENTES PRINCIPAIS
+============================
+
+### 7.1 Autenticação e Autorização
+
+#### `use-auth.tsx`
+**Hook principal de autenticação**:
+```typescript
+export function useAuth() {
+  const { data: user, error, isLoading } = useQuery<User>({
+    queryKey: ["/api/user"],
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const login = async (email: string, password: string) => {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      return { success: true };
+    }
+    // Handle error
+  };
+
+  const logout = async () => {
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include"
+    });
+    queryClient.clear();
+  };
+
+  return { user, login, logout, isLoading };
+}
+```
+
+#### `protected-route.tsx`
+**Proteção de rotas por role**:
+```typescript
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  requireAdmin?: boolean;
+}
+
+export function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+  const { user, isLoading } = useAuth();
+
+  if (isLoading) return <div>Carregando...</div>;
+
+  if (!user) {
+    return <Redirect to="/auth" />;
+  }
+
+  if (requireAdmin && user.role !== "admin") {
+    return <div>Acesso negado. Apenas administradores.</div>;
+  }
+
+  return <>{children}</>;
+}
+```
+
+### 7.2 Gestão de Estado
+
+#### `queryClient.ts`
+**Configuração TanStack Query**:
+```typescript
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000, // 5 minutes
+    },
+  },
+});
+
+export async function apiRequest(
+  method: string,
+  url: string,
+  data?: any,
+): Promise<Response> {
+  const options: RequestInit = {
+    method,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include", // CRÍTICO para sessões
+  };
+
+  if (data) {
+    options.body = JSON.stringify(data);
+  }
+
+  const response = await fetch(url, options);
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response;
+}
+```
+
+### 7.3 Real-time com WebSocket
+
+#### `ws.ts` (Server)
+```typescript
+export function setupWebSocket(server: any) {
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws-api'
+  });
+
+  wss.on('connection', (ws, req) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const shiftId = url.searchParams.get('shiftId');
+
+    if (shiftId) {
+      ws.shiftId = shiftId;
+      console.log(`WebSocket conectado para turno ${shiftId}`);
+    }
+
+    ws.on('close', () => {
+      console.log(`WebSocket desconectado`);
+    });
+  });
+
+  return wss;
+}
+
+export function notifyShiftClients(wss: WebSocketServer, shiftId: string, data: any) {
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN && (client as any).shiftId === shiftId) {
+      client.send(JSON.stringify({
+        type: 'shift-updated',
+        data
+      }));
+    }
+  });
+}
+```
+
+## 8. API ENDPOINTS
+===================
+
+### 8.1 Autenticação
+```
+POST /api/register     - Criar usuário
+POST /api/login        - Fazer login
+POST /api/logout       - Fazer logout
+GET  /api/user         - Dados do usuário atual
+```
+
+### 8.2 Turnos
+```
+GET    /api/shifts                    - Listar turnos
+POST   /api/shifts                    - Criar turno
+GET    /api/shifts/current            - Turno atual
+PUT    /api/shifts/:id                - Atualizar turno
+POST   /api/shifts/:id/close          - Fechar turno
+POST   /api/shifts/temp-cash          - Salvar valores temporários
+POST   /api/shifts/:id/calculate-card-payments - Calcular maquininhas
+```
+
+### 8.3 Produtos e Registros
+```
+GET    /api/products                  - Listar produtos
+POST   /api/products                  - Criar produto
+PUT    /api/products/:id              - Atualizar produto
+DELETE /api/products/:id              - Deletar produto
+
+GET    /api/shift-records             - Registros do turno
+POST   /api/shift-records             - Criar registro
+PUT    /api/shift-records/:id         - Atualizar registro
+DELETE /api/shift-records/:id         - Deletar registro
+```
+
+### 8.4 Pagamentos
+```
+GET    /api/shift-payments            - Pagamentos do turno
+POST   /api/shift-payments            - Salvar pagamentos
+PUT    /api/shift-payments/:id        - Atualizar pagamentos
+```
+
+### 8.5 Administração
+```
+GET    /api/admin/shifts              - Turnos para admin
+GET    /api/admin/shift-details/:id   - Detalhes completos
+POST   /api/admin/shifts/:id/corrections - Criar correção
+PUT    /api/admin/corrections/:id/revoke - Revogar correção
+
+GET    /api/cash-adjustments/:shiftId - Ajustes de caixa
+POST   /api/cash-adjustments          - Criar ajuste
+```
+
+### 8.6 Relatórios
+```
+GET    /api/weekly-reports            - Relatórios semanais
+POST   /api/weekly-reports            - Gerar relatório
+POST   /api/weekly-reports/export     - Exportar Excel
+```
+
+### 8.7 Colaboradores
+```
+GET    /api/shift-collaborators       - Colaboradores do turno
+POST   /api/shift-collaborators       - Adicionar colaborador
+DELETE /api/shift-collaborators/:id   - Remover colaborador
+PUT    /api/shift-collaborators/:id   - Atualizar horas
+
+GET    /api/shifts/:id/collaborator-consumption - Consumo interno
+POST   /api/collaborator-consumptions - Registrar consumo
+```
+
+## 9. CONFIGURAÇÕES E DEPLOYMENT
+=================================
+
+### 9.1 Variáveis de Ambiente
+```bash
+# .env
+SESSION_SECRET=your_secret_key_here  # Obrigatório
+DATABASE_URL=./data/local.db         # Opcional
+PORT=5000                           # Opcional
+NODE_ENV=production                 # Para produção
+```
+
+### 9.2 Scripts NPM
+```json
+{
+  "scripts": {
+    "dev": "npm run db:migrate && tsx server/vite.ts",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build --outDir dist/public",
+    "build:server": "esbuild server/prod.ts --bundle --platform=node --outfile=dist/index.js",
+    "start": "node dist/index.js",
+    "preview": "vite preview",
+    "check": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx server/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio --port 4983"
+  }
+}
+```
+
+### 9.3 Docker Configuration
+
+#### `Dockerfile`
+```dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS production
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY --from=builder /app/dist ./dist
+COPY server ./server
+COPY shared ./shared
+COPY migrations ./migrations
+COPY drizzle.config.ts ./
+
+RUN chmod +x docker-entrypoint.sh
+COPY docker-entrypoint.sh .
+
+EXPOSE 5000
+
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["npm", "start"]
+```
+
+#### `docker-compose.yml`
+```yaml
+version: '3.8'
+
+services:
+  pastel24h:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+      - SESSION_SECRET=${SESSION_SECRET}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+```
+
+### 9.4 Estrutura de Build
+```
+dist/
+├── index.js           # Servidor Express buildado
+└── public/            # Frontend React buildado
+    ├── index.html
+    ├── assets/
+    │   ├── index-*.js
+    │   └── index-*.css
+    └── vite.svg
+```
+
+### 9.5 Processo de Deploy
+```bash
+# 1. Build da aplicação
+npm run build
+
+# 2. Build da imagem Docker
+docker build -t pastel24h .
+
+# 3. Subir containers
+docker-compose up -d
+
+# 4. Verificar logs
+docker-compose logs -f
+
+# 5. Backup do banco (recomendado)
+cp ./data/local.db ./backup/local-$(date +%Y%m%d-%H%M%S).db
+```
+
+## CONSIDERAÇÕES FINAIS
+=======================
+
+### Pontos Críticos de Atenção
+1. **Sessões**: Sempre usar `credentials: 'include'` nas requisições
+2. **Relações Drizzle**: Usar busca manual para evitar quebras
+3. **Correções**: Sistema complexo que afeta cálculos históricos
+4. **WebSocket**: Essencial para atualizações em tempo real
+5. **Backup**: SQLite precisa de backup regular dos dados
+
+### Melhorias Futuras Sugeridas
+1. **Cache Redis**: Para sessões em produção
+2. **PostgreSQL**: Migração para banco mais robusto
+3. **Testes**: Implementar testes unitários e E2E
+4. **Logs**: Sistema de logging estruturado
+5. **Monitoramento**: Métricas de performance e saúde
+
+### Manutenção
+- **Migrations**: Sempre gerar e testar migrações
+- **Backup**: Backup diário automático do banco
+- **Logs**: Monitorar logs de erro regularmente
+- **Updates**: Manter dependências atualizadas
+- **Security**: Revisar configurações de segurança
+
+Esta documentação serve como guia completo para desenvolvimento, manutenção e evolução do sistema Pastel24H.

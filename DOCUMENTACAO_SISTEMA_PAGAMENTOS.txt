@@ -1,0 +1,450 @@
+# DOCUMENTAÇÃO COMPLETA - SISTEMA DE PAGAMENTOS PASTEL24H
+
+## VISÃO GERAL DO SISTEMA DE PAGAMENTOS
+
+O sistema Pastel24h implementa um controle financeiro complexo que diferencia entre pagamentos em dinheiro, PIX e pagamentos através de maquininhas (Stone e PagBank). Cada tipo de pagamento tem características específicas que impactam diretamente no cálculo de caixa e nas taxas aplicadas.
+
+## ESTRUTURA DE ARQUIVOS E RESPONSABILIDADES
+
+### Backend (Express.js)
+```
+server/
+├── lib/
+│   ├── card-payment-calculator.ts    # Calculadora específica para maquininhas
+│   ├── shift-processor.ts           # Processador principal de turnos
+│   └── shift-processor-sql.ts       # Processador otimizado com SQL
+├── routes.ts                        # Rotas da API incluindo pagamentos
+└── auth.ts                         # Autenticação e middleware
+```
+
+### Frontend (React)
+```
+client/src/
+├── lib/
+│   ├── calculations.ts              # Fórmulas de negócio e cálculos
+│   ├── constants.ts                 # Constantes incluindo taxas de pagamento
+│   └── apiClient.ts                 # Cliente API centralizado
+├── components/
+│   └── employee/
+│       ├── cash-register.tsx        # Componente principal de caixa
+│       └── shift-status-card.tsx    # Card de status do turno
+└── pages/                          # Páginas da aplicação
+```
+
+### Shared (Tipos compartilhados)
+```
+shared/
+└── schema.ts                       # Esquemas de banco de dados e tipos
+```
+
+## TIPOS DE PAGAMENTO E SUAS ESPECIFICIDADES
+
+### 1. DINHEIRO (CASH)
+**Características:**
+- Impacta diretamente o caixa físico
+- Não possui taxas de processamento
+- Usado para calcular divergências de caixa
+- Pode ser retirado através de sangrias
+
+**Fluxo no Backend:**
+```typescript
+// Em server/lib/shift-processor.ts
+const calculateCashDivergence = (shift: ProcessedShift): number => {
+  const cashSales = shift.payments.find(p => p.method === 'cash')?.amount || 0;
+  const cashWithdrawals = shift.cashAdjustments
+    .filter(adj => adj.type === 'withdrawal')
+    .reduce((sum, adj) => sum + adj.amount, 0);
+
+  return shift.finalCash - (shift.initialCash + cashSales - cashWithdrawals);
+};
+```
+
+### 2. PIX
+**Características:**
+- Não impacta o caixa físico
+- Taxa configurável (padrão: 1.99%)
+- Transferência instantânea
+- Não requer maquininha física
+
+**Implementação no Frontend:**
+```typescript
+// Em client/src/lib/constants.ts
+export const PAYMENT_RATES = {
+  cash: 0,      // Sem taxa
+  pix: 1.99,    // Taxa de 1.99%
+  stone_card: 2.5,
+  stone_voucher: 2.5,
+  pagbank: 3.0
+} as const;
+```
+
+### 3. MAQUININHAS (STONE E PAGBANK)
+
+#### Stone Card/Voucher
+**Características:**
+- Requer maquininha física Stone
+- Taxa: 2.5%
+- Diferenciação entre cartão e voucher
+- Liquidação D+1 ou D+30 dependendo da modalidade
+
+#### PagBank
+**Características:**
+- Maquininha PagBank/UOL
+- Taxa: 3.0%
+- Liquidação conforme contrato
+
+**Calculadora Específica para Maquininhas:**
+```typescript
+// server/lib/card-payment-calculator.ts
+export interface CardPaymentCalculation {
+  grossAmount: number;      // Valor bruto da venda
+  fee: number;             // Taxa aplicada
+  netAmount: number;       // Valor líquido recebido
+  feeAmount: number;       // Valor da taxa em reais
+}
+
+export const calculateCardPayment = (
+  amount: number,
+  paymentMethod: PaymentMethod
+): CardPaymentCalculation => {
+  const rate = PAYMENT_RATES[paymentMethod];
+  const feeAmount = (amount * rate) / 100;
+  const netAmount = amount - feeAmount;
+
+  return {
+    grossAmount: amount,
+    fee: rate,
+    netAmount,
+    feeAmount
+  };
+};
+```
+
+## SCHEMA DE BANCO DE DADOS - SHIFT_PAYMENTS
+
+```typescript
+// shared/schema.ts
+export const shiftPayments = sqliteTable('shift_payments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  method: text('method', {
+    enum: ['cash', 'pix', 'stone_card', 'stone_voucher', 'pagbank']
+  }).notNull(),
+  amount: real('amount').notNull(),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type PaymentMethod = 'cash' | 'pix' | 'stone_card' | 'stone_voucher' | 'pagbank';
+```
+
+## FLUXO COMPLETO DE PROCESSAMENTO DE PAGAMENTOS
+
+### 1. Entrada de Dados no Frontend
+
+```typescript
+// client/src/components/employee/cash-register.tsx
+const handlePaymentSubmit = async (paymentData: {
+  method: PaymentMethod;
+  amount: number;
+}) => {
+  // Validação local
+  if (paymentData.amount <= 0) {
+    toast.error('Valor deve ser maior que zero');
+    return;
+  }
+
+  // Envio para API
+  try {
+    await api.post(`/api/shifts/${shiftId}/payments`, paymentData);
+
+    // Invalidação do cache para atualização em tempo real
+    queryClient.invalidateQueries(['shift', shiftId]);
+    toast.success('Pagamento registrado com sucesso');
+  } catch (error) {
+    toast.error('Erro ao registrar pagamento');
+  }
+};
+```
+
+### 2. Processamento no Backend
+
+```typescript
+// server/routes.ts
+app.post('/api/shifts/:id/payments', requireAuth, async (req, res) => {
+  const { id } = req.params;
+  const { method, amount } = req.body;
+
+  try {
+    // Validação do turno ativo
+    const shift = await db.query.shifts.findFirst({
+      where: and(eq(shifts.id, Number(id)), eq(shifts.status, 'open'))
+    });
+
+    if (!shift) {
+      return res.status(404).json({ error: 'Turno não encontrado ou já fechado' });
+    }
+
+    // Inserção do pagamento
+    await db.insert(shiftPayments).values({
+      shiftId: Number(id),
+      method,
+      amount: Number(amount)
+    });
+
+    // Notificação WebSocket para atualizações em tempo real
+    notifyShiftClients(Number(id), 'payment-added');
+
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error('Erro ao registrar pagamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+### 3. Cálculos Financeiros Específicos
+
+```typescript
+// server/lib/shift-processor.ts
+const processShiftPayments = async (shiftId: number): Promise<PaymentSummary> => {
+  const payments = await db.query.shiftPayments.findMany({
+    where: eq(shiftPayments.shiftId, shiftId)
+  });
+
+  const summary: PaymentSummary = {
+    cash: 0,
+    pix: 0,
+    stone_card: 0,
+    stone_voucher: 0,
+    pagbank: 0,
+    total: 0,
+    fees: {
+      pix: 0,
+      stone_card: 0,
+      stone_voucher: 0,
+      pagbank: 0,
+      total: 0
+    }
+  };
+
+  payments.forEach(payment => {
+    summary[payment.method] += payment.amount;
+    summary.total += payment.amount;
+
+    // Cálculo de taxas apenas para métodos que possuem
+    if (payment.method !== 'cash') {
+      const rate = PAYMENT_RATES[payment.method];
+      const feeAmount = (payment.amount * rate) / 100;
+      summary.fees[payment.method as keyof typeof summary.fees] += feeAmount;
+      summary.fees.total += feeAmount;
+    }
+  });
+
+  return summary;
+};
+```
+
+## DIFERENÇAS ENTRE DINHEIRO/PIX E MAQUININHAS
+
+### Dinheiro (Cash)
+```typescript
+// Impacta diretamente o caixa físico
+const cashFlow = {
+  initialCash: 100.00,     // Caixa inicial
+  cashSales: 250.00,       // Vendas em dinheiro
+  withdrawals: 50.00,      // Sangrias realizadas
+  finalCash: 300.00,       // Contagem final
+  divergence: 0.00         // 300 - (100 + 250 - 50) = 0
+};
+```
+
+### PIX
+```typescript
+// Não impacta caixa físico, mas tem taxa
+const pixTransaction = {
+  grossAmount: 100.00,     // Valor da venda
+  rate: 1.99,              // Taxa PIX
+  feeAmount: 1.99,         // Valor da taxa
+  netAmount: 98.01,        // Valor líquido recebido
+  receivedIn: 'immediate'   // Recebimento instantâneo
+};
+```
+
+### Maquininhas (Stone/PagBank)
+```typescript
+// Diferentes taxas e prazos de liquidação
+const cardTransaction = {
+  stone_card: {
+    grossAmount: 100.00,
+    rate: 2.5,
+    feeAmount: 2.50,
+    netAmount: 97.50,
+    liquidation: 'D+1'      // Próximo dia útil
+  },
+  pagbank: {
+    grossAmount: 100.00,
+    rate: 3.0,
+    feeAmount: 3.00,
+    netAmount: 97.00,
+    liquidation: 'D+30'     // 30 dias
+  }
+};
+```
+
+## CÁLCULO DE DIVERGÊNCIAS DE CAIXA
+
+A divergência de caixa é calculada APENAS considerando o dinheiro físico:
+
+```typescript
+// Formula: Divergência = Caixa Final - (Caixa Inicial + Vendas Cash - Sangrias)
+export const calculateCashDivergence = (shiftData: {
+  initialCash: number;
+  finalCash: number;
+  cashSales: number;
+  cashWithdrawals: number;
+}): number => {
+  const expectedCash = shiftData.initialCash + shiftData.cashSales - shiftData.cashWithdrawals;
+  return shiftData.finalCash - expectedCash;
+};
+
+// Exemplo prático:
+const exampleShift = {
+  initialCash: 100.00,      // Caixa inicial
+  cashSales: 300.00,        // Vendas em dinheiro
+  pixSales: 150.00,         // PIX não impacta caixa
+  stoneSales: 200.00,       // Stone não impacta caixa
+  cashWithdrawals: 80.00,   // Sangrias
+  finalCash: 320.00         // Contagem final
+};
+
+// Cálculo: 320 - (100 + 300 - 80) = 0 (sem divergência)
+const divergence = calculateCashDivergence(exampleShift);
+```
+
+## CONSTANTES DE CONFIGURAÇÃO
+
+```typescript
+// client/src/lib/constants.ts
+export const PAYMENT_METHODS = {
+  cash: { label: 'Dinheiro', icon: '💵', impactsCash: true },
+  pix: { label: 'PIX', icon: '📱', impactsCash: false },
+  stone_card: { label: 'Stone Cartão', icon: '💳', impactsCash: false },
+  stone_voucher: { label: 'Stone Voucher', icon: '🎫', impactsCash: false },
+  pagbank: { label: 'PagBank', icon: '🏦', impactsCash: false }
+} as const;
+
+export const PAYMENT_RATES = {
+  cash: 0,
+  pix: 1.99,
+  stone_card: 2.5,
+  stone_voucher: 2.5,
+  pagbank: 3.0
+} as const;
+```
+
+## WEBSOCKET PARA ATUALIZAÇÕES EM TEMPO REAL
+
+```typescript
+// server/ws.ts - Notificações em tempo real
+export const notifyShiftClients = (shiftId: number, event: string) => {
+  wss.clients.forEach(client => {
+    if (client.readyState === WebSocket.OPEN && client.shiftId === shiftId) {
+      client.send(JSON.stringify({
+        type: 'shift-updated',
+        event,
+        shiftId,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  });
+};
+```
+
+## VALIDAÇÕES E REGRAS DE NEGÓCIO
+
+### Validações no Frontend
+```typescript
+// Validação de valores mínimos
+const validatePayment = (method: PaymentMethod, amount: number): string | null => {
+  if (amount <= 0) return 'Valor deve ser maior que zero';
+  if (amount > 10000) return 'Valor máximo excedido';
+
+  // Validações específicas por método
+  switch (method) {
+    case 'cash':
+      if (amount % 0.01 !== 0) return 'Dinheiro deve ter no máximo 2 casas decimais';
+      break;
+    case 'pix':
+      if (amount < 1) return 'PIX mínimo de R$ 1,00';
+      break;
+  }
+
+  return null;
+};
+```
+
+### Validações no Backend
+```typescript
+// server/routes.ts - Validação com Zod
+const paymentSchema = z.object({
+  method: z.enum(['cash', 'pix', 'stone_card', 'stone_voucher', 'pagbank']),
+  amount: z.number().positive().max(10000)
+});
+
+app.post('/api/shifts/:id/payments', requireAuth, async (req, res) => {
+  try {
+    const validatedData = paymentSchema.parse(req.body);
+    // Processamento...
+  } catch (error) {
+    return res.status(400).json({ error: 'Dados inválidos' });
+  }
+});
+```
+
+## RELATÓRIOS E ANÁLISES FINANCEIRAS
+
+```typescript
+// Geração de relatórios com breakdown por método de pagamento
+export const generatePaymentReport = (shift: ProcessedShift) => {
+  const report = {
+    period: { start: shift.startTime, end: shift.endTime },
+    payments: {
+      cash: { amount: shift.payments.cash, percentage: 0, fee: 0 },
+      pix: { amount: shift.payments.pix, percentage: 0, fee: shift.fees.pix },
+      cards: {
+        stone: shift.payments.stone_card + shift.payments.stone_voucher,
+        pagbank: shift.payments.pagbank,
+        totalFees: shift.fees.stone_card + shift.fees.stone_voucher + shift.fees.pagbank
+      }
+    },
+    totals: {
+      gross: shift.payments.total,
+      fees: shift.fees.total,
+      net: shift.payments.total - shift.fees.total
+    }
+  };
+
+  // Cálculo de percentuais
+  Object.keys(report.payments).forEach(method => {
+    if (typeof report.payments[method] === 'object' && 'amount' in report.payments[method]) {
+      report.payments[method].percentage =
+        (report.payments[method].amount / report.totals.gross) * 100;
+    }
+  });
+
+  return report;
+};
+```
+
+## CONCLUSÃO
+
+O sistema de pagamentos do Pastel24h implementa uma lógica sofisticada que:
+
+1. **Diferencia claramente** entre dinheiro físico (que impacta o caixa) e pagamentos eletrônicos
+2. **Aplica taxas específicas** para cada método de pagamento conforme contratos reais
+3. **Calcula divergências** baseadas apenas no fluxo de dinheiro físico
+4. **Oferece atualizações em tempo real** via WebSocket
+5. **Mantém histórico completo** de todas as transações
+6. **Gera relatórios detalhados** com breakdown por método e cálculo de taxas
+
+Esta arquitetura permite um controle financeiro preciso e auditável, essencial para operações comerciais que lidam com múltiplos métodos de pagamento e diferentes taxas de processamento.

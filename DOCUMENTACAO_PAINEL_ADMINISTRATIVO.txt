@@ -1,0 +1,708 @@
+# DOCUMENTAÇÃO COMPLETA DO PAINEL ADMINISTRATIVO - PASTEL24H
+
+## ÍNDICE
+1. VISÃO GERAL DO PAINEL ADMINISTRATIVO
+2. ROTAS E NAVEGAÇÃO
+3. DASHBOARD PRINCIPAL
+4. GESTÃO DE PRODUTOS
+5. GESTÃO DE USUÁRIOS
+6. CONTROLE FINANCEIRO
+7. RELATÓRIOS SEMANAIS
+8. GESTÃO DE TRANSPORTES
+9. CORREÇÕES ADMINISTRATIVAS
+10. MONITORAMENTO EM TEMPO REAL
+11. COMPONENTES AVANÇADOS
+12. BACKEND E SEGURANÇA
+13. INTEGRAÇÕES E WEBSOCKET
+14. FLUXOS DE TRABALHO
+
+---
+
+## 1. VISÃO GERAL DO PAINEL ADMINISTRATIVO
+
+O painel administrativo do Pastel24h é uma interface completa de gestão empresarial que permite controle total sobre operações, funcionários, produtos, finanças e relatórios.
+
+### Principais Características:
+- **Interface Responsiva**: Adaptável para desktop e mobile
+- **Autenticação Segura**: Controle de acesso baseado em roles
+- **Tempo Real**: Atualizações automáticas via WebSocket
+- **Auditoria Completa**: Rastreamento de todas as ações
+- **Exportação de Dados**: PDF e Excel para relatórios
+
+### Tecnologias Utilizadas:
+- **Frontend**: React 18, TypeScript, Wouter, TanStack Query
+- **UI Framework**: Shadcn/ui, Tailwind CSS, Framer Motion
+- **Backend**: Express.js, SQLite, Drizzle ORM, Passport.js
+- **Real-time**: WebSocket para atualizações em tempo real
+- **Visualização**: Recharts para gráficos e dashboard
+
+---
+
+## 2. ROTAS E NAVEGAÇÃO
+
+### Estrutura de Rotas (/App.tsx):
+```
+/admin                              - Dashboard Principal
+/admin/products                     - Gestão de Produtos
+/admin/users                        - Gestão de Usuários
+/admin/weekly                       - Relatórios Semanais
+/admin/transport                    - Gestão de Transportes
+/admin/financial                    - Controle Financeiro
+/admin/shifts/:shiftId/corrections  - Correções de Turno
+```
+
+### Controle de Acesso:
+- Todas as rotas protegidas por `ProtectedRoute`
+- Verificação de role 'admin' em cada página
+- Redirecionamento automático para login se não autenticado
+
+### Navegação Mobile:
+- Componente `MobileNav` em todas as páginas
+- Tabs inferiores com ícones intuitivos
+- Padding automático para safe-area em dispositivos móveis
+
+---
+
+## 3. DASHBOARD PRINCIPAL (/admin-dashboard.tsx)
+
+### Header Principal:
+- **Logo e Título**: Pastelaria 24h Admin
+- **Seletor de Período**: Hoje, Ontem, Semana, Mês, Personalizado
+- **Botão Financeiro**: Acesso rápido ao controle financeiro
+- **Perfil do Usuário**: Nome e botão de logout
+
+### Componentes do Dashboard:
+
+#### 3.1 Cards de Estatísticas (StatsCards):
+```typescript
+interface SalesStats {
+  totalSales: number;      // Vendas totais
+  avgTicket: number;       // Ticket médio
+  physicalCash: number;    // Caixa físico
+  estimatedProfit: number; // Lucro estimado
+}
+```
+- **Auto-refresh**: 30 segundos
+- **Formatação**: Valores em Real (BRL)
+- **Cores Temáticas**: Verde (vendas), Azul (ticket), Roxo (caixa), Amarelo (lucro)
+
+#### 3.2 Gráficos Analíticos (Charts):
+- **Vendas por Hora**: Gráfico de barras mostrando distribuição horária
+- **Métodos de Pagamento**: Gráfico de pizza com percentuais
+- **Dados Dinâmicos**: Atualização em tempo real
+- **Estados Vazios**: Mensagens informativas quando não há dados
+
+#### 3.3 Detalhamento de Pagamentos (PaymentBreakdown):
+- **Configuração de Taxas**: Juros por método de pagamento
+  - PIX: Configurável (padrão 0%)
+  - Stone D/C: Configurável (padrão 3.5%)
+  - Stone Voucher: Configurável (padrão 2.5%)
+  - PagBank D/C: Configurável (padrão 3.2%)
+- **Cálculos Automáticos**: Valores brutos vs líquidos
+- **Persistência**: Configurações salvas no banco de dados
+
+#### 3.4 Alertas e Divergências (Alerts):
+- **Divergências de Caixa**: Turnos com diferenças no fechamento
+- **Turnos Ativos**: Status atual dos funcionários trabalhando
+- **Botão de Detalhes**: Modal com informações completas
+- **Auto-refresh**: 15 segundos para alertas críticos
+
+#### 3.5 Monitor de Turnos Ativos (ActiveShiftsMonitor):
+- **Lista em Tempo Real**: Funcionários com turnos abertos
+- **Informações do Turno**: Nome, horário de início
+- **Modal de Monitoramento**: Edição em tempo real de produtos
+- **Edição de Caixa**: Ajuste do caixa inicial durante o turno
+
+#### 3.6 Informações do Último Turno (LastShiftInfo):
+- **Detalhes do Fechamento**: Funcionário, período, vendas
+- **Divergências**: Destacadas se existirem
+- **Acesso Rápido**: Link direto para correções
+- **Badge do ID**: Identificação visual do turno
+
+#### 3.7 Timeline de Atividades (Timeline):
+- **Log Completo**: Todas as ações do sistema
+- **Metadados Detalhados**: Informações específicas por tipo de ação
+- **Expandir/Recolher**: Controle de visualização
+- **Cores por Ação**: Sistema visual de identificação
+
+---
+
+## 4. GESTÃO DE PRODUTOS (/product-management.tsx)
+
+### Funcionalidades Principais:
+
+#### 4.1 Lista de Produtos:
+- **Filtro por Categoria**: Dropdown com todas as categorias
+- **Drag & Drop**: Reordenação visual dos produtos
+- **Campos Exibidos**: Nome, Categoria, Preço, Estoque Mínimo
+- **Ações**: Editar e Excluir para cada produto
+
+#### 4.2 Formulário de Produto (Modal):
+```typescript
+interface ProductForm {
+  name: string;          // Nome do produto
+  category: string;      // Categoria (CATEGORIES const)
+  price: string;         // Preço em decimal
+  minStock: number;      // Estoque mínimo
+}
+```
+
+#### 4.3 Categorias de Produtos (constants.ts):
+- Pastéis Comuns
+- Pastéis Especiais
+- Lanches
+- Bebidas
+- Doces
+- Combos
+- Outros
+
+#### 4.4 Sistema de Ordenação:
+- **Campo sortOrder**: Controle numérico da posição
+- **API de Reordenação**: `/api/admin/products/order`
+- **Feedback Visual**: Animações durante o drag
+- **Persistência**: Ordem salva no banco de dados
+
+#### 4.5 Validações:
+- Nome obrigatório (mínimo 1 caractere)
+- Preço deve ser maior que zero
+- Categoria deve ser válida
+- Estoque mínimo não negativo
+
+---
+
+## 5. GESTÃO DE USUÁRIOS (/user-management.tsx)
+
+### Funcionalidades de Usuário:
+
+#### 5.1 Lista de Usuários:
+- **Cards Informativos**: Nome, email, role, transporte
+- **Badges Visuais**: Admin (vermelho), Funcionário (azul)
+- **Informações de Transporte**: Tipo e valor quando configurado
+- **Contador**: Número total de usuários cadastrados
+
+#### 5.2 Criação de Usuário (Modal):
+```typescript
+interface CreateUserData {
+  name: string;                    // Nome completo
+  email: string;                   // Email válido
+  password: string;                // Senha (mín. 6 caracteres)
+  role: 'admin' | 'employee';      // Papel no sistema
+  transportModeId?: number | null;  // Meio de transporte
+}
+```
+
+#### 5.3 Validações Frontend:
+- **Nome**: Mínimo 2 caracteres
+- **Email**: Formato válido obrigatório
+- **Senha**: Mínimo 6 caracteres
+- **Role**: Seleção obrigatória
+- **Transporte**: Opcional, lista dos cadastrados
+
+#### 5.4 Edição de Usuário:
+- **Campos Editáveis**: Nome, email, role, transporte
+- **Proteção**: Usuário não pode excluir a própria conta
+- **Confirmação**: Dialog de confirmação para exclusão
+
+#### 5.5 Integração com Transportes:
+- **Lista Dinâmica**: Modos de transporte cadastrados
+- **Preços Exibidos**: Valor da ida/volta
+- **Opção "Nenhum"**: Para usuários sem transporte
+
+---
+
+## 6. CONTROLE FINANCEIRO (/financial-control.tsx)
+
+### Sistema Financeiro Completo:
+
+#### 6.1 Saldo Administrativo:
+```typescript
+interface FinancialBalance {
+  balance: string;           // Saldo atual
+  totalWithdrawals: string;  // Total de entradas
+  totalExpenses: string;     // Total de saídas
+  transactionCount: number;  // Número de transações
+}
+```
+
+#### 6.2 Cards de Resumo:
+- **Saldo Atual**: Valor disponível no envelope administrativo
+- **Total de Entradas**: Retiradas dos caixas dos turnos
+- **Total de Saídas**: Gastos administrativos registrados
+- **Número de Transações**: Contador de movimentações
+
+#### 6.3 Extrato Detalhado:
+- **Tabela Completa**: Data, Tipo, Descrição, Responsável, Valor, Saldo
+- **Badges Visuais**: Entrada (verde), Saída (vermelho)
+- **Saldo Corrente**: Cálculo em tempo real
+- **Referência de Turno**: Link quando aplicável
+
+#### 6.4 Registro de Gastos (Modal RegisterExpenseModal):
+- **Validação de Valor**: Números positivos obrigatórios
+- **Motivo Detalhado**: Textarea para descrição
+- **Preview**: Formatação de moeda em tempo real
+- **Auditoria**: Registro completo da transação
+
+#### 6.5 Fluxo Automático:
+- **Entradas Automáticas**: Geradas pelos fechamentos de turno
+- **Controle Manual**: Gastos registrados pelo admin
+- **Histórico Completo**: Todas as movimentações rastreadas
+
+---
+
+## 7. RELATÓRIOS SEMANAIS (/weekly-report.tsx)
+
+### Sistema Completo de Folha de Pagamento:
+
+#### 7.1 Configurações Globais:
+```typescript
+interface PayrollConfig {
+  hourlyRate: number;          // Valor da hora
+  foodBenefit: number;         // Benefício alimentação
+  consumptionDiscount: number; // % desconto consumo
+  transportRates: Record<string, number>; // Valores transporte
+}
+```
+
+#### 7.2 Navegação de Semanas:
+- **Seletor de Data**: Input date para semana específica
+- **Navegação**: Botões anterior/próxima semana
+- **Histórico**: Dropdown com relatórios anteriores
+- **Indicador**: Status se relatório já existe
+
+#### 7.3 Cálculo Automático de Horas:
+- **Query Inteligente**: Busca turnos da semana selecionada
+- **Cálculo Preciso**: Horas trabalhadas por funcionário
+- **Dias Trabalhados**: Contagem de dias únicos
+- **Turnos**: Quantidade de turnos realizados
+
+#### 7.4 Tabela de Funcionários:
+```typescript
+interface EmployeeData {
+  userId: number;              // ID do funcionário
+  name: string;                // Nome completo
+  hours: number;               // Horas trabalhadas
+  transport: number;           // Valor transporte
+  food: number;                // Benefício alimentação
+  consumption: number;         // Consumo interno
+  consumptionDetails?: any[];  // Detalhes do consumo
+  bonus: number;               // Adicional (editável)
+  deduction: number;           // Desconto (editável)
+  total: number;               // Total calculado
+  daysWorked: number;          // Dias trabalhados
+  shiftsCount: number;         // Número de turnos
+  transportType?: string;      // Tipo de transporte
+}
+```
+
+#### 7.5 Consumo Interno Detalhado:
+- **Tooltip Interativo**: Detalhes dos itens consumidos
+- **Desconto Aplicado**: Percentual configurável
+- **Itens Gratuitos**: Água não é descontada
+- **Visual Avançado**: Cards coloridos por tipo
+
+#### 7.6 Campos Editáveis:
+- **Adicional**: Campo para bônus
+- **Desconto**: Campo para descontos
+- **Recálculo Automático**: Total atualizado em tempo real
+- **Validação**: Apenas valores não negativos
+
+#### 7.7 Exportação Avançada:
+
+##### PDF (jsPDF + autoTable):
+- **Cabeçalho**: Título, período, data de geração
+- **Tabela Principal**: Resumo com todos os funcionários
+- **Seção de Consumo**: Detalhamento por funcionário
+- **Formatação**: Cores, bordas, fonte otimizada
+- **Multi-páginas**: Quebra automática
+
+##### Excel (XLSX):
+- **Planilha Formatada**: Dados organizados em colunas
+- **Totais**: Linha de totalização
+- **Compatibilidade**: Abre em qualquer software de planilha
+
+#### 7.8 Salvamento e Histórico:
+- **Persistência**: Relatórios salvos no banco
+- **Configurações**: Valores de hora, benefícios salvos separadamente
+- **Histórico Completo**: Lista de todos os relatórios gerados
+- **Carregamento**: Possibilidade de recarregar relatório existente
+
+---
+
+## 8. GESTÃO DE TRANSPORTES (/transport.tsx)
+
+### CRUD Completo de Transportes:
+
+#### 8.1 Lista Paginada:
+- **Tabela Responsiva**: Nome e preço ida/volta
+- **Busca**: Campo de filtro por nome
+- **Paginação**: 10 itens por página
+- **Ações**: Editar e excluir para cada item
+
+#### 8.2 Formulário de Transporte:
+```typescript
+const transportSchema = z.object({
+  name: z.string().min(1, "Nome é obrigatório").max(50, "Nome muito longo"),
+  roundTripPrice: z.string().refine(val => parseFloat(val) > 0, "Preço deve ser maior que zero"),
+});
+```
+
+#### 8.3 Validações:
+- **Nome Único**: Não pode haver transportes com mesmo nome
+- **Preço Positivo**: Valor deve ser maior que zero
+- **Limite de Caracteres**: Nome até 50 caracteres
+
+#### 8.4 Integração com Usuários:
+- **Invalidação de Cache**: Atualiza listas relacionadas
+- **Formatação**: Exibição com símbolo de moeda
+- **Proteção**: Não permite excluir se em uso
+
+#### 8.5 Componentes de Interface:
+- **Diálogos Modais**: Criação e edição
+- **Feedback Visual**: Loading states e animações
+- **Confirmação**: Dialog para exclusão
+- **Toast Notifications**: Feedback das operações
+
+---
+
+## 9. CORREÇÕES ADMINISTRATIVAS (/shift-corrections.tsx)
+
+### Sistema Avançado de Correções:
+
+#### 9.1 Tipos de Correção:
+```typescript
+interface CorrectionFormData {
+  correctionType: "product_qty" | "payment" | "cash_count";
+  shiftRecordId?: number;      // Para correções de produto
+  productId?: number;          // ID do produto
+  fieldName?: string;          // Campo sendo corrigido
+  paymentMethod?: string;      // Método de pagamento
+  cashType?: string;           // Tipo de caixa
+  originalValue: string;       // Valor original
+  correctedValue: string;      // Valor corrigido
+  reason: string;              // Motivo da correção
+  evidenceUrl?: string;        // URL de evidência (opcional)
+}
+```
+
+#### 9.2 Tabs de Correção:
+
+##### Produtos:
+- **Tabela Completa**: Entrada, Vendidos, Sobra, Total
+- **Valores Corrigidos**: Exibição com riscado (original) e verde (corrigido)
+- **Campos Editáveis**: Entrada, vendidos, sobra via modal
+- **Badge "Corrigido"**: Visual para itens alterados
+
+##### Pagamentos:
+- **Todos os Métodos**: Dinheiro, PIX, Stone, PagBank
+- **Comparação**: Valor original vs corrigido
+- **Formulário Específico**: Modal para cada método
+- **Validação**: Valores não negativos obrigatórios
+
+##### Caixa:
+- **Dinheiro Final**: Notas contadas
+- **Moedas Finais**: Moedas contadas
+- **Edição Direta**: Campos específicos
+- **Histórico**: Todas as alterações registradas
+
+#### 9.3 Modal de Correção:
+- **Campos Dinâmicos**: Baseado no tipo selecionado
+- **Validação em Tempo Real**: Feedback imediato
+- **Motivo Obrigatório**: Textarea para justificativa
+- **Evidência Opcional**: URL para documentação
+
+#### 9.4 Histórico de Correções:
+- **Cards Informativos**: Tipo, valores, motivo, data
+- **Status Visual**: Badge para correções revogadas
+- **Detalhes Completos**: Original → Corrigido
+- **Botão Revogar**: Para correções ativas
+
+#### 9.5 Sistema de Revogação:
+- **Modal de Confirmação**: Aviso sobre reversão
+- **Motivo Obrigatório**: Justificativa para revogação
+- **Reversão Automática**: Volta aos valores originais
+- **Auditoria**: Registro completo da revogação
+
+#### 9.6 Integração com Timeline:
+- **Log Automático**: Todas as correções registradas
+- **Invalidação**: Atualiza caches relacionados
+- **Notificações**: Toast feedback para usuário
+
+---
+
+## 10. MONITORAMENTO EM TEMPO REAL
+
+### Active Shifts Monitor (active-shifts-monitor.tsx):
+
+#### 10.1 Monitoramento Contínuo:
+- **Auto-refresh**: 10 segundos
+- **WebSocket**: Atualizações instantâneas
+- **Status Visual**: Badges de turno ativo
+- **Lista Completa**: Todos os funcionários trabalhando
+
+#### 10.2 Modal de Monitoramento Detalhado:
+- **Informações do Turno**: Funcionário, início
+- **Estado do Caixa**: Dinheiro e moedas iniciais
+- **Edição de Caixa**: Botões inline para ajuste
+- **Registros de Produtos**: Tabela editável
+
+#### 10.3 Edição em Tempo Real:
+```typescript
+interface EditableFields {
+  entryQty: number;      // Quantidade de entrada
+  arrivalQty: number;    // Quantidade de chegada
+  leftoverQty: number;   // Quantidade sobrou
+  discardQty: number;    // Quantidade descartada
+  consumedQty: number;   // Quantidade consumida
+}
+```
+
+#### 10.4 Cálculo Automático:
+- **Vendido**: Entrada + Chegada - Sobra - Descarte - Consumo
+- **Validação**: Números não negativos
+- **Feedback**: Ícones de salvar/cancelar
+- **Persistência**: Salva no banco em tempo real
+
+#### 10.5 Edição de Caixa Inicial:
+- **Campos Específicos**: Notas e moedas separados
+- **API Dedicada**: `/api/admin/shifts/{id}/initial-cash`
+- **Timeline**: Registro da alteração
+- **Validação**: Valores positivos obrigatórios
+
+### Shift Details Modal (shift-details-modal.tsx):
+
+#### 10.6 Modal Completo de Detalhes:
+- **Auto-refresh**: Botão toggle (5 segundos)
+- **Informações Básicas**: Funcionário, início, resumo
+- **Colaboradores**: Lista de funcionários no turno
+- **Estado do Caixa**: Inicial vs contado atual
+- **Formas de Pagamento**: Breakdown detalhado
+- **Produtos**: Lista com quantidades e valores
+
+#### 10.7 Visualização Rica:
+- **Cards Organizados**: Informações categorizadas
+- **Badges de Status**: Visual claro do estado
+- **Formatação de Moeda**: Valores em Real
+- **Separadores**: Divisões claras entre seções
+- **Scroll Interno**: Modal responsivo com overflow
+
+---
+
+## 11. COMPONENTES AVANÇADOS
+
+### 11.1 Cash Adjustment Dialog (cash-adjustment-dialog.tsx):
+
+#### Funcionalidades:
+- **Display do Caixa Atual**: Cálculo em tempo real
+- **Tipos de Ajuste**: Retirada ou Ajuste
+- **Validação Robusta**: Valores positivos obrigatórios
+- **Motivo Detalhado**: Textarea obrigatório
+- **Auditoria Completa**: IP, usuário, data/hora
+
+#### Cálculos Automáticos:
+```typescript
+const currentCashValue = initialCash + cashSales - totalAdjustments;
+```
+
+#### Integração:
+- **Timeline**: Registro automático
+- **Invalidação**: Múltiplas queries atualizadas
+- **Feedback**: Toast notifications
+
+### 11.2 Register Expense Modal (register-expense-modal.tsx):
+
+#### Características:
+- **Formatação de Moeda**: Preview em tempo real
+- **Validação de Input**: Apenas números e vírgula/ponto
+- **Estados de Loading**: Feedback durante submit
+- **Limpeza Automática**: Reset dos campos após sucesso
+
+#### Validações:
+- **Valor Obrigatório**: Maior que zero
+- **Motivo Detalhado**: Descrição obrigatória
+- **Formato de Moeda**: Conversão automática
+
+---
+
+## 12. BACKEND E SEGURANÇA
+
+### 12.1 Middleware de Autenticação (routes.ts):
+```typescript
+// Middleware para verificar autenticação
+const requireAuth = (req, res, next) => {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ message: "Authentication required" });
+  }
+  next();
+};
+
+// Middleware para verificar papel de admin
+const requireAdmin = (req, res, next) => {
+  if (!req.isAuthenticated() || req.user.role !== 'admin') {
+    return res.status(403).json({ message: "Admin access required" });
+  }
+  next();
+};
+```
+
+### 12.2 Rotas Protegidas:
+- **Todas as rotas admin**: Requerem `requireAdmin`
+- **Validação de Dados**: Schemas Zod para todos os endpoints
+- **Tratamento de Erros**: Responses padronizados
+- **Logging**: Registro de todas as ações administrativas
+
+### 12.3 Endpoints Principais:
+```
+GET    /api/admin/summary/:period          - Estatísticas dashboard
+GET    /api/admin/sales-by-hour/:period    - Vendas por hora
+GET    /api/admin/payment-methods/:period  - Métodos pagamento
+GET    /api/admin/alerts/:period           - Alertas e divergências
+GET    /api/admin/timeline                 - Timeline atividades
+GET    /api/admin/active-shifts            - Turnos ativos
+POST   /api/admin/products                 - Criar produto
+PUT    /api/admin/products/:id             - Editar produto
+DELETE /api/admin/products/:id             - Excluir produto
+PUT    /api/admin/products/order           - Reordenar produtos
+POST   /api/admin/users                    - Criar usuário
+PUT    /api/admin/users/:id                - Editar usuário
+DELETE /api/admin/users/:id                - Excluir usuário
+POST   /api/admin/transport                - Criar transporte
+PUT    /api/admin/transport/:id            - Editar transporte
+DELETE /api/admin/transport/:id            - Excluir transporte
+GET    /api/admin/weekly-report            - Buscar relatórios
+POST   /api/admin/weekly-report            - Salvar relatório
+POST   /api/admin/weekly-report/calculate  - Calcular folha
+GET    /api/admin/shift-details/:id        - Detalhes turno
+POST   /api/admin/shifts/:id/corrections   - Criar correção
+PUT    /api/admin/corrections/:id/revoke   - Revogar correção
+GET    /api/admin/financial/balance        - Saldo financeiro
+GET    /api/admin/financial/statement      - Extrato financeiro
+POST   /api/admin/financial/expense        - Registrar gasto
+POST   /api/admin/cash-withdraw            - Retirada caixa
+PUT    /api/admin/shifts/:id/initial-cash  - Atualizar caixa inicial
+```
+
+### 12.4 Segurança e Validação:
+- **Bcrypt**: Hash de senhas (12 rounds)
+- **Session Management**: Express-session com store
+- **CORS**: Configuração para produção
+- **Rate Limiting**: Prevenção de ataques
+- **SQL Injection**: Drizzle ORM com prepared statements
+
+---
+
+## 13. INTEGRAÇÕES E WEBSOCKET
+
+### 13.1 WebSocket Real-time (/server/ws.ts):
+- **Path**: `/ws-api`
+- **Autenticação**: Verificação de session
+- **Rooms**: Conexões específicas por turno
+- **Eventos**: `shift-updated`, `payment-updated`
+
+### 13.2 Notificações em Tempo Real:
+- **Shifts**: Abertura, fechamento, atualizações
+- **Pagamentos**: Alterações de valores
+- **Produtos**: Modificações de estoque
+- **Correções**: Aplicação e revogação
+
+### 13.3 Cache Management (TanStack Query):
+- **Invalidação Inteligente**: Apenas dados relacionados
+- **Stale Time**: Configurado por tipo de dado
+- **Refetch Interval**: Auto-refresh para dados críticos
+- **Background Updates**: Atualizações silenciosas
+
+### 13.4 Estado Global:
+- **AuthProvider**: Context de autenticação
+- **QueryClient**: Gerenciamento de cache
+- **Toast System**: Feedback global
+- **Loading States**: Indicadores visuais
+
+---
+
+## 14. FLUXOS DE TRABALHO
+
+### 14.1 Como Fechar um Turno:
+1. **Monitor Ativo**: Verificar turno no dashboard
+2. **Conferir Produtos**: Validar quantidades via monitor
+3. **Aguardar Fechamento**: Funcionário fecha pelo app
+4. **Verificar Divergências**: Alertas no dashboard
+5. **Aplicar Correções**: Se necessário, usar sistema de correções
+
+### 14.2 Como Fazer Correções:
+1. **Acessar Correções**: Via último turno ou URL direta
+2. **Selecionar Tipo**: Produto, Pagamento ou Caixa
+3. **Preencher Dados**: Valor corrigido e motivo
+4. **Aplicar Correção**: Confirmação e registro
+5. **Verificar Timeline**: Validar aplicação no log
+
+### 14.3 Como Gerar Relatórios:
+1. **Acessar Relatórios**: Menu /admin/weekly
+2. **Selecionar Semana**: Navegação ou date picker
+3. **Configurar Valores**: Hora, benefícios, transportes
+4. **Carregar Dados**: Botão calcular automático
+5. **Ajustar Manualmente**: Adicionais e descontos
+6. **Salvar**: Persistir no banco
+7. **Exportar**: PDF ou Excel conforme necessário
+
+### 14.4 Como Cadastrar Produtos:
+1. **Acessar Gestão**: Menu /admin/products
+2. **Novo Produto**: Botão + no header
+3. **Preencher Formulário**: Nome, categoria, preço, estoque
+4. **Validar**: Sistema valida dados automaticamente
+5. **Salvar**: Produto adicionado à lista
+6. **Reordenar**: Drag & drop se necessário
+
+### 14.5 Como Cadastrar Funcionários:
+1. **Acessar Usuários**: Menu /admin/users
+2. **Criar Usuário**: Botão no header
+3. **Dados Básicos**: Nome, email, senha
+4. **Definir Role**: Admin ou Employee
+5. **Configurar Transporte**: Opcional
+6. **Salvar**: Usuário criado e ativo
+
+### 14.6 Como Usar o Controle Financeiro:
+1. **Visualizar Saldo**: Cards de resumo automáticos
+2. **Conferir Extrato**: Tabela com todas as movimentações
+3. **Registrar Gasto**: Modal específico
+4. **Acompanhar**: Histórico completo mantido
+
+---
+
+## CONSIDERAÇÕES TÉCNICAS
+
+### Performance:
+- **Lazy Loading**: Componentes carregados sob demanda
+- **Memoização**: React.memo e useMemo em componentes críticos
+- **Debouncing**: Campos de busca otimizados
+- **Virtual Scrolling**: Para listas grandes
+
+### Responsividade:
+- **Mobile First**: Design otimizado para dispositivos móveis
+- **Breakpoints**: Tailwind CSS responsivo
+- **Touch Friendly**: Botões e campos adequados para toque
+- **Safe Areas**: Padding para notches e barras
+
+### Acessibilidade:
+- **ARIA Labels**: Componentes acessíveis
+- **Keyboard Navigation**: Navegação por teclado
+- **Color Contrast**: Cores com contraste adequado
+- **Screen Readers**: Compatibilidade com leitores
+
+### Manutenibilidade:
+- **TypeScript Strict**: Tipagem completa
+- **Component Isolation**: Componentes reutilizáveis
+- **Constants Centralizados**: Configurações em arquivo único
+- **Error Boundaries**: Tratamento de erros React
+
+### Segurança:
+- **XSS Protection**: Sanitização de inputs
+- **CSRF**: Tokens de proteção
+- **Session Security**: HTTPOnly cookies
+- **Data Validation**: Schemas Zod no backend
+
+---
+
+## CONCLUSÃO
+
+O painel administrativo do Pastel24h é uma solução completa e robusta para gestão empresarial, oferecendo controle total sobre todos os aspectos operacionais do negócio. Com interface intuitiva, recursos avançados e integração em tempo real, permite uma administração eficiente e precisa de turnos, funcionários, produtos, finanças e relatórios.
+
+A arquitetura modular e as tecnologias modernas utilizadas garantem escalabilidade, manutenibilidade e uma excelente experiência do usuário, tanto em desktop quanto em dispositivos móveis.

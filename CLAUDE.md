@@ -12,12 +12,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` - Build both client and server for production
 - `npm run build:client` - Build only the React frontend with Vite (output to `dist/public`)
 - `npm run build:server` - Build only the Express backend with esbuild (output to `dist/index.js`)
-- `npm run start` - Start production server (requires build first)
+- `npm run start` - Start production server (requires build first, runs db:migrate automatically)
 
 **Docker & Deployment:**
 - `docker build -t pastel24h .` - Build production Docker image (includes automatic database migration)
 - `docker-compose up` - Start containerized application with SQLite volume persistence
-- Vercel serverless deployment via `/api/index.js` endpoint
+- `docker-compose down` - Stop containers while preserving database volume
+- **NOTE: This is NOT a serverless application - deployed via Docker container on local server**
 
 **Database:**
 - `npm run db:generate` - Generate new database migrations with Drizzle Kit from schema changes
@@ -25,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture Overview
 
-This is a full-stack web application for restaurant shift management built with:
+This is a traditional full-stack web application (NOT serverless) for restaurant shift management built with:
 
 **Backend (Express.js):**
 - SQLite database with Drizzle ORM for type-safe queries
@@ -52,7 +53,6 @@ This is a full-stack web application for restaurant shift management built with:
 - `shared/` - Shared TypeScript schemas and types between client and server
 - `data/` - SQLite database file location (local.db)
 - `migrations/` - Drizzle database migration files
-- `api/` - Serverless deployment configuration (Vercel)
 
 ## Database Structure
 
@@ -79,6 +79,8 @@ The application manages restaurant operations through interconnected tables:
 - TypeScript path aliases configured: `@/*` for client, `@shared/*` for shared modules
 - Cross-platform environment variable support via cross-env
 - Port 5000 used for both development and production servers
+- No ESLint/Prettier configuration - project uses TypeScript strict mode for code quality
+- Shadcn/ui components configured in `components.json` with custom theme
 
 **Authentication Flow:**
 - Passport local strategy with bcrypt password hashing (12 rounds)
@@ -197,7 +199,8 @@ Complex shift calculations are handled by specialized processors:
 - `server/lib/shift-processor.ts` - ORM-based shift processing
 - `server/lib/shift-processor-sql.ts` - Optimized SQL-based processing  
 - `server/corrections-utils.ts` - Handles administrative corrections and data integrity
-- `server/collaborator-consumption-service.ts` - Manages internal product consumption
+- `server/collaborator-consumptions-service.ts` - Manages internal product consumption
+- `server/collaborator-consumption-service.ts` - Alternative consumption service implementation
 - Always use the appropriate processor based on performance needs
 
 **Error Handling & Data Validation:**
@@ -251,17 +254,21 @@ Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)
 - Test responsive design on both desktop and mobile viewports
 - Validate business formulas for inventory and cash calculations
 
-## Deployment Options
+## Deployment Architecture
 
-**Docker Containerization:**
-- Multi-stage Docker build with optimization for production
+**Production Deployment (Docker on Local Server):**
+- Multi-stage Docker build with optimization for production (Alpine Linux, Node 20)
 - Database migrations run automatically during container startup
 - Docker Compose configuration with SQLite volume persistence at `./data:/app/data`
+- Health check configuration: `GET /api/health` every 30 seconds
+- Container restart policy: always restart unless stopped
+- **This application runs on a local server with Docker - NOT deployed to cloud/serverless**
 
-**Serverless Deployment:**
-- Vercel-compatible serverless functions via `/api/index.js`
-- Automatic scaling and edge distribution support
-- Environment-specific configuration for production deployments
+**Important Notes:**
+- This is a traditional Express.js application designed for local server deployment
+- WebSocket support requires persistent server connection (incompatible with serverless)
+- SQLite database requires local file system persistence
+- Session management uses in-memory store for authentication
 
 ## Error Debugging Patterns
 
@@ -296,7 +303,8 @@ try {
 
 **Core File Locations:**
 - Shift processing logic: `server/lib/shift-processor.ts` (ORM-based) and `server/lib/shift-processor-sql.ts` (SQL-optimized)
-- Business calculations: `client/src/lib/calculations.ts` - contains inventory formulas and payroll calculations  
+- Card payment calculations: `server/lib/card-payment-calculator.ts` - Handles card payment rate calculations
+- Business calculations: `client/src/lib/calculations.ts` - contains inventory formulas and payroll calculations
 - API client with credentials: `client/src/lib/apiClient.ts` - ALWAYS use this for API calls to maintain session cookies
 - Database schema: `shared/schema.ts` - shared between client and server for type safety
 - Authentication logic: `server/auth.ts` - Passport.js configuration and middleware
@@ -311,9 +319,34 @@ try {
 - WebSocket connections: use path '/ws-api' with shiftId parameter for real-time updates
 - Session management: Use `credentials: 'include'` in all API requests
 - Authentication middleware: `requireAuth` and `requireAdmin` for route protection
+- Shadcn/ui components: import from `@/components/ui/` not from external packages
+- Always use Drizzle transactions for operations affecting multiple tables
 
 **Business Logic Validation:**
 - Inventory formula: `Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno`
 - Cash divergence: `Divergência = Caixa Final - (Caixa Inicial + Vendas em Dinheiro - Sangrias)`
 - Always validate quantities are non-negative before calculations
 - Payment method rates are configurable in `client/src/lib/constants.ts`
+- Shift status flow: open → closed (final state, no reopening allowed)
+- Cash inheritance: passes automatically between shifts when enabled
+
+## Configuration Files
+
+**Key Configuration Locations:**
+- `drizzle.config.ts` - Database migration configuration (SQLite at `./data/local.db`)
+- `vite.config.ts` - Frontend build and development server setup
+- `components.json` - Shadcn/ui component system configuration
+- `tailwind.config.js` - Extensive theme customization with sidebar colors
+- `tsconfig.json` - TypeScript strict mode and path aliases
+- `docker-compose.yml` - Container orchestration with health checks
+- `.env` - Environment variables (SESSION_SECRET required)
+
+## Recent Feature Implementations
+
+**Current Development Focus:**
+- PDF preview functionality in shift closure modal
+- Financial control system with administrative expense management
+- Real-time payment synchronization between CashRegister and CloseShiftModal
+- Unified divergence handling in shift closure
+- Administrative corrections system for closed shifts
+- Card payment rate calculations with configurable fees

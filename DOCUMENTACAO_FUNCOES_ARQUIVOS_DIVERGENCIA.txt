@@ -1,0 +1,1464 @@
+# DOCUMENTAÇÃO ANALÍTICA - FUNÇÕES, ARQUIVOS E PASTAS ENVOLVIDAS NO SISTEMA DE DIVERGÊNCIA
+
+## VISÃO GERAL ARQUITETURAL
+
+Esta documentação analítica apresenta uma análise detalhada de todas as funções, arquivos e pastas envolvidas no sistema de divergência de caixa da plataforma Pastel24h. O sistema está distribuído em múltiplas camadas, cada uma com responsabilidades específicas e interdependências bem definidas.
+
+## ESTRUTURA HIERÁRQUICA DO SISTEMA
+
+```
+pastel24h/
+├── shared/                               # Tipos e schemas compartilhados
+│   ├── schema.ts                         # Schema do banco com tabelas de divergência
+│   └── types.ts                          # Tipos TypeScript para divergência
+├── server/                               # Backend - Lógica de negócio
+│   ├── lib/                              # Bibliotecas de processamento
+│   │   ├── shift-processor.ts            # Processador principal de turnos
+│   │   ├── shift-processor-sql.ts        # Processador otimizado com SQL
+│   │   ├── card-payment-calculator.ts    # Calculadora de cartões
+│   │   ├── shift-inheritance.ts          # Herança entre turnos
+│   │   ├── shift-validation.ts           # Validação de transições
+│   │   ├── divergence-calculator.ts      # Cálculos de divergência
+│   │   ├── divergence-report.ts          # Relatórios de divergência
+│   │   └── corrections-utils.ts          # Utilitários de correção
+│   ├── routes.ts                         # Endpoints da API
+│   ├── auth.ts                           # Middleware de autenticação
+│   ├── ws.ts                             # WebSocket para notificações
+│   └── db.ts                             # Configuração do banco de dados
+├── client/                               # Frontend - Interface do usuário
+│   └── src/
+│       ├── lib/                          # Lógica de negócio frontend
+│       │   ├── calculations.ts           # Fórmulas de divergência
+│       │   ├── constants.ts              # Constantes do sistema
+│       │   ├── apiClient.ts              # Cliente API
+│       │   └── validators.ts             # Validadores frontend
+│       ├── components/                   # Componentes React
+│       │   ├── employee/                 # Componentes para funcionários
+│       │   │   ├── open-shift-modal.tsx  # Modal de abertura
+│       │   │   ├── close-shift-modal.tsx # Modal de fechamento
+│       │   │   ├── cash-register.tsx     # Registro de caixa
+│       │   │   └── shift-status-card.tsx # Card de status
+│       │   ├── admin/                    # Componentes administrativos
+│       │   │   ├── divergence-dashboard.tsx    # Dashboard de divergências
+│       │   │   ├── shift-review.tsx             # Revisão de turnos
+│       │   │   ├── divergence-report.tsx        # Relatórios
+│       │   │   └── correction-panel.tsx         # Painel de correções
+│       │   └── ui/                       # Componentes base
+│       ├── hooks/                        # Hooks customizados
+│       │   ├── useShiftData.ts           # Hook para dados do turno
+│       │   ├── useDivergenceCalculation.ts # Hook para cálculos
+│       │   └── useWebSocket.ts           # Hook para WebSocket
+│       └── pages/                        # Páginas da aplicação
+├── migrations/                           # Migrações do banco
+│   ├── 0001_initial_schema.sql           # Schema inicial
+│   ├── 0002_add_divergence_fields.sql    # Campos de divergência
+│   └── 0004_add_cumulative_card_fields.sql # Campos cumulativos
+└── data/                                 # Banco de dados SQLite
+    └── local.db                          # Arquivo do banco
+```
+
+## ANÁLISE DETALHADA POR CAMADA
+
+### 1. CAMADA DE DADOS (DATABASE LAYER)
+
+#### `shared/schema.ts` - Schema do Banco de Dados
+
+```typescript
+// ANÁLISE: Definições fundamentais das tabelas relacionadas à divergência
+
+// Tabela principal de turnos
+export const shifts = sqliteTable('shifts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+
+  // CAMPOS DE CONTROLE DE CAIXA
+  initialCash: text('initial_cash').default('200.00'),     // Caixa inicial informado
+  finalCash: text('final_cash'),                           // Caixa final contado
+  expectedFinalCash: text('expected_final_cash'),          // Caixa esperado calculado
+  cashDivergence: text('cash_divergence').default('0.00'), // Divergência calculada
+
+  // CAMPOS DE HERANÇA ENTRE TURNOS
+  expectedCash: text('expected_cash').default('200.00'),   // Esperado baseado no anterior
+  expectedCoins: text('expected_coins').default('50.00'),
+  cashForNextShift: text('cash_for_next_shift'),           // Calculado para próximo
+  coinsForNextShift: text('coins_for_next_shift'),
+
+  // CAMPOS DE DIVERGÊNCIA NA ABERTURA
+  openingDiscrepancy: text('opening_discrepancy').default('0.00'),
+
+  // OBSERVAÇÕES E AUDITORIA
+  closingObservations: text('closing_observations'),       // Explicação de divergências
+  lastCorrectionAt: text('last_correction_at'),           // Última correção aplicada
+
+  // CONTROLE DE STATUS
+  status: text('status', { enum: ['open', 'closed'] }).default('open'),
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time')
+});
+
+// Tabela de pagamentos com campos cumulativos
+export const shiftPayments = sqliteTable('shift_payments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+
+  // VALORES REAIS (usados no cálculo de divergência)
+  cash: text('cash').default('0'),                         // CRÍTICO para divergência
+  pix: text('pix').default('0'),
+  stoneCard: text('stone_card').default('0'),
+  stoneVoucher: text('stone_voucher').default('0'),
+  pagBankCard: text('pagbank_card').default('0'),
+
+  // VALORES CUMULATIVOS (visor das maquininhas)
+  stoneCardCumulative: text('stone_card_cumulative').default('0'),
+  stoneVoucherCumulative: text('stone_voucher_cumulative').default('0'),
+  pagBankCardCumulative: text('pagbank_card_cumulative').default('0'),
+
+  // CONTROLE DE CÁLCULO
+  calculatedFromCumulative: integer('calculated_from_cumulative', { mode: 'boolean' }).default(false)
+});
+
+// Tabela de ajustes de caixa (sangrias)
+export const cashAdjustments = sqliteTable('cash_adjustments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  type: text('type', { enum: ['withdrawal', 'adjustment'] }).notNull(),
+  amount: real('amount').notNull(),                         // IMPACTA divergência
+  reason: text('reason'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`)
+});
+
+// Tabela de correções administrativas
+export const corrections = sqliteTable('corrections', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  adminUserId: integer('admin_user_id').notNull().references(() => users.id),
+  type: text('type', { enum: ['payment', 'inventory', 'cash'] }).notNull(),
+  field: text('field').notNull(),                          // Campo corrigido
+  oldValue: text('old_value').notNull(),                   // Valor anterior
+  newValue: text('new_value').notNull(),                   // Valor corrigido
+  reason: text('reason').notNull(),                        // Justificativa
+  appliedAt: text('applied_at').default(sql`CURRENT_TIMESTAMP`),
+  metadata: text('metadata')                               // JSON com detalhes
+});
+
+// Tabela de auditoria completa
+export const timeline = sqliteTable('timeline', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').references(() => shifts.id),
+  userId: integer('user_id').references(() => users.id),
+  action: text('action').notNull(),                        // Tipo de ação
+  description: text('description').notNull(),              // Descrição legível
+  metadata: text('metadata'),                              // JSON com dados completos
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`)
+});
+
+/*
+ANÁLISE CRÍTICA:
+- O campo 'cash' em shiftPayments é FUNDAMENTAL para o cálculo de divergência
+- cashDivergence armazena o resultado do cálculo: finalCash - expectedCash
+- openingDiscrepancy rastreia problemas na transição entre turnos
+- cashAdjustments.amount afeta diretamente o cálculo de divergência
+- timeline mantém histórico completo para auditoria
+*/
+```
+
+#### `shared/types.ts` - Definições de Tipos
+
+```typescript
+// ANÁLISE: Tipos TypeScript para tipagem estrita do sistema de divergência
+
+export interface CashFlowComponents {
+  initialCash: number;      // Valor inicial do turno
+  finalCash: number;        // Valor final contado
+  cashSales: number;        // Vendas em dinheiro (de shiftPayments.cash)
+  cashWithdrawals: number;  // Sangrias (de cashAdjustments)
+  expectedCash: number;     // Calculado: initial + sales - withdrawals
+  divergence: number;       // Diferença: final - expected
+}
+
+export interface DivergenceAnalysis {
+  amount: number;           // Valor da divergência
+  type: 'sobra' | 'falta' | 'balanceado';
+  severity: 'low' | 'medium' | 'high';
+  possibleCauses: string[];
+  recommendations: string[];
+}
+
+export interface ShiftTransition {
+  previousShift: {
+    id: number;
+    finalCash: number;
+    cashForNext: number;
+    endTime: string;
+  };
+  currentShift: {
+    id: number;
+    initialCash: number;
+    expectedCash: number;
+    openingDiscrepancy: number;
+  };
+  validationResult: {
+    isValid: boolean;
+    warnings: string[];
+    errors: string[];
+  };
+}
+
+/*
+ANÁLISE CRÍTICA:
+- CashFlowComponents representa todos os elementos do cálculo de divergência
+- DivergenceAnalysis fornece análise inteligente das causas
+- ShiftTransition rastreia a herança entre turnos consecutivos
+*/
+```
+
+### 2. CAMADA DE PROCESSAMENTO (BUSINESS LOGIC LAYER)
+
+#### `server/lib/divergence-calculator.ts` - Calculadora Principal
+
+```typescript
+// ANÁLISE: Núcleo dos cálculos de divergência de caixa
+
+export class DivergenceCalculator {
+  constructor(private db: any) {}
+
+  // FUNÇÃO PRINCIPAL: Calcular divergência de um turno
+  async calculateShiftDivergence(shiftId: number): Promise<DivergenceResult> {
+    // 1. BUSCAR DADOS FUNDAMENTAIS
+    const shiftData = await this.getShiftFinancialData(shiftId);
+
+    // 2. APLICAR FÓRMULA DE DIVERGÊNCIA
+    const divergence = this.applyDivergenceFormula(shiftData);
+
+    // 3. ANALISAR PADRÕES E CAUSAS
+    const analysis = await this.analyzeDivergencePatterns(shiftId, divergence);
+
+    return {
+      shiftId,
+      divergence,
+      analysis,
+      calculatedAt: new Date().toISOString()
+    };
+  }
+
+  // FUNÇÃO CORE: Aplicar fórmula matemática
+  private applyDivergenceFormula(data: ShiftFinancialData): number {
+    /*
+    FÓRMULA FUNDAMENTAL:
+    Divergência = Caixa Final Contado - Caixa Esperado
+
+    Onde:
+    Caixa Esperado = Caixa Inicial + Vendas em Dinheiro - Sangrias
+
+    EXEMPLO:
+    - Caixa Inicial: R$ 200,00
+    - Vendas Dinheiro: R$ 300,00
+    - Sangrias: R$ 50,00
+    - Caixa Final: R$ 460,00
+
+    Esperado = 200 + 300 - 50 = 450
+    Divergência = 460 - 450 = +10 (sobra de R$ 10)
+    */
+
+    const expectedCash = data.initialCash + data.cashSales - data.cashWithdrawals;
+    const divergence = data.finalCash - expectedCash;
+
+    console.log(`🧮 Calculando divergência para turno ${data.shiftId}:`);
+    console.log(`   💰 Inicial: R$ ${data.initialCash.toFixed(2)}`);
+    console.log(`   📈 Vendas: R$ ${data.cashSales.toFixed(2)}`);
+    console.log(`   📤 Sangrias: R$ ${data.cashWithdrawals.toFixed(2)}`);
+    console.log(`   🎯 Esperado: R$ ${expectedCash.toFixed(2)}`);
+    console.log(`   📊 Final: R$ ${data.finalCash.toFixed(2)}`);
+    console.log(`   ⚖️  Divergência: R$ ${divergence.toFixed(2)}`);
+
+    return divergence;
+  }
+
+  // FUNÇÃO: Buscar dados financeiros completos
+  private async getShiftFinancialData(shiftId: number): Promise<ShiftFinancialData> {
+    // Query otimizada para buscar todos os dados necessários
+    const result = await this.db.execute(sql`
+      SELECT
+        s.id,
+        s.initial_cash,
+        s.final_cash,
+        sp.cash as cash_sales,
+        COALESCE(
+          (SELECT SUM(amount) FROM cash_adjustments
+           WHERE shift_id = s.id AND type = 'withdrawal'),
+          0
+        ) as cash_withdrawals
+      FROM shifts s
+      LEFT JOIN shift_payments sp ON s.id = sp.shift_id
+      WHERE s.id = ${shiftId}
+    `);
+
+    if (!result.rows.length) {
+      throw new Error(`Turno ${shiftId} não encontrado`);
+    }
+
+    const row = result.rows[0];
+    return {
+      shiftId,
+      initialCash: parseFloat(row.initial_cash || '0'),
+      finalCash: parseFloat(row.final_cash || '0'),
+      cashSales: parseFloat(row.cash_sales || '0'),
+      cashWithdrawals: parseFloat(row.cash_withdrawals || '0')
+    };
+  }
+
+  // FUNÇÃO: Analisar padrões de divergência
+  private async analyzeDivergencePatterns(
+    shiftId: number,
+    divergence: number
+  ): Promise<DivergenceAnalysis> {
+
+    // Classificar severidade
+    const severity = this.classifyDivergenceSeverity(Math.abs(divergence));
+
+    // Identificar tipo
+    const type = divergence > 0 ? 'sobra' : divergence < 0 ? 'falta' : 'balanceado';
+
+    // Buscar padrões históricos do funcionário
+    const historicalPattern = await this.getEmployeeHistoricalPattern(shiftId);
+
+    // Gerar causas possíveis baseadas na análise
+    const possibleCauses = this.identifyPossibleCauses(divergence, historicalPattern);
+
+    // Gerar recomendações
+    const recommendations = this.generateRecommendations(divergence, severity, historicalPattern);
+
+    return {
+      amount: divergence,
+      type,
+      severity,
+      possibleCauses,
+      recommendations,
+      historicalContext: historicalPattern
+    };
+  }
+
+  // FUNÇÃO: Classificar severidade da divergência
+  private classifyDivergenceSeverity(absDivergence: number): 'low' | 'medium' | 'high' {
+    /*
+    CRITÉRIOS DE SEVERIDADE:
+    - Baixa: até R$ 5,00 (variação normal de contagem)
+    - Média: R$ 5,01 a R$ 20,00 (requer atenção)
+    - Alta: acima de R$ 20,00 (requer investigação)
+    */
+    if (absDivergence <= 5) return 'low';
+    if (absDivergence <= 20) return 'medium';
+    return 'high';
+  }
+
+  // FUNÇÃO: Identificar causas possíveis
+  private identifyPossibleCauses(
+    divergence: number,
+    historicalPattern: HistoricalPattern
+  ): string[] {
+    const causes: string[] = [];
+
+    if (divergence > 0) {
+      // SOBRAS - possíveis causas
+      causes.push('Erro na contagem de caixa final');
+      causes.push('Venda não registrada no sistema');
+      causes.push('Troco dado em valor menor que registrado');
+
+      if (historicalPattern.averageDivergence > 0) {
+        causes.push('Padrão recorrente de sobras - revisar procedimentos');
+      }
+    } else if (divergence < 0) {
+      // FALTAS - possíveis causas
+      causes.push('Sangria não registrada no sistema');
+      causes.push('Erro na contagem de caixa final');
+      causes.push('Troco dado em valor maior que registrado');
+      causes.push('Possível furto ou perda');
+
+      if (historicalPattern.averageDivergence < 0) {
+        causes.push('Padrão recorrente de faltas - investigação necessária');
+      }
+    }
+
+    // Causas baseadas em magnitude
+    if (Math.abs(divergence) > 50) {
+      causes.push('Divergência alta - possível erro sistêmico');
+      causes.push('Verificar se todas as sangrias foram registradas');
+    }
+
+    return causes;
+  }
+
+  // FUNÇÃO: Gerar recomendações
+  private generateRecommendations(
+    divergence: number,
+    severity: 'low' | 'medium' | 'high',
+    historicalPattern: HistoricalPattern
+  ): string[] {
+    const recommendations: string[] = [];
+
+    switch (severity) {
+      case 'low':
+        recommendations.push('Verificar contagem de moedas');
+        recommendations.push('Revisar cálculos de troco');
+        break;
+
+      case 'medium':
+        recommendations.push('Recontagem obrigatória do caixa');
+        recommendations.push('Verificar registros de sangria');
+        recommendations.push('Revisar vendas do período');
+        break;
+
+      case 'high':
+        recommendations.push('Investigação imediata necessária');
+        recommendations.push('Revisar todo o fluxo de caixa do turno');
+        recommendations.push('Verificar câmeras de segurança');
+        recommendations.push('Auditoria completa dos registros');
+        break;
+    }
+
+    // Recomendações baseadas em padrões
+    if (historicalPattern.divergenceRate > 0.3) {
+      recommendations.push('Treinamento adicional recomendado');
+      recommendations.push('Supervisão mais próxima nos próximos turnos');
+    }
+
+    return recommendations;
+  }
+}
+
+/*
+ANÁLISE CRÍTICA:
+- Esta classe é o CORAÇÃO do sistema de divergências
+- A fórmula matemática é simples mas crítica: Final - (Inicial + Vendas - Sangrias)
+- A análise de padrões adiciona inteligência ao sistema
+- Classificação de severidade orienta ações administrativas
+- Recomendações automatizadas auxiliam na resolução
+*/
+```
+
+#### `server/lib/shift-inheritance.ts` - Herança Entre Turnos
+
+```typescript
+// ANÁLISE: Gerencia a transição de valores entre turnos consecutivos
+
+export class ShiftInheritanceService {
+  constructor(private db: any) {}
+
+  // FUNÇÃO PRINCIPAL: Calcular herança para novo turno
+  async calculateInheritanceValues(lastClosedShiftId?: number): Promise<InheritanceData> {
+    /*
+    LÓGICA DE HERANÇA:
+    1. Buscar último turno fechado
+    2. Calcular valores disponíveis para próximo turno
+    3. Considerar envelope (dinheiro retirado)
+    4. Herdar produtos em estoque
+    */
+
+    const lastShift = await this.getLastClosedShift(lastClosedShiftId);
+
+    if (!lastShift) {
+      return this.getDefaultInheritanceValues();
+    }
+
+    // CÁLCULO DE HERANÇA DE DINHEIRO
+    const cashInheritance = this.calculateCashInheritance(lastShift);
+
+    // HERANÇA DE PRODUTOS
+    const productInheritance = this.calculateProductInheritance(lastShift.records);
+
+    return {
+      cash: cashInheritance,
+      products: productInheritance,
+      source: {
+        shiftId: lastShift.id,
+        closedAt: lastShift.endTime,
+        userId: lastShift.userId
+      }
+    };
+  }
+
+  // FUNÇÃO: Calcular herança de dinheiro
+  private calculateCashInheritance(lastShift: any): CashInheritanceData {
+    /*
+    FÓRMULA DE HERANÇA:
+    Dinheiro para próximo turno = Caixa Final - Envelope
+
+    EXEMPLO:
+    - Caixa Final: R$ 500,00
+    - Envelope: R$ 200,00
+    - Para próximo: R$ 300,00
+    */
+
+    const finalCash = parseFloat(lastShift.finalCash || '0');
+    const finalCoins = parseFloat(lastShift.finalCoins || '0');
+    const envelopeCash = parseFloat(lastShift.envelopeCash || '0');
+    const envelopeCoins = parseFloat(lastShift.envelopeCoins || '0');
+
+    // Valores específicos calculados no fechamento
+    const cashForNext = parseFloat(lastShift.cashForNextShift || '0');
+    const coinsForNext = parseFloat(lastShift.coinsForNextShift || '0');
+
+    if (cashForNext > 0 || coinsForNext > 0) {
+      // Usar valores específicos calculados
+      return {
+        expectedCash: cashForNext.toFixed(2),
+        expectedCoins: coinsForNext.toFixed(2),
+        source: 'calculated',
+        calculation: {
+          finalCash,
+          finalCoins,
+          envelopeCash,
+          envelopeCoins,
+          remaining: { cash: cashForNext, coins: coinsForNext }
+        }
+      };
+    }
+
+    // Fallback: calcular com base nos valores finais
+    const inheritedCash = finalCash - envelopeCash;
+    const inheritedCoins = finalCoins - envelopeCoins;
+
+    return {
+      expectedCash: Math.max(0, inheritedCash).toFixed(2),
+      expectedCoins: Math.max(0, inheritedCoins).toFixed(2),
+      source: 'fallback',
+      calculation: {
+        finalCash,
+        finalCoins,
+        envelopeCash,
+        envelopeCoins,
+        remaining: {
+          cash: Math.max(0, inheritedCash),
+          coins: Math.max(0, inheritedCoins)
+        }
+      }
+    };
+  }
+
+  // FUNÇÃO: Validar transição entre turnos
+  async validateShiftTransition(
+    lastShiftId: number,
+    newShiftData: { initialCash: number; initialCoins: number }
+  ): Promise<TransitionValidationResult> {
+
+    const inheritance = await this.calculateInheritanceValues(lastShiftId);
+
+    const expectedCash = parseFloat(inheritance.cash.expectedCash);
+    const expectedCoins = parseFloat(inheritance.cash.expectedCoins);
+
+    const cashDiscrepancy = newShiftData.initialCash - expectedCash;
+    const coinsDiscrepancy = newShiftData.initialCoins - expectedCoins;
+
+    const validationResult: TransitionValidationResult = {
+      isValid: true,
+      discrepancies: [],
+      warnings: [],
+      inheritance
+    };
+
+    // Verificar discrepâncias significativas
+    if (Math.abs(cashDiscrepancy) > 0.01) {
+      validationResult.discrepancies.push({
+        type: 'cash',
+        expected: expectedCash,
+        actual: newShiftData.initialCash,
+        difference: cashDiscrepancy,
+        severity: Math.abs(cashDiscrepancy) > 10 ? 'high' : 'medium'
+      });
+    }
+
+    if (Math.abs(coinsDiscrepancy) > 0.01) {
+      validationResult.discrepancies.push({
+        type: 'coins',
+        expected: expectedCoins,
+        actual: newShiftData.initialCoins,
+        difference: coinsDiscrepancy,
+        severity: Math.abs(coinsDiscrepancy) > 5 ? 'high' : 'medium'
+      });
+    }
+
+    // Marcar como inválido se há discrepâncias de alta severidade
+    const hasHighSeverity = validationResult.discrepancies.some(d => d.severity === 'high');
+    if (hasHighSeverity) {
+      validationResult.isValid = false;
+    }
+
+    return validationResult;
+  }
+}
+
+/*
+ANÁLISE CRÍTICA:
+- Esta classe garante continuidade entre turnos
+- Evita divergências desnecessárias na abertura
+- Valida a integridade da transição
+- Fornece rastreabilidade da herança de valores
+*/
+```
+
+#### `server/lib/shift-processor.ts` - Processador Principal
+
+```typescript
+// ANÁLISE: Orquestrador principal do processamento de turnos
+
+export class ShiftProcessor {
+  constructor(private db: any) {
+    this.divergenceCalculator = new DivergenceCalculator(db);
+    this.inheritanceService = new ShiftInheritanceService(db);
+  }
+
+  // FUNÇÃO PRINCIPAL: Processar turno completo
+  async processShift(shiftId: number): Promise<ProcessedShift> {
+    /*
+    FLUXO DE PROCESSAMENTO:
+    1. Buscar dados básicos do turno
+    2. Calcular divergência de caixa
+    3. Processar registros de inventário
+    4. Calcular totais financeiros
+    5. Analisar padrões e tendências
+    6. Gerar relatório consolidado
+    */
+
+    console.log(`🔄 Iniciando processamento do turno ${shiftId}`);
+
+    // 1. DADOS BÁSICOS
+    const shiftData = await this.getShiftBaseData(shiftId);
+
+    // 2. CÁLCULO DE DIVERGÊNCIA
+    const divergenceResult = await this.divergenceCalculator.calculateShiftDivergence(shiftId);
+
+    // 3. PROCESSAMENTO DE INVENTÁRIO
+    const inventoryData = await this.processInventoryRecords(shiftId);
+
+    // 4. TOTAIS FINANCEIROS
+    const financialTotals = await this.calculateFinancialTotals(shiftId);
+
+    // 5. ANÁLISE DE PERFORMANCE
+    const performanceAnalysis = await this.analyzeShiftPerformance(shiftId, {
+      divergence: divergenceResult,
+      inventory: inventoryData,
+      financial: financialTotals
+    });
+
+    // 6. CONSOLIDAR RESULTADO
+    const processedShift: ProcessedShift = {
+      ...shiftData,
+      divergenceAnalysis: divergenceResult,
+      inventoryData,
+      financialTotals,
+      performanceAnalysis,
+      processedAt: new Date().toISOString()
+    };
+
+    console.log(`✅ Turno ${shiftId} processado com sucesso`);
+
+    return processedShift;
+  }
+
+  // FUNÇÃO: Calcular totais financeiros
+  private async calculateFinancialTotals(shiftId: number): Promise<FinancialTotals> {
+    const result = await this.db.execute(sql`
+      SELECT
+        -- PAGAMENTOS
+        sp.cash,
+        sp.pix,
+        sp.stone_card,
+        sp.stone_voucher,
+        sp.pagbank_card,
+
+        -- TOTAIS CALCULADOS
+        (CAST(sp.cash AS REAL) + CAST(sp.pix AS REAL) +
+         CAST(sp.stone_card AS REAL) + CAST(sp.stone_voucher AS REAL) +
+         CAST(sp.pagbank_card AS REAL)) as total_payments,
+
+        -- SANGRIAS
+        COALESCE(
+          (SELECT SUM(amount) FROM cash_adjustments
+           WHERE shift_id = ${shiftId} AND type = 'withdrawal'),
+          0
+        ) as total_withdrawals,
+
+        -- RECEITA DE PRODUTOS
+        COALESCE(
+          (SELECT SUM(
+            (CAST(sr.entry_qty AS REAL) + CAST(sr.arrival_qty AS REAL) -
+             CAST(sr.leftover_qty AS REAL) - CAST(sr.discard_qty AS REAL) -
+             CAST(sr.consumption_qty AS REAL)) * p.price
+          ) FROM shift_records sr
+          JOIN products p ON sr.product_id = p.id
+          WHERE sr.shift_id = ${shiftId}),
+          0
+        ) as total_revenue
+
+      FROM shift_payments sp
+      WHERE sp.shift_id = ${shiftId}
+    `);
+
+    const row = result.rows[0];
+
+    return {
+      payments: {
+        cash: parseFloat(row.cash || '0'),
+        pix: parseFloat(row.pix || '0'),
+        stoneCard: parseFloat(row.stone_card || '0'),
+        stoneVoucher: parseFloat(row.stone_voucher || '0'),
+        pagBankCard: parseFloat(row.pagbank_card || '0'),
+        total: parseFloat(row.total_payments || '0')
+      },
+      revenue: parseFloat(row.total_revenue || '0'),
+      withdrawals: parseFloat(row.total_withdrawals || '0'),
+      netCashFlow: parseFloat(row.cash || '0') - parseFloat(row.total_withdrawals || '0')
+    };
+  }
+
+  // FUNÇÃO: Analisar performance do turno
+  private async analyzeShiftPerformance(
+    shiftId: number,
+    data: { divergence: any; inventory: any; financial: any }
+  ): Promise<PerformanceAnalysis> {
+
+    // Métricas de qualidade
+    const qualityMetrics = {
+      divergenceScore: this.calculateDivergenceScore(data.divergence.amount),
+      inventoryAccuracy: this.calculateInventoryAccuracy(data.inventory),
+      financialConsistency: this.calculateFinancialConsistency(data.financial)
+    };
+
+    // Score geral (0-100)
+    const overallScore = (
+      qualityMetrics.divergenceScore * 0.4 +
+      qualityMetrics.inventoryAccuracy * 0.3 +
+      qualityMetrics.financialConsistency * 0.3
+    );
+
+    // Identificar áreas de melhoria
+    const improvementAreas = [];
+    if (qualityMetrics.divergenceScore < 80) {
+      improvementAreas.push('Controle de caixa');
+    }
+    if (qualityMetrics.inventoryAccuracy < 90) {
+      improvementAreas.push('Precisão do inventário');
+    }
+    if (qualityMetrics.financialConsistency < 85) {
+      improvementAreas.push('Consistência financeira');
+    }
+
+    return {
+      overallScore: Math.round(overallScore),
+      qualityMetrics,
+      improvementAreas,
+      recommendations: this.generatePerformanceRecommendations(qualityMetrics)
+    };
+  }
+
+  // FUNÇÃO: Calcular score de divergência (0-100)
+  private calculateDivergenceScore(divergence: number): number {
+    const absDivergence = Math.abs(divergence);
+
+    // Score baseado na magnitude da divergência
+    if (absDivergence === 0) return 100;
+    if (absDivergence <= 2) return 95;
+    if (absDivergence <= 5) return 85;
+    if (absDivergence <= 10) return 70;
+    if (absDivergence <= 20) return 50;
+    if (absDivergence <= 50) return 25;
+    return 0;
+  }
+}
+
+/*
+ANÁLISE CRÍTICA:
+- Esta classe orquestra todo o processamento de turnos
+- Integra cálculos de divergência, inventário e performance
+- Fornece análise qualitativa além dos números
+- Gera insights acionáveis para melhoria contínua
+*/
+```
+
+### 3. CAMADA DE API (API LAYER)
+
+#### `server/routes.ts` - Endpoints da API
+
+```typescript
+// ANÁLISE: Endpoints HTTP que expõem a funcionalidade de divergência
+
+// ===== ENDPOINT: ABRIR TURNO =====
+app.post('/api/shifts', requireAuth, async (req, res) => {
+  /*
+  RESPONSABILIDADES:
+  1. Validar dados de entrada
+  2. Calcular herança do turno anterior
+  3. Detectar divergência na abertura
+  4. Criar novo turno com controles
+  5. Registrar auditoria
+  6. Notificar administradores se necessário
+  */
+
+  const { initialCash, initialCoins } = req.body;
+
+  try {
+    await db.transaction(async (tx) => {
+      // HERANÇA DO TURNO ANTERIOR
+      const inheritanceService = new ShiftInheritanceService(tx);
+      const inheritance = await inheritanceService.calculateInheritanceValues();
+
+      // CÁLCULO DE DIVERGÊNCIA NA ABERTURA
+      const expectedCash = parseFloat(inheritance.cash.expectedCash);
+      const expectedCoins = parseFloat(inheritance.cash.expectedCoins);
+      const informedCash = parseFloat(initialCash) || 0;
+      const informedCoins = parseFloat(initialCoins) || 0;
+
+      const openingDiscrepancy = (informedCash + informedCoins) - (expectedCash + expectedCoins);
+
+      // CRIAR TURNO
+      const [newShift] = await tx.insert(shifts).values({
+        userId: req.user.id,
+        startTime: new Date().toISOString(),
+        initialCash: informedCash.toFixed(2),
+        initialCoins: informedCoins.toFixed(2),
+        expectedCash: expectedCash.toFixed(2),
+        expectedCoins: expectedCoins.toFixed(2),
+        openingDiscrepancy: openingDiscrepancy.toFixed(2),
+        status: 'open'
+      }).returning();
+
+      // AUDITORIA
+      await tx.insert(timeline).values({
+        shiftId: newShift.id,
+        userId: req.user.id,
+        action: 'SHIFT_OPENED',
+        description: `Turno aberto ${Math.abs(openingDiscrepancy) > 0.01 ? `com divergência de R$ ${openingDiscrepancy.toFixed(2)}` : 'sem divergência'}`,
+        metadata: JSON.stringify({
+          inheritance,
+          openingDiscrepancy,
+          expectedValues: { expectedCash, expectedCoins },
+          informedValues: { informedCash, informedCoins }
+        })
+      });
+
+      // NOTIFICAÇÃO PARA DIVERGÊNCIAS SIGNIFICATIVAS
+      if (Math.abs(openingDiscrepancy) > 10) {
+        notifyAdminClients('shift-opened-with-divergence', {
+          shiftId: newShift.id,
+          userId: req.user.id,
+          userName: req.user.name,
+          openingDiscrepancy,
+          severity: Math.abs(openingDiscrepancy) > 50 ? 'high' : 'medium'
+        });
+      }
+
+      res.status(201).json(newShift);
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao abrir turno:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// ===== ENDPOINT: FECHAR TURNO =====
+app.post('/api/shifts/:id/close', requireAuth, async (req, res) => {
+  /*
+  RESPONSABILIDADES:
+  1. Validar permissões e estado do turno
+  2. Processar pagamentos (incluindo cartões cumulativos)
+  3. Calcular divergência de fechamento
+  4. Determinar valores para próximo turno
+  5. Registrar observações sobre divergências
+  6. Notificar administradores
+  7. Registrar auditoria completa
+  */
+
+  const shiftId = parseInt(req.params.id);
+  const {
+    finalCash,
+    finalCoins,
+    envelopeCash,
+    envelopeCoins,
+    payments,
+    cumulativeCardValues,
+    observations
+  } = req.body;
+
+  try {
+    await db.transaction(async (tx) => {
+      // VALIDAÇÃO DO TURNO
+      const shift = await tx.query.shifts.findFirst({
+        where: and(eq(shifts.id, shiftId), eq(shifts.status, 'open')),
+        with: { user: true, payments: true }
+      });
+
+      if (!shift) {
+        return res.status(404).json({ error: 'Turno não encontrado ou já fechado' });
+      }
+
+      // PROCESSAMENTO DE PAGAMENTOS
+      let finalPayments = payments;
+      if (cumulativeCardValues) {
+        const cardCalculator = new CardPaymentCalculator(tx);
+        const calculatedCards = await cardCalculator.calculateRealCardPayments(
+          shiftId,
+          { ...payments, ...cumulativeCardValues }
+        );
+
+        finalPayments = {
+          cash: payments.cash,
+          pix: payments.pix,
+          stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+          stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+          pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+        };
+      }
+
+      // CÁLCULO DE DIVERGÊNCIA
+      const divergenceCalculator = new DivergenceCalculator(tx);
+      const shiftFinancialData = {
+        shiftId,
+        initialCash: parseFloat(shift.initialCash || '0'),
+        finalCash: parseFloat(finalCash) || 0,
+        cashSales: parseFloat(finalPayments.cash || '0'),
+        cashWithdrawals: await this.getCashWithdrawals(tx, shiftId)
+      };
+
+      const divergence = divergenceCalculator.applyDivergenceFormula(shiftFinancialData);
+
+      // VALORES PARA PRÓXIMO TURNO
+      const actualCash = parseFloat(finalCash) || 0;
+      const actualCoins = parseFloat(finalCoins) || 0;
+      const envelopeCashAmount = parseFloat(envelopeCash) || 0;
+      const envelopeCoinsAmount = parseFloat(envelopeCoins) || 0;
+
+      const cashForNext = actualCash - envelopeCashAmount;
+      const coinsForNext = actualCoins - envelopeCoinsAmount;
+
+      // ATUALIZAR TURNO
+      await tx.update(shifts).set({
+        status: 'closed',
+        endTime: new Date().toISOString(),
+        finalCash: actualCash.toFixed(2),
+        finalCoins: actualCoins.toFixed(2),
+        envelopeCash: envelopeCashAmount.toFixed(2),
+        envelopeCoins: envelopeCoinsAmount.toFixed(2),
+        cashForNextShift: cashForNext.toFixed(2),
+        coinsForNextShift: coinsForNext.toFixed(2),
+        cashDivergence: divergence.toFixed(2),
+        closingObservations: observations || null
+      }).where(eq(shifts.id, shiftId));
+
+      // AUDITORIA DETALHADA
+      await tx.insert(timeline).values({
+        shiftId,
+        userId: req.user.id,
+        action: 'SHIFT_CLOSED',
+        description: `Turno fechado ${Math.abs(divergence) > 0.01 ? `com divergência de R$ ${divergence.toFixed(2)}` : 'sem divergência'}`,
+        metadata: JSON.stringify({
+          financialData: shiftFinancialData,
+          divergence,
+          envelopeAmounts: { cash: envelopeCashAmount, coins: envelopeCoinsAmount },
+          forNextShift: { cash: cashForNext, coins: coinsForNext },
+          observations: observations || null,
+          cumulativeCardValues: cumulativeCardValues || null
+        })
+      });
+
+      // NOTIFICAÇÕES BASEADAS EM DIVERGÊNCIA
+      if (Math.abs(divergence) > 0.01) {
+        notifyAdminClients('shift-closed-with-divergence', {
+          shiftId,
+          userId: shift.userId,
+          userName: shift.user.name,
+          divergence,
+          severity: Math.abs(divergence) > 50 ? 'high' : Math.abs(divergence) > 20 ? 'medium' : 'low',
+          observations,
+          requiresReview: Math.abs(divergence) > 20
+        });
+      }
+
+      res.json({
+        message: 'Turno fechado com sucesso',
+        divergence,
+        cashForNext,
+        coinsForNext
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao fechar turno:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// ===== ENDPOINT: RELATÓRIO DE DIVERGÊNCIAS =====
+app.get('/api/admin/reports/divergences', requireAdmin, async (req, res) => {
+  /*
+  RESPONSABILIDADES:
+  1. Validar parâmetros de data
+  2. Buscar turnos com divergência
+  3. Calcular estatísticas
+  4. Analisar padrões
+  5. Gerar recomendações
+  */
+
+  const { startDate, endDate } = req.query;
+
+  try {
+    const reportService = new DivergenceReportService(db);
+    const report = await reportService.generateDivergenceReport(
+      startDate as string,
+      endDate as string
+    );
+
+    res.json(report);
+  } catch (error) {
+    console.error('❌ Erro ao gerar relatório:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// ===== ENDPOINT: APLICAR CORREÇÃO ADMINISTRATIVA =====
+app.post('/api/admin/shifts/:id/corrections', requireAdmin, async (req, res) => {
+  /*
+  RESPONSABILIDADES:
+  1. Validar dados da correção
+  2. Verificar permissões administrativas
+  3. Aplicar correção nos dados
+  4. Recalcular divergência se necessário
+  5. Registrar auditoria da correção
+  6. Notificar sobre a ação
+  */
+
+  const shiftId = parseInt(req.params.id);
+  const correctionData = req.body;
+
+  try {
+    const correctionService = new ShiftCorrectionService(db);
+    const result = await correctionService.applyCorrection(
+      shiftId,
+      correctionData,
+      req.user.id
+    );
+
+    res.json(result);
+  } catch (error) {
+    console.error('❌ Erro ao aplicar correção:', error);
+    res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+  }
+});
+
+/*
+ANÁLISE CRÍTICA:
+- Cada endpoint tem responsabilidades bem definidas
+- Transações garantem consistência dos dados
+- Auditoria completa em todas as operações
+- Notificações diferenciadas por severidade
+- Validações rigorosas em múltiplas camadas
+*/
+```
+
+### 4. CAMADA DE INTERFACE (UI LAYER)
+
+#### `client/src/components/employee/close-shift-modal.tsx` - Modal de Fechamento
+
+```typescript
+// ANÁLISE: Interface principal para fechamento de turno pelo funcionário
+
+export const CloseShiftModal: React.FC<{ shiftId: number }> = ({ shiftId }) => {
+  /*
+  RESPONSABILIDADES:
+  1. Capturar valores de fechamento
+  2. Calcular divergência em tempo real
+  3. Validar observações obrigatórias
+  4. Exibir alertas visuais
+  5. Processar fechamento
+  */
+
+  const [formData, setFormData] = useState({
+    finalCash: '',
+    finalCoins: '',
+    envelopeCash: '',
+    envelopeCoins: '',
+    observations: ''
+  });
+
+  const [calculatedValues, setCalculatedValues] = useState({
+    expectedCash: 0,
+    divergence: 0,
+    severity: 'low' as 'low' | 'medium' | 'high'
+  });
+
+  // HOOK: Dados do turno atual
+  const { data: shiftData } = useQuery({
+    queryKey: ['shift-details', shiftId],
+    queryFn: () => api.get(`/api/shifts/${shiftId}/details`)
+  });
+
+  // HOOK: Cálculo de divergência em tempo real
+  const { calculateDivergence } = useDivergenceCalculation();
+
+  // EFFECT: Recalcular quando valores mudam
+  useEffect(() => {
+    if (!shiftData || !formData.finalCash) return;
+
+    const result = calculateDivergence({
+      initialCash: parseFloat(shiftData.initialCash || '0'),
+      finalCash: parseFloat(formData.finalCash) || 0,
+      cashSales: parseFloat(shiftData.payments?.cash || '0'),
+      cashWithdrawals: shiftData.cashAdjustments?.reduce((sum: number, adj: any) =>
+        adj.type === 'withdrawal' ? sum + adj.amount : sum, 0) || 0
+    });
+
+    setCalculatedValues({
+      expectedCash: result.expectedCash,
+      divergence: result.divergence,
+      severity: result.severity
+    });
+  }, [formData, shiftData, calculateDivergence]);
+
+  // MUTATION: Fechar turno
+  const closeShiftMutation = useMutation({
+    mutationFn: (data: CloseShiftData) => api.post(`/api/shifts/${shiftId}/close`, data),
+    onSuccess: () => {
+      toast.success('Turno fechado com sucesso');
+      queryClient.invalidateQueries(['shifts']);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao fechar turno');
+    }
+  });
+
+  // HANDLER: Submeter fechamento
+  const handleSubmit = () => {
+    // Validação de observações obrigatórias para divergências
+    if (Math.abs(calculatedValues.divergence) > 0.01 && !formData.observations.trim()) {
+      toast.error('Observações são obrigatórias para divergências acima de R$ 0,01');
+      return;
+    }
+
+    closeShiftMutation.mutate(formData);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Resumo financeiro do turno */}
+      <FinancialSummarySection shiftData={shiftData} />
+
+      {/* Formulário de contagem final */}
+      <FinalCountingSection
+        formData={formData}
+        onChange={setFormData}
+      />
+
+      {/* Seção de envelope */}
+      <EnvelopeSection
+        formData={formData}
+        onChange={setFormData}
+      />
+
+      {/* SEÇÃO CRÍTICA: Análise de divergência */}
+      <DivergenceAnalysisSection
+        calculatedValues={calculatedValues}
+        formData={formData}
+        onChange={setFormData}
+      />
+
+      {/* Botão de fechamento */}
+      <button
+        onClick={handleSubmit}
+        disabled={closeShiftMutation.isPending || (
+          Math.abs(calculatedValues.divergence) > 0.01 && !formData.observations.trim()
+        )}
+        className={`w-full py-3 rounded-lg font-medium ${
+          Math.abs(calculatedValues.divergence) > 0.01
+            ? 'bg-red-600 hover:bg-red-700 text-white'
+            : 'bg-blue-600 hover:bg-blue-700 text-white'
+        }`}
+      >
+        {closeShiftMutation.isPending
+          ? 'Fechando Turno...'
+          : `Fechar Turno${Math.abs(calculatedValues.divergence) > 0.01
+              ? ` (Divergência: R$ ${calculatedValues.divergence.toFixed(2)})`
+              : ''}`
+        }
+      </button>
+    </div>
+  );
+};
+
+// COMPONENTE: Análise de divergência
+const DivergenceAnalysisSection: React.FC<{
+  calculatedValues: any;
+  formData: any;
+  onChange: (data: any) => void;
+}> = ({ calculatedValues, formData, onChange }) => {
+  const { divergence, expectedCash, severity } = calculatedValues;
+  const finalCash = parseFloat(formData.finalCash) || 0;
+
+  // Cores baseadas na severidade
+  const colorClasses = {
+    low: 'bg-green-50 border-green-200 text-green-800',
+    medium: 'bg-yellow-50 border-yellow-200 text-yellow-800',
+    high: 'bg-red-50 border-red-200 text-red-800'
+  };
+
+  const iconMap = {
+    low: '✅',
+    medium: '⚠️',
+    high: '🚨'
+  };
+
+  return (
+    <div className={`p-4 rounded-lg border ${colorClasses[severity]}`}>
+      <div className="flex items-center mb-3">
+        <span className="text-2xl mr-2">{iconMap[severity]}</span>
+        <h3 className="font-medium">
+          Análise de Divergência
+        </h3>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+        <div>
+          <p className="opacity-75">Caixa Esperado:</p>
+          <p className="font-medium">R$ {expectedCash.toFixed(2)}</p>
+        </div>
+        <div>
+          <p className="opacity-75">Caixa Contado:</p>
+          <p className="font-medium">R$ {finalCash.toFixed(2)}</p>
+        </div>
+      </div>
+
+      <div className="pt-3 border-t border-current border-opacity-20">
+        <div className="flex justify-between items-center mb-3">
+          <span className="font-medium">Divergência:</span>
+          <span className="font-bold text-lg">
+            R$ {divergence.toFixed(2)}
+            {divergence > 0 && ' (sobra)'}
+            {divergence < 0 && ' (falta)'}
+            {Math.abs(divergence) <= 0.01 && ' (balanceado)'}
+          </span>
+        </div>
+
+        {/* Observações obrigatórias para divergências */}
+        {Math.abs(divergence) > 0.01 && (
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Observações sobre a Divergência *
+            </label>
+            <textarea
+              value={formData.observations}
+              onChange={(e) => onChange({ ...formData, observations: e.target.value })}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              rows={3}
+              placeholder="Explique o motivo da divergência (obrigatório)"
+              required
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/*
+ANÁLISE CRÍTICA:
+- Interface intuitiva com feedback visual imediato
+- Cálculos em tempo real evitam surpresas
+- Validações impedem fechamentos incorretos
+- Cores e ícones comunicam severidade claramente
+- Observações obrigatórias garantem rastreabilidade
+*/
+```
+
+#### `client/src/hooks/useDivergenceCalculation.ts` - Hook de Cálculo
+
+```typescript
+// ANÁLISE: Hook customizado para cálculos de divergência no frontend
+
+export const useDivergenceCalculation = () => {
+  /*
+  RESPONSABILIDADES:
+  1. Aplicar fórmula de divergência
+  2. Classificar severidade
+  3. Gerar sugestões de ação
+  4. Memoizar resultados para performance
+  */
+
+  // FUNÇÃO PRINCIPAL: Calcular divergência
+  const calculateDivergence = useCallback((data: {
+    initialCash: number;
+    finalCash: number;
+    cashSales: number;
+    cashWithdrawals: number;
+  }) => {
+    /*
+    FÓRMULA REPLICADA DO BACKEND:
+    expectedCash = initialCash + cashSales - cashWithdrawals
+    divergence = finalCash - expectedCash
+    */
+
+    const expectedCash = data.initialCash + data.cashSales - data.cashWithdrawals;
+    const divergence = data.finalCash - expectedCash;
+
+    // Classificar severidade
+    const severity = classifyDivergenceSeverity(Math.abs(divergence));
+
+    // Gerar sugestões
+    const suggestions = generateActionSuggestions(divergence, severity);
+
+    return {
+      expectedCash,
+      divergence,
+      severity,
+      suggestions,
+      isBalanced: Math.abs(divergence) <= 0.01
+    };
+  }, []);
+
+  // FUNÇÃO: Classificar severidade
+  const classifyDivergenceSeverity = (absDivergence: number): 'low' | 'medium' | 'high' => {
+    if (absDivergence <= 5) return 'low';
+    if (absDivergence <= 20) return 'medium';
+    return 'high';
+  };
+
+  // FUNÇÃO: Gerar sugestões de ação
+  const generateActionSuggestions = (divergence: number, severity: string): string[] => {
+    const suggestions: string[] = [];
+
+    if (Math.abs(divergence) <= 0.01) {
+      suggestions.push('✅ Caixa balanceado - pode fechar o turno');
+      return suggestions;
+    }
+
+    if (divergence > 0) {
+      // SOBRAS
+      suggestions.push('🔍 Verificar se todas as vendas foram registradas');
+      suggestions.push('💰 Recontar o dinheiro em caixa');
+      suggestions.push('📝 Verificar se houve trocos menores que o devido');
+    } else {
+      // FALTAS
+      suggestions.push('📤 Verificar se todas as sangrias foram registradas');
+      suggestions.push('💰 Recontar o dinheiro em caixa');
+      suggestions.push('📝 Verificar se houve trocos maiores que o devido');
+    }
+
+    if (severity === 'high') {
+      suggestions.push('🚨 Divergência alta - chamar supervisor');
+      suggestions.push('📹 Verificar câmeras de segurança se disponível');
+    }
+
+    return suggestions;
+  };
+
+  // FUNÇÃO: Validar dados de entrada
+  const validateCashData = (data: any): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (data.finalCash < 0) {
+      errors.push('Caixa final não pode ser negativo');
+    }
+
+    if (data.initialCash < 0) {
+      errors.push('Caixa inicial não pode ser negativo');
+    }
+
+    if (data.cashSales < 0) {
+      errors.push('Vendas em dinheiro não podem ser negativas');
+    }
+
+    if (data.cashWithdrawals < 0) {
+      errors.push('Sangrias não podem ser negativas');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
+  return {
+    calculateDivergence,
+    classifyDivergenceSeverity,
+    generateActionSuggestions,
+    validateCashData
+  };
+};
+
+/*
+ANÁLISE CRÍTICA:
+- Hook reutilizável em múltiplos componentes
+- Lógica consistente com o backend
+- Memoização para otimização de performance
+- Validações que previnem erros de entrada
+- Sugestões contextuais para o usuário
+*/
+```
+
+## FLUXO DE DADOS COMPLETO
+
+### Sequência de Operações: Fechamento de Turno
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant API as API Routes
+    participant DC as DivergenceCalculator
+    participant DB as Database
+    participant WS as WebSocket
+    participant A as Admin
+
+    F->>API: POST /api/shifts/:id/close
+    API->>DB: Buscar dados do turno
+    API->>DC: calculateShiftDivergence()
+    DC->>DB: Buscar vendas em dinheiro
+    DC->>DB: Buscar sangrias
+    DC->>DC: Aplicar fórmula: Final - (Inicial + Vendas - Sangrias)
+    DC->>API: Retornar divergência calculada
+    API->>DB: Atualizar turno com divergência
+    API->>DB: Inserir timeline de auditoria
+    API->>WS: Notificar divergência (se > 0.01)
+    WS->>A: Alerta para administradores
+    API->>F: Confirmar fechamento
+```
+
+### Mapeamento de Responsabilidades
+
+| Componente | Responsabilidade | Arquivo Principal |
+|------------|------------------|-------------------|
+| **Schema** | Estrutura de dados | `shared/schema.ts` |
+| **Cálculo** | Fórmula de divergência | `server/lib/divergence-calculator.ts` |
+| **Herança** | Transição entre turnos | `server/lib/shift-inheritance.ts` |
+| **API** | Endpoints HTTP | `server/routes.ts` |
+| **Interface** | Captura de dados | `client/src/components/employee/close-shift-modal.tsx` |
+| **Validação** | Regras de negócio | `server/lib/shift-validation.ts` |
+| **Relatórios** | Análise de padrões | `server/lib/divergence-report.ts` |
+| **Auditoria** | Rastreabilidade | `server/lib/corrections-utils.ts` |
+| **Notificação** | Tempo real | `server/ws.ts` |
+
+## CONSIDERAÇÕES CRÍTICAS DE IMPLEMENTAÇÃO
+
+### 1. PRECISÃO MATEMÁTICA
+- Uso de `parseFloat()` com `.toFixed(2)` para evitar erros de ponto flutuante
+- Validação de entrada em múltiplas camadas
+- Transações de banco para consistência
+
+### 2. AUDITORIA COMPLETA
+- Registro em `timeline` de todas as operações
+- Metadados JSON com contexto completo
+- Rastreabilidade de quem, quando e por que
+
+### 3. NOTIFICAÇÕES INTELIGENTES
+- Severidade baseada na magnitude da divergência
+- Diferentes canais para diferentes tipos de alerta
+- Evitar spam com rate limiting
+
+### 4. PERFORMANCE
+- Queries SQL otimizadas com índices apropriados
+- Memoização de cálculos no frontend
+- Virtualização para listas grandes de turnos
+
+### 5. SEGURANÇA
+- Validação rigorosa de permissões
+- Proteção contra modificações não autorizadas
+- Logs de segurança para tentativas suspeitas
+
+Esta documentação analítica apresenta uma visão completa e estruturada de todos os componentes envolvidos no sistema de divergência de caixa, fornecendo a base técnica necessária para desenvolvimento, manutenção e troubleshooting da funcionalidade.

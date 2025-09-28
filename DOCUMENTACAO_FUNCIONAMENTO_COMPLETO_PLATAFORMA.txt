@@ -1,0 +1,1758 @@
+# DOCUMENTAÇÃO COMPLETA - FUNCIONAMENTO DA PLATAFORMA PASTEL24H
+
+## VISÃO GERAL DA PLATAFORMA
+
+O Pastel24h é uma aplicação full-stack tradicional (não serverless) para gerenciamento de turnos de restaurante, construída com Express.js no backend e React no frontend, utilizando SQLite como banco de dados e WebSocket para atualizações em tempo real.
+
+## ARQUITETURA GERAL
+
+### Stack Tecnológico
+- **Backend**: Express.js + TypeScript + SQLite + Drizzle ORM + WebSocket
+- **Frontend**: React 18 + TypeScript + Wouter + TanStack Query + Tailwind CSS
+- **Banco de Dados**: SQLite com Drizzle ORM para queries type-safe
+- **Autenticação**: Passport.js com estratégia local e sessões
+- **Deploy**: Docker container em servidor local (não cloud/serverless)
+
+### Estrutura de Diretórios
+```
+pastel24h/
+├── server/                          # Backend Express.js
+│   ├── lib/                         # Lógica de negócio
+│   │   ├── shift-processor.ts       # Processamento de turnos (ORM)
+│   │   ├── shift-processor-sql.ts   # Processamento otimizado (SQL)
+│   │   ├── card-payment-calculator.ts # Calculadora de cartões
+│   │   └── corrections-utils.ts     # Utilitários de correções
+│   ├── routes.ts                    # Rotas da API
+│   ├── auth.ts                      # Configuração de autenticação
+│   └── ws.ts                        # Servidor WebSocket
+├── client/                          # Frontend React
+│   └── src/
+│       ├── lib/                     # Lógica de negócio frontend
+│       │   ├── calculations.ts      # Fórmulas e cálculos
+│       │   ├── constants.ts         # Constantes de negócio
+│       │   └── apiClient.ts         # Cliente API centralizado
+│       ├── components/              # Componentes React
+│       │   ├── admin/               # Componentes administrativos
+│       │   ├── employee/            # Componentes para funcionários
+│       │   └── ui/                  # Componentes de interface
+│       └── pages/                   # Páginas da aplicação
+├── shared/                          # Tipos compartilhados
+│   └── schema.ts                    # Schema do banco e tipos
+├── migrations/                      # Migrações do banco
+└── data/                           # Arquivo SQLite
+```
+
+## BANCO DE DADOS - SCHEMA COMPLETO
+
+### Tabelas Principais
+
+```typescript
+// shared/schema.ts
+
+// 1. USUÁRIOS
+export const users = sqliteTable('users', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  password: text('password').notNull(),        // bcrypt hash, 12 rounds
+  role: text('role', { enum: ['admin', 'employee'] }).default('employee'),
+  transportMode: text('transport_mode').references(() => transportModes.id),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 2. TURNOS
+export const shifts = sqliteTable('shifts', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  userId: integer('user_id').notNull().references(() => users.id),
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time'),
+  status: text('status', { enum: ['open', 'closed'] }).default('open'),
+
+  // Caixa e moedas
+  initialCash: text('initial_cash').default('200.00'),
+  finalCash: text('final_cash'),
+  initialCoins: text('initial_coins').default('50.00'),
+  finalCoins: text('final_coins'),
+
+  // Herança para próximo turno
+  expectedCash: text('expected_cash').default('200.00'),
+  expectedCoins: text('expected_coins').default('50.00'),
+  cashForNextShift: text('cash_for_next_shift'),
+  coinsForNextShift: text('coins_for_next_shift'),
+
+  // Divergências e ajustes
+  openingDiscrepancy: text('opening_discrepancy').default('0.00'),
+
+  // Envelope (dinheiro retirado)
+  envelopeCash: text('envelope_cash').default('0.00'),
+  envelopeCoins: text('envelope_coins').default('0.00'),
+});
+
+// 3. PRODUTOS
+export const products = sqliteTable('products', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  name: text('name').notNull(),
+  category: text('category').notNull(),
+  price: real('price').notNull(),
+  isActive: integer('is_active', { mode: 'boolean' }).default(true),
+});
+
+// 4. REGISTROS DE TURNO (Inventário)
+export const shiftRecords = sqliteTable('shift_records', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  productId: integer('product_id').notNull().references(() => products.id),
+
+  // Fórmula: Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo
+  entryQty: text('entry_qty').default('0'),      // Quantidade inicial
+  arrivalQty: text('arrival_qty').default('0'),  // Chegadas durante turno
+  leftoverQty: text('leftover_qty').default('0'), // Sobras finais
+  discardQty: text('discard_qty').default('0'),   // Descartes
+  consumptionQty: text('consumption_qty').default('0'), // Consumo interno
+});
+
+// 5. PAGAMENTOS
+export const shiftPayments = sqliteTable('shift_payments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+
+  // Valores reais (cálculos de receita)
+  cash: text('cash').default('0'),
+  pix: text('pix').default('0'),
+  stoneCard: text('stone_card').default('0'),
+  stoneVoucher: text('stone_voucher').default('0'),
+  pagBankCard: text('pagbank_card').default('0'),
+
+  // Valores cumulativos (visor das maquininhas)
+  stoneCardCumulative: text('stone_card_cumulative').default('0'),
+  stoneVoucherCumulative: text('stone_voucher_cumulative').default('0'),
+  pagBankCardCumulative: text('pagbank_card_cumulative').default('0'),
+
+  // Flag de cálculo automático
+  calculatedFromCumulative: integer('calculated_from_cumulative', { mode: 'boolean' }).default(false),
+});
+
+// 6. COLABORADORES DO TURNO
+export const shiftCollaborators = sqliteTable('shift_collaborators', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  userId: integer('user_id').notNull().references(() => users.id),
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time'),
+  hoursWorked: real('hours_worked').default(0),
+});
+
+// 7. AJUSTES DE CAIXA (Sangrias)
+export const cashAdjustments = sqliteTable('cash_adjustments', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').notNull().references(() => shifts.id),
+  type: text('type', { enum: ['withdrawal', 'adjustment'] }).notNull(),
+  amount: real('amount').notNull(),
+  reason: text('reason'),
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+
+// 8. TIMELINE (Auditoria)
+export const timeline = sqliteTable('timeline', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  shiftId: integer('shift_id').references(() => shifts.id),
+  userId: integer('user_id').references(() => users.id),
+  action: text('action').notNull(),
+  description: text('description').notNull(),
+  metadata: text('metadata'), // JSON string
+  createdAt: text('created_at').default(sql`CURRENT_TIMESTAMP`),
+});
+```
+
+## SISTEMA DE AUTENTICAÇÃO
+
+### Configuração Passport.js
+
+```typescript
+// server/auth.ts
+import passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import bcrypt from 'bcryptjs';
+
+// Configuração da estratégia local
+passport.use(new LocalStrategy({
+    usernameField: 'email',
+    passwordField: 'password'
+  }, async (email, password, done) => {
+    try {
+      const user = await db.query.users.findFirst({
+        where: eq(users.email, email)
+      });
+
+      if (!user) {
+        return done(null, false, { message: 'Email não encontrado' });
+      }
+
+      // Verificar senha com bcrypt
+      const isValidPassword = await bcrypt.compare(password, user.password);
+
+      if (!isValidPassword) {
+        return done(null, false, { message: 'Senha incorreta' });
+      }
+
+      return done(null, user);
+    } catch (error) {
+      return done(error);
+    }
+  }
+));
+
+// Serialização para sessão
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: number, done) => {
+  try {
+    const user = await db.query.users.findFirst({
+      where: eq(users.id, id)
+    });
+    done(null, user);
+  } catch (error) {
+    done(error);
+  }
+});
+
+// Middleware de autenticação
+export const requireAuth = (req: any, res: any, next: any) => {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  res.status(401).json({ error: 'Não autorizado' });
+};
+
+// Middleware de admin
+export const requireAdmin = (req: any, res: any, next: any) => {
+  if (req.isAuthenticated() && req.user.role === 'admin') {
+    return next();
+  }
+  res.status(403).json({ error: 'Acesso negado - apenas administradores' });
+};
+```
+
+### Rotas de Autenticação
+
+```typescript
+// server/routes.ts - Rotas de auth
+app.post('/api/register', async (req, res) => {
+  const { name, email, password, role } = req.body;
+
+  try {
+    // Verificar se email já existe
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.email, email)
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+
+    // Hash da senha com bcrypt (12 rounds)
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Criar usuário
+    const [newUser] = await db.insert(users).values({
+      name,
+      email,
+      password: hashedPassword,
+      role: role || 'employee'
+    }).returning();
+
+    // Log de auditoria
+    await db.insert(timeline).values({
+      userId: newUser.id,
+      action: 'USER_CREATED',
+      description: `Usuário ${name} criado com perfil ${role}`,
+      createdAt: new Date().toISOString()
+    });
+
+    res.status(201).json({
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      role: newUser.role
+    });
+  } catch (error) {
+    console.error('Erro no registro:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/api/login', passport.authenticate('local'), (req, res) => {
+  res.json({
+    id: req.user.id,
+    name: req.user.name,
+    email: req.user.email,
+    role: req.user.role
+  });
+});
+
+app.post('/api/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      return res.status(500).json({ error: 'Erro ao fazer logout' });
+    }
+    res.json({ message: 'Logout realizado com sucesso' });
+  });
+});
+
+app.get('/api/user', requireAuth, (req, res) => {
+  res.json({
+    id: req.user.id,
+    name: req.user.name,
+    email: req.user.email,
+    role: req.user.role
+  });
+});
+```
+
+## GESTÃO DE TURNOS - FLUXO COMPLETO
+
+### Abertura de Turno
+
+```typescript
+// server/routes.ts - Abertura de turno
+app.post('/api/shifts', requireAuth, async (req, res) => {
+  const { initialCash, initialCoins } = req.body;
+
+  try {
+    // Buscar último turno fechado para herança
+    const lastClosedShift = await db.query.shifts.findFirst({
+      where: eq(shifts.status, 'closed'),
+      orderBy: [desc(shifts.id)],
+      with: {
+        records: {
+          with: { product: true }
+        }
+      }
+    });
+
+    // Calcular valores esperados baseados no turno anterior
+    let expectedCash = "200.00";
+    let expectedCoins = "50.00";
+
+    if (lastClosedShift) {
+      expectedCash = lastClosedShift.cashForNextShift || lastClosedShift.finalCash || "200.00";
+      expectedCoins = lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "50.00";
+    }
+
+    const informedCash = parseFloat(initialCash) || 0;
+    const informedCoins = parseFloat(initialCoins) || 0;
+    const expectedTotal = parseFloat(expectedCash) + parseFloat(expectedCoins);
+    const informedTotal = informedCash + informedCoins;
+
+    // Calcular divergência na abertura
+    const openingDiscrepancy = informedTotal - expectedTotal;
+
+    // Criar novo turno
+    const [newShift] = await db.insert(shifts).values({
+      userId: req.user.id,
+      startTime: new Date().toISOString(),
+      initialCash: informedCash.toFixed(2),
+      initialCoins: informedCoins.toFixed(2),
+      expectedCash: expectedCash,
+      expectedCoins: expectedCoins,
+      openingDiscrepancy: openingDiscrepancy.toFixed(2),
+      status: 'open'
+    }).returning();
+
+    // Criar registro de pagamentos zerado
+    await db.insert(shiftPayments).values({
+      shiftId: newShift.id,
+      cash: '0',
+      pix: '0',
+      stoneCard: '0',
+      stoneVoucher: '0',
+      pagBankCard: '0'
+    });
+
+    // Herdar produtos do turno anterior (sobras viram entradas)
+    if (lastClosedShift?.records) {
+      const inheritanceRecords = lastClosedShift.records
+        .filter(record => parseFloat(record.leftoverQty || '0') > 0)
+        .map(record => ({
+          shiftId: newShift.id,
+          productId: record.productId,
+          entryQty: record.leftoverQty,  // Sobra do turno anterior
+          arrivalQty: "0",
+          discardQty: "0",
+          consumptionQty: "0",
+          leftoverQty: record.leftoverQty // Inicialmente igual à entrada
+        }));
+
+      if (inheritanceRecords.length > 0) {
+        await db.insert(shiftRecords).values(inheritanceRecords);
+      }
+    }
+
+    // Timeline de auditoria
+    await db.insert(timeline).values({
+      shiftId: newShift.id,
+      userId: req.user.id,
+      action: 'SHIFT_OPENED',
+      description: `Turno aberto - Caixa: R$${informedCash.toFixed(2)}, Divergência: R$${openingDiscrepancy.toFixed(2)}`,
+      metadata: JSON.stringify({
+        expectedCash,
+        expectedCoins,
+        informedCash,
+        informedCoins,
+        openingDiscrepancy
+      }),
+      createdAt: new Date().toISOString()
+    });
+
+    res.status(201).json(newShift);
+  } catch (error) {
+    console.error('Erro ao abrir turno:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+### Fechamento de Turno
+
+```typescript
+// server/routes.ts - Fechamento de turno
+app.post('/api/shifts/:id/close', requireAuth, async (req, res) => {
+  const shiftId = parseInt(req.params.id);
+  const {
+    finalCash,
+    finalCoins,
+    envelopeCash,
+    envelopeCoins,
+    payments,
+    cumulativeCardValues
+  } = req.body;
+
+  try {
+    // Verificar se turno existe e está aberto
+    const shift = await db.query.shifts.findFirst({
+      where: and(eq(shifts.id, shiftId), eq(shifts.status, 'open')),
+      with: { user: true }
+    });
+
+    if (!shift) {
+      return res.status(404).json({ error: 'Turno não encontrado ou já fechado' });
+    }
+
+    // Verificar autorização
+    if (req.user.role !== 'admin' && req.user.id !== shift.userId) {
+      return res.status(403).json({ error: 'Sem permissão para fechar este turno' });
+    }
+
+    let finalPayments = payments;
+
+    // Calcular valores reais dos cartões se fornecidos valores cumulativos
+    if (cumulativeCardValues) {
+      const cardCalculator = new CardPaymentCalculator(db);
+      const calculatedCards = await cardCalculator.calculateRealCardPayments(
+        shiftId,
+        { ...payments, ...cumulativeCardValues }
+      );
+
+      finalPayments = {
+        cash: payments.cash,
+        pix: payments.pix,
+        stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+        stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+        pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+      };
+
+      // Atualizar pagamentos com valores cumulativos
+      await db.update(shiftPayments)
+        .set({
+          ...finalPayments,
+          stoneCardCumulative: cumulativeCardValues.stoneCardCumulative,
+          stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative,
+          pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative,
+          calculatedFromCumulative: true
+        })
+        .where(eq(shiftPayments.shiftId, shiftId));
+    } else {
+      // Atualizar apenas valores reais
+      await db.update(shiftPayments)
+        .set(finalPayments)
+        .where(eq(shiftPayments.shiftId, shiftId));
+    }
+
+    // Calcular valores para próximo turno
+    const actualCash = parseFloat(finalCash) || 0;
+    const actualCoins = parseFloat(finalCoins) || 0;
+    const envelopeCashAmount = parseFloat(envelopeCash) || 0;
+    const envelopeCoinsAmount = parseFloat(envelopeCoins) || 0;
+
+    const cashForNext = actualCash - envelopeCashAmount;
+    const coinsForNext = actualCoins - envelopeCoinsAmount;
+
+    // Fechar turno
+    await db.update(shifts).set({
+      status: 'closed',
+      endTime: new Date().toISOString(),
+      finalCash: actualCash.toFixed(2),
+      finalCoins: actualCoins.toFixed(2),
+      envelopeCash: envelopeCashAmount.toFixed(2),
+      envelopeCoins: envelopeCoinsAmount.toFixed(2),
+      cashForNextShift: cashForNext.toFixed(2),
+      coinsForNextShift: coinsForNext.toFixed(2)
+    }).where(eq(shifts.id, shiftId));
+
+    // Calcular horas trabalhadas para colaboradores
+    const collaborators = await db.query.shiftCollaborators.findMany({
+      where: eq(shiftCollaborators.shiftId, shiftId)
+    });
+
+    for (const collaborator of collaborators) {
+      if (!collaborator.endTime) {
+        const startTime = new Date(collaborator.startTime);
+        const endTime = new Date();
+        const hoursWorked = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+
+        await db.update(shiftCollaborators)
+          .set({
+            endTime: endTime.toISOString(),
+            hoursWorked: Math.round(hoursWorked * 100) / 100
+          })
+          .where(eq(shiftCollaborators.id, collaborator.id));
+      }
+    }
+
+    // Timeline de auditoria
+    await db.insert(timeline).values({
+      shiftId,
+      userId: req.user.id,
+      action: 'SHIFT_CLOSED',
+      description: `Turno fechado - Total: R$${(actualCash + actualCoins).toFixed(2)}`,
+      metadata: JSON.stringify({
+        finalCash: actualCash,
+        finalCoins: actualCoins,
+        envelopeCash: envelopeCashAmount,
+        envelopeCoins: envelopeCoinsAmount,
+        payments: finalPayments
+      }),
+      createdAt: new Date().toISOString()
+    });
+
+    // Notificar clientes WebSocket
+    notifyShiftClients(shiftId, 'shift-closed');
+
+    res.json({ message: 'Turno fechado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao fechar turno:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+## SISTEMA DE INVENTÁRIO
+
+### Fórmula Principal
+
+```typescript
+// client/src/lib/calculations.ts
+export const INVENTORY_FORMULA = {
+  // Quantidade Vendida = Entrada + Chegada - Sobra - Descarte - Consumo Interno
+  soldQuantity: (entry: number, arrival: number, leftover: number, discard: number, consumption: number): number => {
+    return entry + arrival - leftover - discard - consumption;
+  },
+
+  // Validação de quantidades
+  validateQuantities: (quantities: {
+    entry: number;
+    arrival: number;
+    leftover: number;
+    discard: number;
+    consumption: number;
+  }): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    // Todas as quantidades devem ser não-negativas
+    Object.entries(quantities).forEach(([key, value]) => {
+      if (value < 0) {
+        errors.push(`${key} não pode ser negativo`);
+      }
+    });
+
+    // Quantidade vendida não pode ser negativa
+    const sold = INVENTORY_FORMULA.soldQuantity(
+      quantities.entry,
+      quantities.arrival,
+      quantities.leftover,
+      quantities.discard,
+      quantities.consumption
+    );
+
+    if (sold < 0) {
+      errors.push('Quantidade vendida não pode ser negativa');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+};
+```
+
+### Atualização de Inventário
+
+```typescript
+// server/routes.ts - Atualizar registro de produto
+app.put('/api/shifts/:shiftId/records/:recordId', requireAuth, async (req, res) => {
+  const { shiftId, recordId } = req.params;
+  const { entryQty, arrivalQty, leftoverQty, discardQty, consumptionQty } = req.body;
+
+  try {
+    // Verificar se turno está aberto
+    const shift = await db.query.shifts.findFirst({
+      where: and(eq(shifts.id, parseInt(shiftId)), eq(shifts.status, 'open'))
+    });
+
+    if (!shift) {
+      return res.status(404).json({ error: 'Turno não encontrado ou já fechado' });
+    }
+
+    // Validar quantidades
+    const quantities = {
+      entry: parseFloat(entryQty) || 0,
+      arrival: parseFloat(arrivalQty) || 0,
+      leftover: parseFloat(leftoverQty) || 0,
+      discard: parseFloat(discardQty) || 0,
+      consumption: parseFloat(consumptionQty) || 0
+    };
+
+    const validation = INVENTORY_FORMULA.validateQuantities(quantities);
+
+    if (!validation.isValid) {
+      return res.status(400).json({
+        error: 'Quantidades inválidas',
+        details: validation.errors
+      });
+    }
+
+    // Atualizar registro
+    await db.update(shiftRecords)
+      .set({
+        entryQty: quantities.entry.toString(),
+        arrivalQty: quantities.arrival.toString(),
+        leftoverQty: quantities.leftover.toString(),
+        discardQty: quantities.discard.toString(),
+        consumptionQty: quantities.consumption.toString()
+      })
+      .where(eq(shiftRecords.id, parseInt(recordId)));
+
+    // Timeline de auditoria
+    const soldQty = INVENTORY_FORMULA.soldQuantity(
+      quantities.entry,
+      quantities.arrival,
+      quantities.leftover,
+      quantities.discard,
+      quantities.consumption
+    );
+
+    await db.insert(timeline).values({
+      shiftId: parseInt(shiftId),
+      userId: req.user.id,
+      action: 'INVENTORY_UPDATED',
+      description: `Inventário atualizado - Vendido: ${soldQty}`,
+      metadata: JSON.stringify({
+        recordId: parseInt(recordId),
+        quantities,
+        soldQty
+      }),
+      createdAt: new Date().toISOString()
+    });
+
+    // Notificar clientes WebSocket
+    notifyShiftClients(parseInt(shiftId), 'inventory-updated');
+
+    res.json({ message: 'Inventário atualizado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao atualizar inventário:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+## SISTEMA DE PAGAMENTOS
+
+### Constantes de Pagamento
+
+```typescript
+// client/src/lib/constants.ts
+export const PAYMENT_METHODS = {
+  cash: {
+    label: 'Dinheiro',
+    icon: '💵',
+    impactsCash: true,
+    rate: 0
+  },
+  pix: {
+    label: 'PIX',
+    icon: '📱',
+    impactsCash: false,
+    rate: 1.99
+  },
+  stone_card: {
+    label: 'Stone Cartão',
+    icon: '💳',
+    impactsCash: false,
+    rate: 2.5
+  },
+  stone_voucher: {
+    label: 'Stone Voucher',
+    icon: '🎫',
+    impactsCash: false,
+    rate: 2.5
+  },
+  pagbank: {
+    label: 'PagBank',
+    icon: '🏦',
+    impactsCash: false,
+    rate: 3.0
+  }
+} as const;
+
+export const PAYMENT_RATES = {
+  cash: 0,
+  pix: 1.99,
+  stone_card: 2.5,
+  stone_voucher: 2.5,
+  pagbank: 3.0
+} as const;
+```
+
+### Registro de Pagamentos
+
+```typescript
+// server/routes.ts - Registrar pagamento individual
+app.post('/api/shifts/:id/payments/add', requireAuth, async (req, res) => {
+  const shiftId = parseInt(req.params.id);
+  const { method, amount } = req.body;
+
+  try {
+    // Verificar se turno está aberto
+    const shift = await db.query.shifts.findFirst({
+      where: and(eq(shifts.id, shiftId), eq(shifts.status, 'open'))
+    });
+
+    if (!shift) {
+      return res.status(404).json({ error: 'Turno não encontrado ou já fechado' });
+    }
+
+    // Validar método de pagamento
+    if (!Object.keys(PAYMENT_RATES).includes(method)) {
+      return res.status(400).json({ error: 'Método de pagamento inválido' });
+    }
+
+    // Validar valor
+    const paymentAmount = parseFloat(amount);
+    if (paymentAmount <= 0) {
+      return res.status(400).json({ error: 'Valor deve ser maior que zero' });
+    }
+
+    // Buscar pagamentos atuais
+    const currentPayments = await db.query.shiftPayments.findFirst({
+      where: eq(shiftPayments.shiftId, shiftId)
+    });
+
+    if (!currentPayments) {
+      return res.status(404).json({ error: 'Registro de pagamentos não encontrado' });
+    }
+
+    // Atualizar valor do método específico
+    const currentValue = parseFloat(currentPayments[method as keyof typeof currentPayments] as string || '0');
+    const newValue = currentValue + paymentAmount;
+
+    await db.update(shiftPayments)
+      .set({ [method]: newValue.toFixed(2) })
+      .where(eq(shiftPayments.shiftId, shiftId));
+
+    // Timeline de auditoria
+    await db.insert(timeline).values({
+      shiftId,
+      userId: req.user.id,
+      action: 'PAYMENT_ADDED',
+      description: `Pagamento ${PAYMENT_METHODS[method as keyof typeof PAYMENT_METHODS].label}: R$${paymentAmount.toFixed(2)}`,
+      metadata: JSON.stringify({
+        method,
+        amount: paymentAmount,
+        previousValue: currentValue,
+        newValue
+      }),
+      createdAt: new Date().toISOString()
+    });
+
+    // Notificar clientes WebSocket
+    notifyShiftClients(shiftId, 'payment-added');
+
+    res.json({ message: 'Pagamento registrado com sucesso' });
+  } catch (error) {
+    console.error('Erro ao registrar pagamento:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+### Cálculo de Divergência de Caixa
+
+```typescript
+// server/lib/shift-processor.ts
+export const calculateCashDivergence = (shiftData: {
+  initialCash: number;
+  finalCash: number;
+  cashSales: number;
+  cashWithdrawals: number;
+}): number => {
+  // Fórmula: Divergência = Caixa Final - (Caixa Inicial + Vendas Cash - Sangrias)
+  const expectedFinalCash = shiftData.initialCash + shiftData.cashSales - shiftData.cashWithdrawals;
+  return shiftData.finalCash - expectedFinalCash;
+};
+
+// Exemplo de uso
+const exampleCalculation = {
+  initialCash: 200.00,
+  finalCash: 450.00,
+  cashSales: 300.00,
+  cashWithdrawals: 50.00
+};
+
+// Expected: 200 + 300 - 50 = 450
+// Actual: 450
+// Divergence: 450 - 450 = 0 (sem divergência)
+const divergence = calculateCashDivergence(exampleCalculation);
+```
+
+## WEBSOCKET - ATUALIZAÇÕES EM TEMPO REAL
+
+### Servidor WebSocket
+
+```typescript
+// server/ws.ts
+import WebSocket from 'ws';
+
+export const setupWebSocket = (server: any) => {
+  const wss = new WebSocket.Server({
+    server,
+    path: '/ws-api'
+  });
+
+  wss.on('connection', (ws: any, req) => {
+    console.log('Nova conexão WebSocket');
+
+    // Extrair shiftId da query string
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const shiftId = url.searchParams.get('shiftId');
+
+    if (shiftId) {
+      ws.shiftId = parseInt(shiftId);
+      console.log(`Cliente conectado ao turno ${shiftId}`);
+    }
+
+    ws.on('message', (message: string) => {
+      try {
+        const data = JSON.parse(message);
+        console.log('Mensagem recebida:', data);
+
+        // Processar mensagens específicas se necessário
+        switch (data.type) {
+          case 'ping':
+            ws.send(JSON.stringify({ type: 'pong' }));
+            break;
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem WebSocket:', error);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('Conexão WebSocket fechada');
+    });
+
+    ws.on('error', (error: any) => {
+      console.error('Erro WebSocket:', error);
+    });
+  });
+
+  return wss;
+};
+
+// Função para notificar clientes específicos de um turno
+export const notifyShiftClients = (shiftId: number, event: string, data?: any) => {
+  if (!global.wss) return;
+
+  global.wss.clients.forEach((client: any) => {
+    if (client.readyState === WebSocket.OPEN && client.shiftId === shiftId) {
+      client.send(JSON.stringify({
+        type: 'shift-updated',
+        event,
+        shiftId,
+        data,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  });
+};
+```
+
+### Cliente WebSocket (Frontend)
+
+```typescript
+// client/src/hooks/useWebSocket.ts
+import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+
+export const useWebSocket = (shiftId: number | null) => {
+  const wsRef = useRef<WebSocket | null>(null);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!shiftId) return;
+
+    // Conectar ao WebSocket
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws-api?shiftId=${shiftId}`;
+
+    wsRef.current = new WebSocket(wsUrl);
+
+    wsRef.current.onopen = () => {
+      console.log('Conectado ao WebSocket');
+    };
+
+    wsRef.current.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case 'shift-updated':
+            // Invalidar queries relacionadas ao turno
+            queryClient.invalidateQueries(['shift', shiftId]);
+            queryClient.invalidateQueries(['shift-records', shiftId]);
+            queryClient.invalidateQueries(['shift-payments', shiftId]);
+            break;
+
+          case 'pong':
+            console.log('Pong recebido');
+            break;
+        }
+      } catch (error) {
+        console.error('Erro ao processar mensagem WebSocket:', error);
+      }
+    };
+
+    wsRef.current.onclose = () => {
+      console.log('Conexão WebSocket fechada');
+    };
+
+    wsRef.current.onerror = (error) => {
+      console.error('Erro WebSocket:', error);
+    };
+
+    // Cleanup
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+      }
+    };
+  }, [shiftId, queryClient]);
+
+  // Função para enviar mensagens
+  const sendMessage = (message: any) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    }
+  };
+
+  return { sendMessage };
+};
+```
+
+## FRONTEND - COMPONENTES REACT
+
+### Componente Principal de Caixa
+
+```typescript
+// client/src/components/employee/cash-register.tsx
+import React, { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '@/lib/apiClient';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { toast } from 'sonner';
+
+interface CashRegisterProps {
+  shiftId: number;
+}
+
+export const CashRegister: React.FC<CashRegisterProps> = ({ shiftId }) => {
+  const [paymentForm, setPaymentForm] = useState({
+    method: 'cash' as PaymentMethod,
+    amount: ''
+  });
+
+  const queryClient = useQueryClient();
+  const { sendMessage } = useWebSocket(shiftId);
+
+  // Query para dados do turno
+  const { data: shift, isLoading } = useQuery({
+    queryKey: ['shift', shiftId],
+    queryFn: () => api.get(`/api/shifts/${shiftId}`),
+    refetchInterval: 5000 // Atualizar a cada 5 segundos
+  });
+
+  // Query para pagamentos
+  const { data: payments } = useQuery({
+    queryKey: ['shift-payments', shiftId],
+    queryFn: () => api.get(`/api/shifts/${shiftId}/payments`)
+  });
+
+  // Mutation para adicionar pagamento
+  const addPaymentMutation = useMutation({
+    mutationFn: (data: { method: PaymentMethod; amount: number }) =>
+      api.post(`/api/shifts/${shiftId}/payments/add`, data),
+    onSuccess: () => {
+      toast.success('Pagamento registrado com sucesso');
+      setPaymentForm({ method: 'cash', amount: '' });
+
+      // Invalidar queries para atualização
+      queryClient.invalidateQueries(['shift', shiftId]);
+      queryClient.invalidateQueries(['shift-payments', shiftId]);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao registrar pagamento');
+    }
+  });
+
+  const handleSubmitPayment = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const amount = parseFloat(paymentForm.amount);
+
+    if (amount <= 0) {
+      toast.error('Valor deve ser maior que zero');
+      return;
+    }
+
+    addPaymentMutation.mutate({
+      method: paymentForm.method,
+      amount
+    });
+  };
+
+  if (isLoading) {
+    return <div className="flex justify-center p-8">Carregando...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Status do Turno */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h2 className="text-xl font-semibold mb-4">Turno Atual</h2>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm text-gray-600">Início</label>
+            <p className="font-medium">
+              {new Date(shift.startTime).toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600">Status</label>
+            <p className="font-medium capitalize">{shift.status}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600">Caixa Inicial</label>
+            <p className="font-medium">R$ {shift.initialCash}</p>
+          </div>
+          <div>
+            <label className="text-sm text-gray-600">Moedas Iniciais</label>
+            <p className="font-medium">R$ {shift.initialCoins}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo de Pagamentos */}
+      {payments && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-4">Resumo de Pagamentos</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Object.entries(PAYMENT_METHODS).map(([method, config]) => {
+              const amount = parseFloat(payments[method] || '0');
+              return (
+                <div key={method} className="text-center p-3 bg-gray-50 rounded">
+                  <div className="text-2xl mb-1">{config.icon}</div>
+                  <div className="text-sm text-gray-600">{config.label}</div>
+                  <div className="font-semibold">R$ {amount.toFixed(2)}</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 pt-4 border-t">
+            <div className="text-center">
+              <div className="text-sm text-gray-600">Total</div>
+              <div className="text-xl font-bold">
+                R$ {Object.values(payments).reduce((sum, val) =>
+                  sum + parseFloat(val || '0'), 0
+                ).toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formulário de Pagamento */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">Registrar Pagamento</h3>
+
+        <form onSubmit={handleSubmitPayment} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Método de Pagamento
+            </label>
+            <select
+              value={paymentForm.method}
+              onChange={(e) => setPaymentForm(prev => ({
+                ...prev,
+                method: e.target.value as PaymentMethod
+              }))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              {Object.entries(PAYMENT_METHODS).map(([method, config]) => (
+                <option key={method} value={method}>
+                  {config.icon} {config.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Valor
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={paymentForm.amount}
+              onChange={(e) => setPaymentForm(prev => ({
+                ...prev,
+                amount: e.target.value
+              }))}
+              placeholder="0,00"
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={addPaymentMutation.isPending}
+            className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+          >
+            {addPaymentMutation.isPending ? 'Registrando...' : 'Registrar Pagamento'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+```
+
+### Sistema de Roteamento com Wouter
+
+```typescript
+// client/src/App.tsx
+import React from 'react';
+import { Router, Route, Switch } from 'wouter';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'sonner';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { ProtectedRoute } from '@/components/ProtectedRoute';
+
+// Páginas
+import { LoginPage } from '@/pages/LoginPage';
+import { DashboardPage } from '@/pages/DashboardPage';
+import { ShiftPage } from '@/pages/ShiftPage';
+import { AdminPage } from '@/pages/AdminPage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 5 * 60 * 1000, // 5 minutos
+    },
+  },
+});
+
+export const App: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-100">
+            <Switch>
+              {/* Rota pública */}
+              <Route path="/login" component={LoginPage} />
+
+              {/* Rotas protegidas */}
+              <Route path="/">
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              </Route>
+
+              <Route path="/shift/:id">
+                {(params) => (
+                  <ProtectedRoute>
+                    <ShiftPage shiftId={parseInt(params.id)} />
+                  </ProtectedRoute>
+                )}
+              </Route>
+
+              <Route path="/admin">
+                <ProtectedRoute requireAdmin>
+                  <AdminPage />
+                </ProtectedRoute>
+              </Route>
+
+              {/* Fallback */}
+              <Route>
+                <div className="text-center p-8">
+                  <h1 className="text-2xl">Página não encontrada</h1>
+                </div>
+              </Route>
+            </Switch>
+          </div>
+        </Router>
+
+        <Toaster position="top-right" />
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+};
+```
+
+### Contexto de Autenticação
+
+```typescript
+// client/src/contexts/AuthContext.tsx
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { api } from '@/lib/apiClient';
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'employee';
+}
+
+interface AuthContextType {
+  user: User | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Verificar autenticação ao carregar
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const userData = await api.get('/api/user');
+      setUser(userData);
+    } catch (error) {
+      console.log('Usuário não autenticado');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      const userData = await api.post('/api/login', { email, password });
+      setUser(userData);
+    } catch (error: any) {
+      throw new Error(error.response?.data?.error || 'Erro ao fazer login');
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await api.post('/api/logout');
+      setUser(null);
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error);
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth deve ser usado dentro de um AuthProvider');
+  }
+  return context;
+};
+```
+
+## PROCESSAMENTO DE DADOS
+
+### Processador de Turnos Otimizado
+
+```typescript
+// server/lib/shift-processor-sql.ts
+export const getProcessedShiftById = async (shiftId: number): Promise<ProcessedShift | null> => {
+  try {
+    // Query SQL otimizada para buscar todos os dados de uma vez
+    const shiftData = await db.execute(sql`
+      SELECT
+        s.id,
+        s.user_id,
+        s.start_time,
+        s.end_time,
+        s.status,
+        s.initial_cash,
+        s.final_cash,
+        s.initial_coins,
+        s.final_coins,
+        s.opening_discrepancy,
+        s.cash_for_next_shift,
+        s.coins_for_next_shift,
+        s.envelope_cash,
+        s.envelope_coins,
+
+        -- Dados do usuário
+        u.name as user_name,
+        u.email as user_email,
+        u.role as user_role,
+
+        -- Dados de pagamentos
+        sp.cash,
+        sp.pix,
+        sp.stone_card,
+        sp.stone_voucher,
+        sp.pagbank_card,
+        sp.stone_card_cumulative,
+        sp.stone_voucher_cumulative,
+        sp.pagbank_card_cumulative,
+        sp.calculated_from_cumulative,
+
+        -- Totais calculados
+        (CAST(COALESCE(sp.cash, '0') AS REAL) +
+         CAST(COALESCE(sp.pix, '0') AS REAL) +
+         CAST(COALESCE(sp.stone_card, '0') AS REAL) +
+         CAST(COALESCE(sp.stone_voucher, '0') AS REAL) +
+         CAST(COALESCE(sp.pagbank_card, '0') AS REAL)) as total_payments,
+
+        -- Cálculo de divergência de caixa
+        (CAST(COALESCE(s.final_cash, '0') AS REAL) -
+         (CAST(COALESCE(s.initial_cash, '0') AS REAL) +
+          CAST(COALESCE(sp.cash, '0') AS REAL) -
+          COALESCE((SELECT SUM(amount) FROM cash_adjustments
+                   WHERE shift_id = s.id AND type = 'withdrawal'), 0))) as cash_divergence
+
+      FROM shifts s
+      LEFT JOIN users u ON s.user_id = u.id
+      LEFT JOIN shift_payments sp ON s.id = sp.shift_id
+      WHERE s.id = ${shiftId}
+    `);
+
+    if (!shiftData.rows.length) {
+      return null;
+    }
+
+    const row = shiftData.rows[0] as any;
+
+    // Buscar registros de produtos
+    const recordsData = await db.execute(sql`
+      SELECT
+        sr.id,
+        sr.product_id,
+        sr.entry_qty,
+        sr.arrival_qty,
+        sr.leftover_qty,
+        sr.discard_qty,
+        sr.consumption_qty,
+
+        -- Calcular quantidade vendida
+        (CAST(COALESCE(sr.entry_qty, '0') AS REAL) +
+         CAST(COALESCE(sr.arrival_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.leftover_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.discard_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.consumption_qty, '0') AS REAL)) as sold_qty,
+
+        -- Calcular receita
+        (CAST(COALESCE(sr.entry_qty, '0') AS REAL) +
+         CAST(COALESCE(sr.arrival_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.leftover_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.discard_qty, '0') AS REAL) -
+         CAST(COALESCE(sr.consumption_qty, '0') AS REAL)) * p.price as revenue,
+
+        -- Dados do produto
+        p.name as product_name,
+        p.category as product_category,
+        p.price as product_price
+
+      FROM shift_records sr
+      JOIN products p ON sr.product_id = p.id
+      WHERE sr.shift_id = ${shiftId}
+      ORDER BY p.category, p.name
+    `);
+
+    // Processar registros
+    const records = recordsData.rows.map((record: any) => ({
+      id: record.id,
+      productId: record.product_id,
+      entryQty: record.entry_qty,
+      arrivalQty: record.arrival_qty,
+      leftoverQty: record.leftover_qty,
+      discardQty: record.discard_qty,
+      consumptionQty: record.consumption_qty,
+      soldQty: record.sold_qty,
+      revenue: record.revenue,
+      product: {
+        id: record.product_id,
+        name: record.product_name,
+        category: record.product_category,
+        price: record.product_price
+      }
+    }));
+
+    // Calcular totais
+    const totalRevenue = records.reduce((sum, record) => sum + (record.revenue || 0), 0);
+    const totalSoldItems = records.reduce((sum, record) => sum + (record.soldQty || 0), 0);
+
+    // Construir objeto processado
+    const processedShift: ProcessedShift = {
+      id: row.id,
+      userId: row.user_id,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      status: row.status,
+      initialCash: parseFloat(row.initial_cash || '0'),
+      finalCash: parseFloat(row.final_cash || '0'),
+      initialCoins: parseFloat(row.initial_coins || '0'),
+      finalCoins: parseFloat(row.final_coins || '0'),
+      openingDiscrepancy: parseFloat(row.opening_discrepancy || '0'),
+      cashDivergence: row.cash_divergence || 0,
+
+      user: {
+        id: row.user_id,
+        name: row.user_name,
+        email: row.user_email,
+        role: row.user_role
+      },
+
+      payments: {
+        cash: parseFloat(row.cash || '0'),
+        pix: parseFloat(row.pix || '0'),
+        stoneCard: parseFloat(row.stone_card || '0'),
+        stoneVoucher: parseFloat(row.stone_voucher || '0'),
+        pagBankCard: parseFloat(row.pagbank_card || '0'),
+        total: row.total_payments || 0
+      },
+
+      records,
+
+      totals: {
+        revenue: totalRevenue,
+        soldItems: totalSoldItems,
+        averageTicket: totalSoldItems > 0 ? totalRevenue / totalSoldItems : 0
+      }
+    };
+
+    return processedShift;
+  } catch (error) {
+    console.error('Erro ao processar turno:', error);
+    return null;
+  }
+};
+```
+
+## RELATÓRIOS E EXPORTAÇÃO
+
+### Geração de PDF
+
+```typescript
+// client/src/lib/pdfGenerator.ts
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+export const generateShiftReport = (shift: ProcessedShift): void => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.width;
+
+  // Cabeçalho
+  doc.setFontSize(20);
+  doc.text('Relatório de Turno', pageWidth / 2, 20, { align: 'center' });
+
+  // Informações do turno
+  doc.setFontSize(12);
+  let yPosition = 40;
+
+  const shiftInfo = [
+    ['Funcionário:', shift.user.name],
+    ['Início:', new Date(shift.startTime).toLocaleString()],
+    ['Fim:', shift.endTime ? new Date(shift.endTime).toLocaleString() : 'Em andamento'],
+    ['Status:', shift.status === 'open' ? 'Aberto' : 'Fechado']
+  ];
+
+  shiftInfo.forEach(([label, value]) => {
+    doc.text(`${label} ${value}`, 20, yPosition);
+    yPosition += 8;
+  });
+
+  // Resumo financeiro
+  yPosition += 10;
+  doc.setFontSize(14);
+  doc.text('Resumo Financeiro', 20, yPosition);
+  yPosition += 10;
+
+  const financialData = [
+    ['Método', 'Valor'],
+    ['Dinheiro', `R$ ${shift.payments.cash.toFixed(2)}`],
+    ['PIX', `R$ ${shift.payments.pix.toFixed(2)}`],
+    ['Stone Cartão', `R$ ${shift.payments.stoneCard.toFixed(2)}`],
+    ['Stone Voucher', `R$ ${shift.payments.stoneVoucher.toFixed(2)}`],
+    ['PagBank', `R$ ${shift.payments.pagBankCard.toFixed(2)}`],
+    ['TOTAL', `R$ ${shift.payments.total.toFixed(2)}`]
+  ];
+
+  (doc as any).autoTable({
+    startY: yPosition,
+    head: [financialData[0]],
+    body: financialData.slice(1),
+    theme: 'grid',
+    styles: { fontSize: 10 },
+    headStyles: { fillColor: [66, 139, 202] }
+  });
+
+  // Inventário
+  yPosition = (doc as any).lastAutoTable.finalY + 20;
+  doc.setFontSize(14);
+  doc.text('Inventário', 20, yPosition);
+  yPosition += 10;
+
+  const inventoryData = shift.records.map(record => [
+    record.product.name,
+    record.entryQty,
+    record.arrivalQty,
+    record.leftoverQty,
+    record.discardQty,
+    record.consumptionQty,
+    record.soldQty?.toString() || '0',
+    `R$ ${(record.revenue || 0).toFixed(2)}`
+  ]);
+
+  (doc as any).autoTable({
+    startY: yPosition,
+    head: [['Produto', 'Entrada', 'Chegada', 'Sobra', 'Descarte', 'Consumo', 'Vendido', 'Receita']],
+    body: inventoryData,
+    theme: 'grid',
+    styles: { fontSize: 8 },
+    headStyles: { fillColor: [66, 139, 202] }
+  });
+
+  // Salvar PDF
+  const fileName = `turno_${shift.id}_${new Date().toISOString().split('T')[0]}.pdf`;
+  doc.save(fileName);
+};
+```
+
+### Exportação para Excel
+
+```typescript
+// client/src/lib/excelExporter.ts
+import * as XLSX from 'xlsx';
+
+export const exportShiftToExcel = (shift: ProcessedShift): void => {
+  // Criar workbook
+  const wb = XLSX.utils.book_new();
+
+  // Aba 1: Resumo do Turno
+  const summaryData = [
+    ['Informações do Turno'],
+    ['ID', shift.id],
+    ['Funcionário', shift.user.name],
+    ['Início', new Date(shift.startTime).toLocaleString()],
+    ['Fim', shift.endTime ? new Date(shift.endTime).toLocaleString() : 'Em andamento'],
+    ['Status', shift.status],
+    [''],
+    ['Resumo Financeiro'],
+    ['Dinheiro', shift.payments.cash],
+    ['PIX', shift.payments.pix],
+    ['Stone Cartão', shift.payments.stoneCard],
+    ['Stone Voucher', shift.payments.stoneVoucher],
+    ['PagBank', shift.payments.pagBankCard],
+    ['TOTAL', shift.payments.total],
+    [''],
+    ['Caixa'],
+    ['Inicial', shift.initialCash],
+    ['Final', shift.finalCash || 0],
+    ['Divergência', shift.cashDivergence || 0]
+  ];
+
+  const summaryWs = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, summaryWs, 'Resumo');
+
+  // Aba 2: Inventário Detalhado
+  const inventoryData = [
+    ['Produto', 'Categoria', 'Preço', 'Entrada', 'Chegada', 'Sobra', 'Descarte', 'Consumo', 'Vendido', 'Receita']
+  ];
+
+  shift.records.forEach(record => {
+    inventoryData.push([
+      record.product.name,
+      record.product.category,
+      record.product.price,
+      parseFloat(record.entryQty || '0'),
+      parseFloat(record.arrivalQty || '0'),
+      parseFloat(record.leftoverQty || '0'),
+      parseFloat(record.discardQty || '0'),
+      parseFloat(record.consumptionQty || '0'),
+      record.soldQty || 0,
+      record.revenue || 0
+    ]);
+  });
+
+  const inventoryWs = XLSX.utils.aoa_to_sheet(inventoryData);
+  XLSX.utils.book_append_sheet(wb, inventoryWs, 'Inventário');
+
+  // Salvar arquivo
+  const fileName = `turno_${shift.id}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};
+```
+
+## CONFIGURAÇÃO DE DESENVOLVIMENTO
+
+### Scripts Package.json
+
+```json
+{
+  "scripts": {
+    "dev": "npm run db:push && concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:client": "vite",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --target=node20 --outfile=dist/index.js",
+    "start": "node dist/index.js",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx server/migrate.ts",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio --port 4983",
+    "check": "tsc --noEmit"
+  }
+}
+```
+
+### Configuração Vite
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './client/src'),
+      '@shared': path.resolve(__dirname, './shared')
+    }
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:5000',
+      '/ws-api': {
+        target: 'ws://localhost:5000',
+        ws: true
+      }
+    }
+  },
+  build: {
+    outDir: 'dist/public',
+    emptyOutDir: true
+  }
+});
+```
+
+### Configuração Docker
+
+```dockerfile
+# Dockerfile
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine AS production
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/shared ./shared
+COPY --from=builder /app/migrations ./migrations
+COPY --from=builder /app/drizzle.config.ts ./
+
+# Criar diretório para banco de dados
+RUN mkdir -p /app/data
+
+# Executar migrações na inicialização
+CMD ["sh", "-c", "npm run db:migrate && node dist/index.js"]
+
+EXPOSE 5000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+```
+
+## CONSIDERAÇÕES FINAIS
+
+### Principais Características da Plataforma
+
+1. **Arquitetura Tradicional**: Aplicação full-stack não-serverless com servidor Express.js persistente
+2. **Banco de Dados Robusto**: SQLite com Drizzle ORM para type-safety e performance
+3. **Tempo Real**: WebSocket para atualizações instantâneas entre clientes
+4. **Autenticação Segura**: Passport.js com sessões e bcrypt para senhas
+5. **Frontend Moderno**: React 18 com TypeScript, TanStack Query e Tailwind CSS
+6. **Validações Rigorosas**: Zod para validação de dados e regras de negócio
+7. **Auditoria Completa**: Timeline de ações para rastreabilidade
+8. **Exportação Flexível**: PDF e Excel para relatórios
+9. **Deploy Containerizado**: Docker para deploy em servidor local
+
+### Fluxo de Dados Típico
+
+1. **Frontend**: Usuário interage com componente React
+2. **API Client**: Requisição HTTP com credenciais de sessão
+3. **Backend**: Middleware de autenticação → Validação → Processamento → Banco de dados
+4. **WebSocket**: Notificação em tempo real para clientes conectados
+5. **Frontend**: Invalidação de cache e re-render automático
+
+Esta documentação apresenta uma visão completa do funcionamento da plataforma Pastel24h, desde a arquitetura de alto nível até exemplos detalhados de código, fornecendo uma base sólida para desenvolvimento e manutenção do sistema.

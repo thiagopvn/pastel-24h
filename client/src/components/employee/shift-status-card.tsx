@@ -214,18 +214,13 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
 
     try {
       console.log("Iniciando fechamento do turno para shift:", currentShift.id);
+      console.log("Usando pagamentos compartilhados do componente pai:", paymentsData);
 
-      // Fetch current shift records and payments with shiftId parameter
-      const [recordsRes, paymentsRes] = await Promise.all([
-        apiRequest("GET", `/api/shift-records?shiftId=${currentShift.id}`),
-        apiRequest("GET", `/api/shift-payments?shiftId=${currentShift.id}`)
-      ]);
-
-      console.log("Response status - records:", recordsRes.status, "payments:", paymentsRes.status);
+      // Fetch only records, use payments from props
+      const recordsRes = await apiRequest("GET", `/api/shift-records?shiftId=${currentShift.id}`);
+      console.log("Response status - records:", recordsRes.status);
 
       let records = [];
-      let payments = { cash: 0, pix: 0, stoneCard: 0, stoneVoucher: 0, pagBankCard: 0 };
-
       if (recordsRes.ok) {
         records = await recordsRes.json();
         console.log("Records obtidos:", records);
@@ -233,21 +228,38 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
         console.warn("Falha ao obter records:", recordsRes.status, recordsRes.statusText);
       }
 
+      // Buscar valores cumulativos salvos se existirem
+      const paymentsRes = await apiRequest("GET", `/api/shift-payments?shiftId=${currentShift.id}`);
+      let cumulativeCardValues = {
+        stoneCardCumulative: '',
+        stoneVoucherCumulative: '',
+        pagBankCardCumulative: ''
+      };
+
       if (paymentsRes.ok) {
-        const paymentData = await paymentsRes.json();
-        if (paymentData && typeof paymentData === 'object') {
-          payments = paymentData;
-        }
-        console.log("Payments obtidos:", payments);
-      } else {
-        console.warn("Falha ao obter payments:", paymentsRes.status, paymentsRes.statusText);
+        const savedPayments = await paymentsRes.json();
+        // Extrair apenas valores cumulativos dos pagamentos salvos
+        cumulativeCardValues = {
+          stoneCardCumulative: savedPayments?.stoneCardCumulative || '',
+          stoneVoucherCumulative: savedPayments?.stoneVoucherCumulative || '',
+          pagBankCardCumulative: savedPayments?.pagBankCardCumulative || ''
+        };
+        console.log("Valores cumulativos obtidos:", cumulativeCardValues);
       }
 
       // Prepare closing data with counted values from the form
+      // USE paymentsData from props instead of fetching from API
       const closeData = {
         shiftId: currentShift.id,
         records: records || [],
-        payments: payments,
+        payments: {
+          cash: paymentsData.cash || 0,
+          pix: paymentsData.pix || 0,
+          stoneCard: paymentsData.stoneCard || 0,
+          stoneVoucher: paymentsData.stoneVoucher || 0,
+          pagBankCard: paymentsData.pagBankCard || 0
+        },
+        cumulativeCardValues: cumulativeCardValues, // Adicionar valores cumulativos
         notes: data.notes || "",
         countedFinalCash: data.countedFinalCash,
         countedFinalCoins: data.countedFinalCoins,
@@ -256,7 +268,7 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
         gasExchange: false
       };
 
-      console.log("Dados de fechamento preparados:", closeData);
+      console.log("Dados de fechamento preparados com pagamentos atualizados:", closeData);
       closeShiftMutation.mutate(closeData);
     } catch (error) {
       console.error("Erro no handleCloseShift:", error);

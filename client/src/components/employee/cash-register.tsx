@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { CreditCard, AlertTriangle, Flame, Save, HelpCircle, Calculator, Coins, Banknote, DollarSign, Info } from "lucide-react";
 import type { Shift, ShiftPayment } from "@shared/schema";
+import { api } from "@/lib/apiClient";
 
 interface CashRegisterProps {
   payments: {
@@ -35,6 +36,20 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
   const [finalCash, setFinalCash] = useState(0);
   const [finalCoins, setFinalCoins] = useState(0);
   const [gasExchange, setGasExchange] = useState(false);
+
+  // Estados para valores cumulativos das maquininhas
+  const [cumulativeCardValues, setCumulativeCardValues] = useState({
+    stoneCardCumulative: '',
+    stoneVoucherCumulative: '',
+    pagBankCardCumulative: ''
+  });
+
+  // Estados para valores reais calculados
+  const [calculatedCardValues, setCalculatedCardValues] = useState({
+    stoneCard: 0,
+    stoneVoucher: 0,
+    pagBankCard: 0
+  });
 
   const { data: currentShift } = useQuery<Shift>({
     queryKey: ["/api/shifts/current"],
@@ -74,6 +89,16 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
         stoneCard: payments.stoneCard.toString(),
         stoneVoucher: payments.stoneVoucher.toString(),
         pagBankCard: payments.pagBankCard.toString(),
+        // Incluir valores cumulativos se existirem
+        ...(cumulativeCardValues.stoneCardCumulative && {
+          stoneCardCumulative: cumulativeCardValues.stoneCardCumulative
+        }),
+        ...(cumulativeCardValues.stoneVoucherCumulative && {
+          stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative
+        }),
+        ...(cumulativeCardValues.pagBankCardCumulative && {
+          pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative
+        }),
       };
 
       // Salvar os pagamentos
@@ -113,6 +138,41 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
   const updatePayment = (field: string, value: number) => {
     onPaymentsChange({ ...payments, [field]: value });
   };
+
+  // Função para calcular valores reais das maquininhas
+  const calculateCardPayments = async () => {
+    if (!currentShift?.id) return;
+
+    try {
+      const response = await api.post(`/api/shifts/${currentShift.id}/calculate-card-payments`, {
+        stoneCardCumulative: cumulativeCardValues.stoneCardCumulative || '0',
+        stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative || '0',
+        pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative || '0'
+      });
+
+      if (response.realValues) {
+        setCalculatedCardValues(response.realValues);
+        // Atualizar valores de pagamento com os calculados
+        onPaymentsChange({
+          ...payments,
+          stoneCard: response.realValues.stoneCard,
+          stoneVoucher: response.realValues.stoneVoucher,
+          pagBankCard: response.realValues.pagBankCard
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao calcular valores de cartão:', error);
+    }
+  };
+
+  // Calcular automaticamente quando valores cumulativos mudarem
+  useEffect(() => {
+    if (cumulativeCardValues.stoneCardCumulative ||
+        cumulativeCardValues.stoneVoucherCumulative ||
+        cumulativeCardValues.pagBankCardCumulative) {
+      calculateCardPayments();
+    }
+  }, [cumulativeCardValues, currentShift?.id]);
 
   const handleSaveValues = () => {
     if (!currentShift) {
@@ -323,14 +383,22 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
                     </TooltipContent>
                   </Tooltip>
                 </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={payments.stoneCard}
-                  onChange={(e) => updatePayment('stoneCard', parseFloat(e.target.value) || 0)}
-                  className="text-center font-medium"
-                  placeholder="0,00"
-                />
+                <div className="space-y-2 p-3 bg-orange-50 border border-orange-200 rounded">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cumulativeCardValues.stoneCardCumulative}
+                    onChange={(e) => setCumulativeCardValues(prev => ({...prev, stoneCardCumulative: e.target.value}))}
+                    className="text-center font-medium"
+                    placeholder="Total na maquininha"
+                  />
+                  <p className="text-xs text-orange-600">Total acumulado na maquininha</p>
+                  {calculatedCardValues.stoneCard > 0 && (
+                    <div className="text-sm font-bold text-orange-700">
+                      Vendido neste turno: R$ {calculatedCardValues.stoneCard.toFixed(2)}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -346,14 +414,22 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
                     </TooltipContent>
                   </Tooltip>
                 </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={payments.stoneVoucher}
-                  onChange={(e) => updatePayment('stoneVoucher', parseFloat(e.target.value) || 0)}
-                  className="text-center font-medium"
-                  placeholder="0,00"
-                />
+                <div className="space-y-2 p-3 bg-green-50 border border-green-200 rounded">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cumulativeCardValues.stoneVoucherCumulative}
+                    onChange={(e) => setCumulativeCardValues(prev => ({...prev, stoneVoucherCumulative: e.target.value}))}
+                    className="text-center font-medium"
+                    placeholder="Total na maquininha"
+                  />
+                  <p className="text-xs text-green-600">Total acumulado na maquininha</p>
+                  {calculatedCardValues.stoneVoucher > 0 && (
+                    <div className="text-sm font-bold text-green-700">
+                      Vendido neste turno: R$ {calculatedCardValues.stoneVoucher.toFixed(2)}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -369,14 +445,22 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
                     </TooltipContent>
                   </Tooltip>
                 </Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={payments.pagBankCard}
-                  onChange={(e) => updatePayment('pagBankCard', parseFloat(e.target.value) || 0)}
-                  className="text-center font-medium"
-                  placeholder="0,00"
-                />
+                <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={cumulativeCardValues.pagBankCardCumulative}
+                    onChange={(e) => setCumulativeCardValues(prev => ({...prev, pagBankCardCumulative: e.target.value}))}
+                    className="text-center font-medium"
+                    placeholder="Total na maquininha"
+                  />
+                  <p className="text-xs text-blue-600">Total acumulado na maquininha</p>
+                  {calculatedCardValues.pagBankCard > 0 && (
+                    <div className="text-sm font-bold text-blue-700">
+                      Vendido neste turno: R$ {calculatedCardValues.pagBankCard.toFixed(2)}
+                    </div>
+                  )}
+                </div>
               </div>
               
               <div className="space-y-2">

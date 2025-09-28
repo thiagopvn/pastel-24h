@@ -1,0 +1,1348 @@
+# DOCUMENTAÇÃO DETALHADA - INTEGRAÇÃO PAINEL ADMINISTRATIVO E FECHAMENTO DE TURNO
+
+## VISÃO GERAL DA INTEGRAÇÃO
+
+A integração entre o painel administrativo e o fechamento de turno do funcionário representa um dos fluxos mais complexos da plataforma Pastel24h. Esta documentação detalha como as tecnologias se comportam em cada solicitação, desde a interface do funcionário até a validação administrativa, incluindo correções pós-fechamento e auditoria completa.
+
+## ARQUITETURA DE INTEGRAÇÃO
+
+### Fluxo de Dados Bidirecional
+```
+[Funcionário] ←→ [WebSocket] ←→ [Backend] ←→ [Admin Panel]
+     ↓                              ↓            ↓
+[Frontend React]              [Express.js]  [Admin React]
+     ↓                              ↓            ↓
+[TanStack Query] ←→ [API Client] ←→ [SQLite] ←→ [Drizzle ORM]
+```
+
+### Tecnologias Envolvidas por Camada
+
+**Frontend (React + TypeScript):**
+- React 18 com hooks e context
+- TanStack Query para state management
+- Wouter para roteamento
+- WebSocket para tempo real
+- Tailwind CSS + Shadcn/ui
+
+**Backend (Express.js + TypeScript):**
+- Express.js com middleware personalizado
+- Passport.js para autenticação
+- WebSocket Server (ws)
+- Drizzle ORM para banco de dados
+- Zod para validação de dados
+
+**Banco de Dados (SQLite):**
+- SQLite com WAL mode
+- Índices otimizados
+- Transações ACID
+- Triggers para auditoria
+
+## FLUXO DETALHADO: FECHAMENTO DE TURNO PELO FUNCIONÁRIO
+
+### 1. INTERFACE DO FUNCIONÁRIO - PREPARAÇÃO PARA FECHAMENTO
+
+```typescript
+// client/src/components/employee/close-shift-modal.tsx
+export const CloseShiftModal: React.FC<{ shiftId: number }> = ({ shiftId }) => {
+  const [formData, setFormData] = useState({
+    finalCash: '',
+    finalCoins: '',
+    envelopeCash: '',
+    envelopeCoins: '',
+    payments: {
+      cash: '0',
+      pix: '0',
+      stoneCard: '0',
+      stoneVoucher: '0',
+      pagBankCard: '0'
+    },
+    cumulativeCardValues: {
+      stoneCardCumulative: '',
+      stoneVoucherCumulative: '',
+      pagBankCardCumulative: ''
+    }
+  });
+
+  const queryClient = useQueryClient();
+  const { sendMessage } = useWebSocket(shiftId);
+
+  // Query para dados do turno em tempo real
+  const { data: shiftData, isLoading } = useQuery({
+    queryKey: ['shift-details', shiftId],
+    queryFn: () => api.get(`/api/shifts/${shiftId}/details`),
+    refetchInterval: 2000, // Atualiza a cada 2 segundos
+    enabled: !!shiftId
+  });
+
+  // Mutation para calcular valores de cartão em tempo real
+  const calculateCardsMutation = useMutation({
+    mutationFn: (cumulativeValues: CumulativeCardValues) =>
+      api.post(`/api/shifts/${shiftId}/calculate-card-payments`, cumulativeValues),
+    onSuccess: (calculatedValues) => {
+      // Atualizar preview em tempo real
+      setFormData(prev => ({
+        ...prev,
+        payments: {
+          ...prev.payments,
+          stoneCard: calculatedValues.realValues.stoneCard.toFixed(2),
+          stoneVoucher: calculatedValues.realValues.stoneVoucher.toFixed(2),
+          pagBankCard: calculatedValues.realValues.pagBankCard.toFixed(2)
+        }
+      }));
+    }
+  });
+
+  // Mutation para fechar turno
+  const closeShiftMutation = useMutation({
+    mutationFn: (data: CloseShiftData) =>
+      api.post(`/api/shifts/${shiftId}/close`, data),
+    onSuccess: () => {
+      toast.success('Turno fechado com sucesso');
+      queryClient.invalidateQueries(['shifts']);
+
+      // Notificar via WebSocket
+      sendMessage({
+        type: 'shift-closed',
+        shiftId,
+        timestamp: new Date().toISOString()
+      });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao fechar turno');
+    }
+  });
+
+  // Handler para mudança em valores cumulativos
+  const handleCumulativeChange = debounce((values: CumulativeCardValues) => {
+    if (Object.values(values).some(v => v && parseFloat(v) > 0)) {
+      calculateCardsMutation.mutate(values);
+    }
+  }, 500);
+
+  // ... resto do componente
+};
+```
+
+### 2. BACKEND - PROCESSAMENTO DO FECHAMENTO
+
+```typescript
+// server/routes.ts - Endpoint de fechamento
+app.post('/api/shifts/:id/close', requireAuth, async (req, res) => {
+  const shiftId = parseInt(req.params.id);
+  const {
+    finalCash,
+    finalCoins,
+    envelopeCash,
+    envelopeCoins,
+    payments,
+    cumulativeCardValues
+  } = req.body;
+
+  // Iniciar transação para garantir consistência
+  await db.transaction(async (tx) => {
+    try {
+      // 1. Verificar autorização e estado do turno
+      const shift = await tx.query.shifts.findFirst({
+        where: and(eq(shifts.id, shiftId), eq(shifts.status, 'open')),
+        with: {
+          user: true,
+          payments: true,
+          records: { with: { product: true } }
+        }
+      });
+
+      if (!shift) {
+        throw new Error('Turno não encontrado ou já fechado');
+      }
+
+      // Verificar permissão
+      if (req.user.role !== 'admin' && req.user.id !== shift.userId) {
+        throw new Error('Sem permissão para fechar este turno');
+      }
+
+      // 2. Processar cálculos de cartão se fornecidos
+      let finalPayments = payments;
+
+      if (cumulativeCardValues && Object.values(cumulativeCardValues).some(v => v)) {
+        const cardCalculator = new CardPaymentCalculator(tx);
+        const calculatedCards = await cardCalculator.calculateRealCardPayments(
+          shiftId,
+          { ...payments, ...cumulativeCardValues }
+        );
+
+        finalPayments = {
+          cash: payments.cash,
+          pix: payments.pix,
+          stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+          stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+          pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+        };
+
+        // Atualizar com valores cumulativos
+        await tx.update(shiftPayments)
+          .set({
+            ...finalPayments,
+            stoneCardCumulative: cumulativeCardValues.stoneCardCumulative,
+            stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative,
+            pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative,
+            calculatedFromCumulative: true
+          })
+          .where(eq(shiftPayments.shiftId, shiftId));
+      } else {
+        // Atualizar apenas valores reais
+        await tx.update(shiftPayments)
+          .set(finalPayments)
+          .where(eq(shiftPayments.shiftId, shiftId));
+      }
+
+      // 3. Calcular valores financeiros
+      const actualCash = parseFloat(finalCash) || 0;
+      const actualCoins = parseFloat(finalCoins) || 0;
+      const envelopeCashAmount = parseFloat(envelopeCash) || 0;
+      const envelopeCoinsAmount = parseFloat(envelopeCoins) || 0;
+
+      const cashForNext = actualCash - envelopeCashAmount;
+      const coinsForNext = actualCoins - envelopeCoinsAmount;
+
+      // Calcular divergência de caixa
+      const initialCash = parseFloat(shift.initialCash || '0');
+      const cashSales = parseFloat(finalPayments.cash || '0');
+
+      const cashWithdrawals = await tx.select({ total: sum(cashAdjustments.amount) })
+        .from(cashAdjustments)
+        .where(and(
+          eq(cashAdjustments.shiftId, shiftId),
+          eq(cashAdjustments.type, 'withdrawal')
+        ));
+
+      const totalWithdrawals = cashWithdrawals[0]?.total || 0;
+      const expectedCash = initialCash + cashSales - totalWithdrawals;
+      const cashDivergence = actualCash - expectedCash;
+
+      // 4. Fechar turno
+      await tx.update(shifts).set({
+        status: 'closed',
+        endTime: new Date().toISOString(),
+        finalCash: actualCash.toFixed(2),
+        finalCoins: actualCoins.toFixed(2),
+        envelopeCash: envelopeCashAmount.toFixed(2),
+        envelopeCoins: envelopeCoinsAmount.toFixed(2),
+        cashForNextShift: cashForNext.toFixed(2),
+        coinsForNextShift: coinsForNext.toFixed(2)
+      }).where(eq(shifts.id, shiftId));
+
+      // 5. Finalizar colaboradores
+      await tx.update(shiftCollaborators)
+        .set({
+          endTime: new Date().toISOString(),
+          hoursWorked: sql`(julianday(${new Date().toISOString()}) - julianday(start_time)) * 24`
+        })
+        .where(and(
+          eq(shiftCollaborators.shiftId, shiftId),
+          isNull(shiftCollaborators.endTime)
+        ));
+
+      // 6. Criar registro de auditoria
+      await tx.insert(timeline).values({
+        shiftId,
+        userId: req.user.id,
+        action: 'SHIFT_CLOSED',
+        description: `Turno fechado - Divergência: R$${cashDivergence.toFixed(2)}`,
+        metadata: JSON.stringify({
+          finalCash: actualCash,
+          finalCoins: actualCoins,
+          cashDivergence,
+          payments: finalPayments,
+          cumulativeCardValues: cumulativeCardValues || null,
+          closedBy: req.user.id,
+          closedAt: new Date().toISOString()
+        })
+      });
+
+      // 7. Notificar administradores via WebSocket
+      notifyAdminClients('shift-closed', {
+        shiftId,
+        userId: shift.userId,
+        userName: shift.user.name,
+        cashDivergence,
+        totalPayments: Object.values(finalPayments).reduce((sum, val) => sum + parseFloat(val), 0),
+        closedAt: new Date().toISOString()
+      });
+
+      res.json({
+        message: 'Turno fechado com sucesso',
+        cashDivergence,
+        shiftId
+      });
+
+    } catch (error) {
+      // Rollback automático em caso de erro
+      throw error;
+    }
+  });
+});
+```
+
+### 3. NOTIFICAÇÃO WEBSOCKET PARA ADMINISTRADORES
+
+```typescript
+// server/ws.ts - Sistema de notificação
+export const notifyAdminClients = (event: string, data: any) => {
+  if (!global.adminWss) return;
+
+  const notification = {
+    type: 'admin-notification',
+    event,
+    data,
+    timestamp: new Date().toISOString()
+  };
+
+  global.adminWss.clients.forEach((client: any) => {
+    if (client.readyState === WebSocket.OPEN && client.isAdmin) {
+      client.send(JSON.stringify(notification));
+    }
+  });
+
+  // Log para auditoria
+  console.log(`Admin notification sent: ${event}`, data);
+};
+
+// Configuração de conexão admin
+export const setupAdminWebSocket = (wss: WebSocket.Server) => {
+  wss.on('connection', (ws: any, req: any) => {
+    const url = new URL(req.url!, `http://${req.headers.host}`);
+    const isAdmin = url.searchParams.get('role') === 'admin';
+
+    if (isAdmin) {
+      ws.isAdmin = true;
+      console.log('Admin conectado ao WebSocket');
+
+      // Enviar estado inicial
+      ws.send(JSON.stringify({
+        type: 'admin-connected',
+        timestamp: new Date().toISOString()
+      }));
+    }
+  });
+};
+```
+
+## PAINEL ADMINISTRATIVO - MONITORAMENTO EM TEMPO REAL
+
+### 1. DASHBOARD ADMINISTRATIVO
+
+```typescript
+// client/src/components/admin/admin-dashboard.tsx
+export const AdminDashboard: React.FC = () => {
+  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
+  const [activeShifts, setActiveShifts] = useState<Shift[]>([]);
+
+  const queryClient = useQueryClient();
+
+  // WebSocket para notificações em tempo real
+  useEffect(() => {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws-api?role=admin`;
+
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('Admin WebSocket conectado');
+    };
+
+    ws.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        switch (data.type) {
+          case 'admin-notification':
+            handleAdminNotification(data);
+            break;
+
+          case 'shift-closed':
+            handleShiftClosed(data.data);
+            break;
+
+          case 'shift-opened':
+            handleShiftOpened(data.data);
+            break;
+        }
+      } catch (error) {
+        console.error('Erro ao processar notificação admin:', error);
+      }
+    };
+
+    return () => ws.close();
+  }, []);
+
+  // Handler para notificação de fechamento de turno
+  const handleShiftClosed = (shiftData: any) => {
+    // Adicionar notificação
+    const notification: AdminNotification = {
+      id: Date.now(),
+      type: 'shift-closed',
+      title: 'Turno Fechado',
+      message: `${shiftData.userName} fechou o turno ${shiftData.shiftId}`,
+      data: shiftData,
+      timestamp: new Date().toISOString(),
+      read: false,
+      priority: shiftData.cashDivergence !== 0 ? 'high' : 'normal'
+    };
+
+    setNotifications(prev => [notification, ...prev.slice(0, 49)]); // Máximo 50
+
+    // Toast com informações relevantes
+    if (shiftData.cashDivergence !== 0) {
+      toast.warning(
+        `Divergência de caixa: R$ ${shiftData.cashDivergence.toFixed(2)}`,
+        {
+          description: `Turno ${shiftData.shiftId} - ${shiftData.userName}`,
+          action: {
+            label: 'Revisar',
+            onClick: () => navigateToShiftReview(shiftData.shiftId)
+          }
+        }
+      );
+    } else {
+      toast.success(
+        `Turno ${shiftData.shiftId} fechado sem divergências`,
+        {
+          description: shiftData.userName
+        }
+      );
+    }
+
+    // Invalidar queries relacionadas
+    queryClient.invalidateQueries(['shifts']);
+    queryClient.invalidateQueries(['admin-dashboard']);
+  };
+
+  // Query para turnos ativos
+  const { data: shiftsData } = useQuery({
+    queryKey: ['admin-shifts', 'active'],
+    queryFn: () => api.get('/api/admin/shifts/active'),
+    refetchInterval: 10000 // 10 segundos
+  });
+
+  // Query para estatísticas do dia
+  const { data: dailyStats } = useQuery({
+    queryKey: ['admin-daily-stats'],
+    queryFn: () => api.get('/api/admin/stats/daily'),
+    refetchInterval: 30000 // 30 segundos
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Header com estatísticas */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <StatCard
+          title="Turnos Ativos"
+          value={shiftsData?.length || 0}
+          icon="🔄"
+          color="blue"
+        />
+        <StatCard
+          title="Receita do Dia"
+          value={`R$ ${dailyStats?.totalRevenue?.toFixed(2) || '0,00'}`}
+          icon="💰"
+          color="green"
+        />
+        <StatCard
+          title="Divergências"
+          value={dailyStats?.divergenceCount || 0}
+          icon="⚠️"
+          color={dailyStats?.divergenceCount > 0 ? "red" : "gray"}
+        />
+        <StatCard
+          title="Funcionários"
+          value={dailyStats?.activeEmployees || 0}
+          icon="👥"
+          color="purple"
+        />
+      </div>
+
+      {/* Notificações recentes */}
+      <NotificationPanel
+        notifications={notifications}
+        onMarkAsRead={(id) => {
+          setNotifications(prev =>
+            prev.map(n => n.id === id ? { ...n, read: true } : n)
+          );
+        }}
+      />
+
+      {/* Lista de turnos ativos */}
+      <ActiveShiftsList
+        shifts={shiftsData || []}
+        onShiftAction={(shiftId, action) => {
+          // Ações administrativas
+          handleShiftAction(shiftId, action);
+        }}
+      />
+    </div>
+  );
+};
+```
+
+### 2. REVISÃO DETALHADA DE TURNO
+
+```typescript
+// client/src/components/admin/shift-review.tsx
+export const ShiftReview: React.FC<{ shiftId: number }> = ({ shiftId }) => {
+  const [corrections, setCorrections] = useState<Correction[]>([]);
+  const [correctionForm, setCorrectionForm] = useState({
+    type: 'payment' as CorrectionType,
+    field: '',
+    oldValue: '',
+    newValue: '',
+    reason: ''
+  });
+
+  // Query para dados detalhados do turno
+  const { data: shiftDetails, isLoading } = useQuery({
+    queryKey: ['admin-shift-details', shiftId],
+    queryFn: () => api.get(`/api/admin/shift-details/${shiftId}`),
+    enabled: !!shiftId
+  });
+
+  // Query para correções existentes
+  const { data: existingCorrections } = useQuery({
+    queryKey: ['shift-corrections', shiftId],
+    queryFn: () => api.get(`/api/admin/shifts/${shiftId}/corrections`),
+    enabled: !!shiftId
+  });
+
+  // Mutation para aplicar correção
+  const applyCorrectionMutation = useMutation({
+    mutationFn: (correction: CorrectionData) =>
+      api.post(`/api/admin/shifts/${shiftId}/corrections`, correction),
+    onSuccess: () => {
+      toast.success('Correção aplicada com sucesso');
+      queryClient.invalidateQueries(['admin-shift-details', shiftId]);
+      queryClient.invalidateQueries(['shift-corrections', shiftId]);
+      setCorrectionForm({
+        type: 'payment',
+        field: '',
+        oldValue: '',
+        newValue: '',
+        reason: ''
+      });
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Erro ao aplicar correção');
+    }
+  });
+
+  const handleApplyCorrection = () => {
+    if (!correctionForm.reason.trim()) {
+      toast.error('Motivo da correção é obrigatório');
+      return;
+    }
+
+    if (correctionForm.oldValue === correctionForm.newValue) {
+      toast.error('Novo valor deve ser diferente do valor atual');
+      return;
+    }
+
+    applyCorrectionMutation.mutate(correctionForm);
+  };
+
+  if (isLoading) {
+    return <ShiftReviewSkeleton />;
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Cabeçalho do turno */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h2 className="text-xl font-semibold">
+              Turno #{shiftId} - {shiftDetails?.user?.name}
+            </h2>
+            <p className="text-gray-600">
+              {new Date(shiftDetails?.startTime).toLocaleString()} -
+              {shiftDetails?.endTime ? new Date(shiftDetails.endTime).toLocaleString() : 'Em andamento'}
+            </p>
+          </div>
+          <div className="text-right">
+            <div className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${
+              shiftDetails?.status === 'open'
+                ? 'bg-green-100 text-green-800'
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {shiftDetails?.status === 'open' ? 'Ativo' : 'Fechado'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Resumo financeiro com alertas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <FinancialSummaryCard
+          title="Caixa"
+          data={{
+            initial: shiftDetails?.initialCash,
+            final: shiftDetails?.finalCash,
+            divergence: shiftDetails?.cashDivergence,
+            expected: shiftDetails?.expectedCash
+          }}
+          showAlert={Math.abs(shiftDetails?.cashDivergence || 0) > 0}
+        />
+
+        <PaymentMethodsCard
+          payments={shiftDetails?.payments}
+          cumulativeValues={shiftDetails?.cumulativeCardValues}
+          showCalculationDetails={shiftDetails?.calculatedFromCumulative}
+        />
+      </div>
+
+      {/* Inventário detalhado */}
+      <InventoryDetailsCard
+        records={shiftDetails?.records || []}
+        onRecordCorrection={(recordId, correction) => {
+          // Handler para correção de inventário
+          handleInventoryCorrection(recordId, correction);
+        }}
+      />
+
+      {/* Seção de correções */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">Aplicar Correções</h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Tipo de Correção</label>
+            <select
+              value={correctionForm.type}
+              onChange={(e) => setCorrectionForm(prev => ({
+                ...prev,
+                type: e.target.value as CorrectionType
+              }))}
+              className="w-full p-3 border rounded-lg"
+            >
+              <option value="payment">Pagamento</option>
+              <option value="inventory">Inventário</option>
+              <option value="cash">Caixa</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Campo</label>
+            <select
+              value={correctionForm.field}
+              onChange={(e) => setCorrectionForm(prev => ({
+                ...prev,
+                field: e.target.value
+              }))}
+              className="w-full p-3 border rounded-lg"
+            >
+              {getCorrectionFields(correctionForm.type).map(field => (
+                <option key={field.value} value={field.value}>
+                  {field.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Valor Atual</label>
+            <input
+              type="text"
+              value={correctionForm.oldValue}
+              onChange={(e) => setCorrectionForm(prev => ({
+                ...prev,
+                oldValue: e.target.value
+              }))}
+              className="w-full p-3 border rounded-lg"
+              readOnly
+              placeholder="Carregará automaticamente"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Novo Valor</label>
+            <input
+              type="number"
+              step="0.01"
+              value={correctionForm.newValue}
+              onChange={(e) => setCorrectionForm(prev => ({
+                ...prev,
+                newValue: e.target.value
+              }))}
+              className="w-full p-3 border rounded-lg"
+              placeholder="0,00"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <label className="block text-sm font-medium mb-2">Motivo da Correção</label>
+          <textarea
+            value={correctionForm.reason}
+            onChange={(e) => setCorrectionForm(prev => ({
+              ...prev,
+              reason: e.target.value
+            }))}
+            className="w-full p-3 border rounded-lg"
+            rows={3}
+            placeholder="Descreva o motivo da correção..."
+            required
+          />
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            onClick={handleApplyCorrection}
+            disabled={applyCorrectionMutation.isPending}
+            className="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50"
+          >
+            {applyCorrectionMutation.isPending ? 'Aplicando...' : 'Aplicar Correção'}
+          </button>
+        </div>
+      </div>
+
+      {/* Histórico de correções */}
+      {existingCorrections && existingCorrections.length > 0 && (
+        <CorrectionHistoryCard corrections={existingCorrections} />
+      )}
+    </div>
+  );
+};
+```
+
+### 3. BACKEND - SISTEMA DE CORREÇÕES ADMINISTRATIVAS
+
+```typescript
+// server/corrections-utils.ts
+export class ShiftCorrectionService {
+  constructor(private db: any) {}
+
+  async applyCorrection(
+    shiftId: number,
+    correction: CorrectionData,
+    adminUserId: number
+  ): Promise<CorrectionResult> {
+
+    return await this.db.transaction(async (tx) => {
+      try {
+        // 1. Validar turno e permissões
+        const shift = await tx.query.shifts.findFirst({
+          where: eq(shifts.id, shiftId),
+          with: { user: true, payments: true }
+        });
+
+        if (!shift) {
+          throw new Error('Turno não encontrado');
+        }
+
+        if (shift.status === 'open') {
+          throw new Error('Não é possível corrigir turno em andamento');
+        }
+
+        // 2. Validar dados da correção
+        const validationResult = await this.validateCorrection(shift, correction);
+        if (!validationResult.isValid) {
+          throw new Error(validationResult.error);
+        }
+
+        // 3. Backup dos valores atuais
+        const currentValue = await this.getCurrentValue(shift, correction.type, correction.field);
+
+        // 4. Aplicar correção baseada no tipo
+        let updatedData: any = {};
+
+        switch (correction.type) {
+          case 'payment':
+            updatedData = await this.applyPaymentCorrection(tx, shiftId, correction);
+            break;
+          case 'inventory':
+            updatedData = await this.applyInventoryCorrection(tx, shiftId, correction);
+            break;
+          case 'cash':
+            updatedData = await this.applyCashCorrection(tx, shiftId, correction);
+            break;
+        }
+
+        // 5. Registrar correção na tabela de auditoria
+        const [correctionRecord] = await tx.insert(corrections).values({
+          shiftId,
+          adminUserId,
+          type: correction.type,
+          field: correction.field,
+          oldValue: currentValue.toString(),
+          newValue: correction.newValue,
+          reason: correction.reason,
+          appliedAt: new Date().toISOString(),
+          metadata: JSON.stringify({
+            originalShiftData: updatedData.before,
+            correctedShiftData: updatedData.after,
+            adminUser: adminUserId,
+            timestamp: new Date().toISOString()
+          })
+        }).returning();
+
+        // 6. Timeline de auditoria
+        await tx.insert(timeline).values({
+          shiftId,
+          userId: adminUserId,
+          action: 'ADMIN_CORRECTION',
+          description: `Correção aplicada: ${correction.field} ${currentValue} → ${correction.newValue}`,
+          metadata: JSON.stringify({
+            correctionId: correctionRecord.id,
+            type: correction.type,
+            field: correction.field,
+            reason: correction.reason
+          })
+        });
+
+        // 7. Recalcular métricas afetadas
+        await this.recalculateAffectedMetrics(tx, shiftId, correction.type);
+
+        // 8. Notificar sistemas interessados
+        notifyAdminClients('correction-applied', {
+          shiftId,
+          correctionId: correctionRecord.id,
+          type: correction.type,
+          field: correction.field,
+          adminUserId
+        });
+
+        return {
+          success: true,
+          correctionId: correctionRecord.id,
+          oldValue: currentValue,
+          newValue: parseFloat(correction.newValue),
+          affectedMetrics: updatedData.affectedMetrics
+        };
+
+      } catch (error) {
+        console.error('Erro ao aplicar correção:', error);
+        throw error;
+      }
+    });
+  }
+
+  private async applyPaymentCorrection(
+    tx: any,
+    shiftId: number,
+    correction: CorrectionData
+  ): Promise<any> {
+    const beforeUpdate = await tx.query.shiftPayments.findFirst({
+      where: eq(shiftPayments.shiftId, shiftId)
+    });
+
+    // Atualizar pagamento específico
+    await tx.update(shiftPayments)
+      .set({ [correction.field]: correction.newValue })
+      .where(eq(shiftPayments.shiftId, shiftId));
+
+    const afterUpdate = await tx.query.shiftPayments.findFirst({
+      where: eq(shiftPayments.shiftId, shiftId)
+    });
+
+    // Recalcular divergência de caixa se necessário
+    if (correction.field === 'cash') {
+      await this.recalculateCashDivergence(tx, shiftId);
+    }
+
+    return {
+      before: beforeUpdate,
+      after: afterUpdate,
+      affectedMetrics: ['totalPayments', 'cashDivergence']
+    };
+  }
+
+  private async recalculateCashDivergence(tx: any, shiftId: number): Promise<void> {
+    // Buscar dados atuais do turno
+    const shiftData = await tx.query.shifts.findFirst({
+      where: eq(shifts.id, shiftId),
+      with: { payments: true }
+    });
+
+    if (!shiftData) return;
+
+    // Buscar sangrias
+    const withdrawalsResult = await tx.select({ total: sum(cashAdjustments.amount) })
+      .from(cashAdjustments)
+      .where(and(
+        eq(cashAdjustments.shiftId, shiftId),
+        eq(cashAdjustments.type, 'withdrawal')
+      ));
+
+    const totalWithdrawals = withdrawalsResult[0]?.total || 0;
+
+    // Calcular nova divergência
+    const initialCash = parseFloat(shiftData.initialCash || '0');
+    const finalCash = parseFloat(shiftData.finalCash || '0');
+    const cashSales = parseFloat(shiftData.payments?.cash || '0');
+
+    const expectedCash = initialCash + cashSales - totalWithdrawals;
+    const newDivergence = finalCash - expectedCash;
+
+    // Atualizar divergência calculada
+    await tx.update(shifts)
+      .set({
+        calculatedCashDivergence: newDivergence.toFixed(2),
+        lastCorrectionAt: new Date().toISOString()
+      })
+      .where(eq(shifts.id, shiftId));
+  }
+}
+```
+
+## INTEGRAÇÃO TEMPO REAL - WEBSOCKET AVANÇADO
+
+### 1. SERVIDOR WEBSOCKET MULTICANAL
+
+```typescript
+// server/ws-advanced.ts
+export class AdvancedWebSocketServer {
+  private wss: WebSocket.Server;
+  private channels: Map<string, Set<WebSocket>> = new Map();
+  private clientMetadata: WeakMap<WebSocket, ClientMetadata> = new WeakMap();
+
+  constructor(server: any) {
+    this.wss = new WebSocket.Server({
+      server,
+      path: '/ws-api'
+    });
+
+    this.setupConnectionHandling();
+  }
+
+  private setupConnectionHandling() {
+    this.wss.on('connection', (ws: WebSocket, req: any) => {
+      const url = new URL(req.url!, `http://${req.headers.host}`);
+      const role = url.searchParams.get('role');
+      const shiftId = url.searchParams.get('shiftId');
+      const userId = url.searchParams.get('userId');
+
+      // Metadados do cliente
+      const metadata: ClientMetadata = {
+        role: role as 'admin' | 'employee',
+        shiftId: shiftId ? parseInt(shiftId) : null,
+        userId: userId ? parseInt(userId) : null,
+        connectedAt: new Date(),
+        lastActivity: new Date()
+      };
+
+      this.clientMetadata.set(ws, metadata);
+
+      // Inscrever em canais apropriados
+      this.subscribeToChannels(ws, metadata);
+
+      // Handlers de mensagem
+      ws.on('message', (data: string) => {
+        this.handleMessage(ws, data);
+      });
+
+      ws.on('close', () => {
+        this.unsubscribeFromAllChannels(ws);
+      });
+
+      ws.on('pong', () => {
+        const meta = this.clientMetadata.get(ws);
+        if (meta) {
+          meta.lastActivity = new Date();
+        }
+      });
+
+      // Enviar confirmação de conexão
+      this.sendToClient(ws, {
+        type: 'connection-established',
+        channels: this.getClientChannels(ws),
+        metadata
+      });
+    });
+
+    // Heartbeat para manter conexões vivas
+    setInterval(() => {
+      this.wss.clients.forEach((ws: WebSocket) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.ping();
+        }
+      });
+    }, 30000);
+  }
+
+  private subscribeToChannels(ws: WebSocket, metadata: ClientMetadata) {
+    // Canal global
+    this.subscribeToChannel(ws, 'global');
+
+    // Canal baseado em role
+    if (metadata.role) {
+      this.subscribeToChannel(ws, `role:${metadata.role}`);
+    }
+
+    // Canal de turno específico
+    if (metadata.shiftId) {
+      this.subscribeToChannel(ws, `shift:${metadata.shiftId}`);
+    }
+
+    // Canal de usuário específico
+    if (metadata.userId) {
+      this.subscribeToChannel(ws, `user:${metadata.userId}`);
+    }
+
+    // Canal administrativo (apenas para admins)
+    if (metadata.role === 'admin') {
+      this.subscribeToChannel(ws, 'admin-notifications');
+      this.subscribeToChannel(ws, 'admin-alerts');
+    }
+  }
+
+  private subscribeToChannel(ws: WebSocket, channel: string) {
+    if (!this.channels.has(channel)) {
+      this.channels.set(channel, new Set());
+    }
+    this.channels.get(channel)!.add(ws);
+  }
+
+  private unsubscribeFromAllChannels(ws: WebSocket) {
+    this.channels.forEach((clients, channel) => {
+      clients.delete(ws);
+      if (clients.size === 0) {
+        this.channels.delete(channel);
+      }
+    });
+    this.clientMetadata.delete(ws);
+  }
+
+  // Método público para enviar para canais específicos
+  public broadcastToChannel(channel: string, message: any) {
+    const clients = this.channels.get(channel);
+    if (!clients) return;
+
+    const payload = JSON.stringify({
+      ...message,
+      channel,
+      timestamp: new Date().toISOString()
+    });
+
+    clients.forEach((client: WebSocket) => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(payload);
+      }
+    });
+  }
+
+  // Notificação específica para fechamento de turno
+  public notifyShiftClosure(shiftData: any) {
+    // Para funcionários do turno
+    this.broadcastToChannel(`shift:${shiftData.shiftId}`, {
+      type: 'shift-closed',
+      data: shiftData
+    });
+
+    // Para administradores
+    this.broadcastToChannel('admin-notifications', {
+      type: 'shift-closure-notification',
+      priority: shiftData.cashDivergence !== 0 ? 'high' : 'normal',
+      data: shiftData
+    });
+
+    // Para canal global (estatísticas gerais)
+    this.broadcastToChannel('global', {
+      type: 'shift-statistics-updated',
+      data: {
+        totalShiftsClosed: shiftData.totalShiftsClosed,
+        dailyRevenue: shiftData.dailyRevenue
+      }
+    });
+  }
+
+  private sendToClient(ws: WebSocket, message: any) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        ...message,
+        timestamp: new Date().toISOString()
+      }));
+    }
+  }
+}
+```
+
+### 2. CLIENTE WEBSOCKET INTELIGENTE
+
+```typescript
+// client/src/hooks/useAdvancedWebSocket.ts
+export const useAdvancedWebSocket = (options: WebSocketOptions) => {
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [messageHistory, setMessageHistory] = useState<any[]>([]);
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const heartbeatIntervalRef = useRef<NodeJS.Interval | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const connect = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+
+    setConnectionStatus('connecting');
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const params = new URLSearchParams({
+      role: options.role,
+      ...(options.shiftId && { shiftId: options.shiftId.toString() }),
+      ...(options.userId && { userId: options.userId.toString() })
+    });
+
+    const wsUrl = `${protocol}//${window.location.host}/ws-api?${params}`;
+
+    wsRef.current = new WebSocket(wsUrl);
+
+    wsRef.current.onopen = () => {
+      console.log('WebSocket conectado');
+      setConnectionStatus('connected');
+
+      // Iniciar heartbeat
+      heartbeatIntervalRef.current = setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000);
+    };
+
+    wsRef.current.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        setLastMessage(message);
+        setMessageHistory(prev => [message, ...prev.slice(0, 99)]); // Manter últimas 100
+
+        // Processar mensagem baseada no tipo
+        handleMessage(message);
+      } catch (error) {
+        console.error('Erro ao processar mensagem WebSocket:', error);
+      }
+    };
+
+    wsRef.current.onclose = (event) => {
+      console.log('WebSocket desconectado:', event.code, event.reason);
+      setConnectionStatus('disconnected');
+
+      // Limpar heartbeat
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+      }
+
+      // Tentar reconectar se não foi fechamento intencional
+      if (event.code !== 1000) {
+        scheduleReconnect();
+      }
+    };
+
+    wsRef.current.onerror = (error) => {
+      console.error('Erro WebSocket:', error);
+      setConnectionStatus('disconnected');
+    };
+  }, [options]);
+
+  const handleMessage = (message: any) => {
+    switch (message.type) {
+      case 'shift-closed':
+        handleShiftClosed(message.data);
+        break;
+
+      case 'admin-notification':
+        handleAdminNotification(message);
+        break;
+
+      case 'correction-applied':
+        handleCorrectionApplied(message.data);
+        break;
+
+      case 'inventory-updated':
+        handleInventoryUpdated(message.data);
+        break;
+    }
+  };
+
+  const handleShiftClosed = (shiftData: any) => {
+    // Invalidar queries relacionadas
+    queryClient.invalidateQueries(['shift', shiftData.shiftId]);
+    queryClient.invalidateQueries(['shifts']);
+
+    if (options.role === 'admin') {
+      queryClient.invalidateQueries(['admin-dashboard']);
+      queryClient.invalidateQueries(['daily-stats']);
+    }
+
+    // Notificação visual
+    if (shiftData.cashDivergence !== 0) {
+      toast.warning(`Divergência detectada: R$ ${shiftData.cashDivergence.toFixed(2)}`);
+    }
+
+    // Callback personalizado
+    options.onShiftClosed?.(shiftData);
+  };
+
+  const handleCorrectionApplied = (correctionData: any) => {
+    queryClient.invalidateQueries(['admin-shift-details', correctionData.shiftId]);
+    queryClient.invalidateQueries(['shift-corrections', correctionData.shiftId]);
+
+    toast.success('Correção aplicada com sucesso');
+    options.onCorrectionApplied?.(correctionData);
+  };
+
+  const scheduleReconnect = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      connect();
+    }, 3000); // Tentar reconectar em 3 segundos
+  };
+
+  const sendMessage = (message: any) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        ...message,
+        timestamp: new Date().toISOString()
+      }));
+      return true;
+    }
+    return false;
+  };
+
+  const disconnect = () => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+    }
+
+    if (wsRef.current) {
+      wsRef.current.close(1000, 'Desconexão intencional');
+    }
+  };
+
+  // Conectar ao montar, desconectar ao desmontar
+  useEffect(() => {
+    connect();
+    return disconnect;
+  }, [connect]);
+
+  return {
+    connectionStatus,
+    lastMessage,
+    messageHistory,
+    sendMessage,
+    reconnect: connect,
+    disconnect
+  };
+};
+```
+
+## AUDITORIA E COMPLIANCE
+
+### 1. SISTEMA DE AUDITORIA COMPLETO
+
+```typescript
+// server/audit-system.ts
+export class AuditSystem {
+  constructor(private db: any) {}
+
+  async logShiftClosure(shiftId: number, closureData: any, userId: number) {
+    const auditEntry = {
+      event: 'SHIFT_CLOSURE',
+      shiftId,
+      userId,
+      timestamp: new Date().toISOString(),
+      data: {
+        financialData: closureData.payments,
+        cumulativeValues: closureData.cumulativeCardValues,
+        cashData: {
+          initial: closureData.initialCash,
+          final: closureData.finalCash,
+          divergence: closureData.cashDivergence
+        },
+        inventorySnapshot: closureData.inventory,
+        systemCalculations: closureData.systemCalculations
+      },
+      checksum: this.generateChecksum(closureData)
+    };
+
+    await this.db.insert(auditLog).values(auditEntry);
+
+    // Verificar se há padrões suspeitos
+    await this.detectAnomalies(shiftId, closureData);
+  }
+
+  async logAdminCorrection(correctionData: any, adminUserId: number) {
+    const auditEntry = {
+      event: 'ADMIN_CORRECTION',
+      shiftId: correctionData.shiftId,
+      userId: adminUserId,
+      timestamp: new Date().toISOString(),
+      data: {
+        correction: correctionData,
+        beforeState: correctionData.beforeState,
+        afterState: correctionData.afterState,
+        reason: correctionData.reason
+      },
+      checksum: this.generateChecksum(correctionData)
+    };
+
+    await this.db.insert(auditLog).values(auditEntry);
+
+    // Notificar sobre correção administrativa
+    await this.notifyComplianceTeam('ADMIN_CORRECTION', auditEntry);
+  }
+
+  private async detectAnomalies(shiftId: number, data: any) {
+    const anomalies: string[] = [];
+
+    // Verificar divergência de caixa alta
+    if (Math.abs(data.cashDivergence) > 50) {
+      anomalies.push(`HIGH_CASH_DIVERGENCE: R$ ${data.cashDivergence}`);
+    }
+
+    // Verificar padrão de fechamentos
+    const recentShifts = await this.getRecentShifts(data.userId, 5);
+    const divergences = recentShifts.map(s => Math.abs(s.cashDivergence || 0));
+    const avgDivergence = divergences.reduce((a, b) => a + b, 0) / divergences.length;
+
+    if (avgDivergence > 20) {
+      anomalies.push(`PATTERN_HIGH_DIVERGENCE: Média ${avgDivergence.toFixed(2)}`);
+    }
+
+    // Verificar horários incomuns
+    const closureTime = new Date(data.closureTime);
+    const hour = closureTime.getHours();
+
+    if (hour < 6 || hour > 23) {
+      anomalies.push(`UNUSUAL_CLOSURE_TIME: ${hour}:${closureTime.getMinutes()}`);
+    }
+
+    if (anomalies.length > 0) {
+      await this.flagForReview(shiftId, anomalies);
+    }
+  }
+
+  private generateChecksum(data: any): string {
+    return crypto
+      .createHash('sha256')
+      .update(JSON.stringify(data))
+      .digest('hex');
+  }
+}
+```
+
+## CONCLUSÃO
+
+Esta documentação detalha a integração complexa entre o painel administrativo e o fechamento de turno, mostrando como cada tecnologia se comporta durante as operações. O sistema implementa:
+
+1. **Fluxo de Dados Bidirecional**: Comunicação em tempo real entre funcionários e administradores
+2. **Validação Multi-camada**: Frontend, backend e banco de dados
+3. **Sistema de Correções**: Permite ajustes pós-fechamento com auditoria completa
+4. **WebSocket Multicanal**: Notificações direcionadas por role e contexto
+5. **Auditoria Completa**: Rastreabilidade de todas as ações e mudanças
+6. **Detecção de Anomalias**: Identificação automática de padrões suspeitos
+
+A integração garante que cada fechamento de turno seja processado de forma segura, auditável e com possibilidade de correção administrativa quando necessário, mantendo a integridade dos dados financeiros e operacionais.

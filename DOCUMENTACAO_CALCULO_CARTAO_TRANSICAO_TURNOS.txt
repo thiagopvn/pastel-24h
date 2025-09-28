@@ -1,0 +1,623 @@
+# DOCUMENTAÇÃO DETALHADA - CÁLCULO DE CARTÃO DE CRÉDITO NA TRANSIÇÃO ENTRE TURNOS
+
+## VISÃO GERAL DO SISTEMA
+
+O sistema Pastel24h implementa uma lógica sofisticada para calcular valores de cartão de crédito durante as transições entre turnos. Esta lógica diferencia entre **valores cumulativos** (totais mostrados nas maquininhas) e **valores reais** (vendas efetivas do turno atual) para três métodos de pagamento:
+
+- **Stone Card** (cartão de crédito)
+- **Stone Voucher** (vale refeição)
+- **PagBank Card** (processador de pagamento)
+
+## ARQUITETURA DO SISTEMA
+
+### Estrutura de Arquivos Principais
+```
+server/
+├── lib/
+│   └── card-payment-calculator.ts    # Calculadora principal de cartões
+├── routes.ts                         # Endpoints de abertura/fechamento
+└── migrations/
+    └── 0004_add_cumulative_card_fields.sql
+
+shared/
+└── schema.ts                         # Schema com campos cumulativos
+
+client/src/components/employee/
+└── cash-register.tsx                 # Interface para entrada de valores
+```
+
+## SCHEMA DE BANCO DE DADOS
+
+### Tabela `shift_payments` - Campos Duplos para Cartões
+
+```typescript
+// shared/schema.ts
+export const shiftPayments = sqliteTable('shift_payments', {
+  // Valores reais (usados nos cálculos de receita)
+  stoneCard: text("stone_card").default("0"),
+  stoneVoucher: text("stone_voucher").default("0"),
+  pagBankCard: text("pagbank_card").default("0"),
+
+  // Valores cumulativos (total mostrado na maquininha)
+  stoneCardCumulative: text("stone_card_cumulative").default("0"),
+  stoneVoucherCumulative: text("stone_voucher_cumulative").default("0"),
+  pagBankCardCumulative: text("pagbank_card_cumulative").default("0"),
+
+  // Flag indicando se foi calculado automaticamente
+  calculatedFromCumulative: integer("calculated_from_cumulative", { mode: "boolean" }).default(false),
+
+  // Campos que NÃO possuem versão cumulativa
+  cash: text("cash").default("0"),      // Dinheiro físico
+  pix: text("pix").default("0"),        // PIX instantâneo
+});
+```
+
+### Diferença Conceitual dos Campos
+
+**Valores Cumulativos:**
+- Representam o total mostrado no visor da maquininha
+- Acumulam durante todo o dia, nunca zerados
+- Inseridos manualmente pelo funcionário
+
+**Valores Reais:**
+- Representam as vendas efetivas do turno atual
+- Calculados automaticamente pelo sistema
+- Usados para relatórios e cálculos de receita
+
+## CALCULADORA DE PAGAMENTOS COM CARTÃO
+
+### Classe Principal: `CardPaymentCalculator`
+
+```typescript
+// server/lib/card-payment-calculator.ts
+export class CardPaymentCalculator {
+  constructor(private db: any) {}
+
+  async calculateRealCardPayments(
+    shiftId: number,
+    cumulativeValues: CumulativeCardValues
+  ): Promise<CardCalculationResult> {
+
+    // 1. Verificar se é o primeiro turno do dia
+    const isFirstShiftOfDay = await this.isFirstShiftOfDay(shiftId);
+
+    if (isFirstShiftOfDay) {
+      // Se for o primeiro turno: cumulative = real
+      return {
+        realValues: {
+          stoneCard: parseFloat(cumulativeValues.stoneCardCumulative || '0'),
+          stoneVoucher: parseFloat(cumulativeValues.stoneVoucherCumulative || '0'),
+          pagBankCard: parseFloat(cumulativeValues.pagBankCardCumulative || '0')
+        },
+        previousAccumulated: { stoneCard: 0, stoneVoucher: 0, pagBankCard: 0 }
+      };
+    }
+
+    // 2. Calcular acumulado anterior
+    const previousAccumulated = await this.getPreviousAccumulated(shiftId);
+
+    // 3. Calcular valores reais = cumulative atual - acumulado anterior
+    const realValues = {
+      stoneCard: Math.max(0,
+        parseFloat(cumulativeValues.stoneCardCumulative || '0') - previousAccumulated.stoneCard
+      ),
+      stoneVoucher: Math.max(0,
+        parseFloat(cumulativeValues.stoneVoucherCumulative || '0') - previousAccumulated.stoneVoucher
+      ),
+      pagBankCard: Math.max(0,
+        parseFloat(cumulativeValues.pagBankCardCumulative || '0') - previousAccumulated.pagBankCard
+      )
+    };
+
+    return { realValues, previousAccumulated };
+  }
+}
+```
+
+### Método: Verificação do Primeiro Turno do Dia
+
+```typescript
+private async isFirstShiftOfDay(shiftId: number): Promise<boolean> {
+  const currentShift = await this.db.query.shifts.findFirst({
+    where: eq(shifts.id, shiftId)
+  });
+
+  if (!currentShift) return false;
+
+  const startOfDay = new Date(currentShift.startTime);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  // Buscar turnos fechados desde o início do dia
+  const previousShiftsToday = await this.db.query.shifts.findMany({
+    where: and(
+      gte(shifts.startTime, startOfDay.toISOString()),
+      lt(shifts.id, shiftId),
+      eq(shifts.status, 'closed')
+    ),
+    orderBy: [desc(shifts.id)]
+  });
+
+  // Se não há turnos fechados hoje, é o primeiro
+  return previousShiftsToday.length === 0;
+}
+```
+
+### Método: Cálculo do Acumulado Anterior
+
+```typescript
+private async getPreviousAccumulated(shiftId: number): Promise<AccumulatedValues> {
+  const currentShift = await this.db.query.shifts.findFirst({
+    where: eq(shifts.id, shiftId)
+  });
+
+  const startOfDay = new Date(currentShift.startTime);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  // Buscar todos os turnos fechados desde o início do dia
+  const previousShifts = await this.db.query.shifts.findMany({
+    where: and(
+      gte(shifts.startTime, startOfDay.toISOString()),
+      lt(shifts.id, shiftId),
+      eq(shifts.status, 'closed')
+    ),
+    with: { payments: true },
+    orderBy: [asc(shifts.id)]
+  });
+
+  // Somar todos os valores reais dos turnos anteriores
+  let accumulated = { stoneCard: 0, stoneVoucher: 0, pagBankCard: 0 };
+
+  previousShifts.forEach(shift => {
+    if (shift.payments) {
+      accumulated.stoneCard += parseFloat(shift.payments.stoneCard || '0');
+      accumulated.stoneVoucher += parseFloat(shift.payments.stoneVoucher || '0');
+      accumulated.pagBankCard += parseFloat(shift.payments.pagBankCard || '0');
+    }
+  });
+
+  return accumulated;
+}
+```
+
+## FLUXO COMPLETO DE TRANSIÇÃO ENTRE TURNOS
+
+### 1. FECHAMENTO DO TURNO ANTERIOR
+
+```typescript
+// server/routes.ts - Endpoint de fechamento
+app.post('/api/shifts/:id/close', requireAuth, async (req, res) => {
+  const { payments, cumulativeCardValues } = req.body;
+
+  let finalPayments = payments;
+
+  // Se valores cumulativos foram fornecidos, calcular valores reais
+  if (cumulativeCardValues) {
+    const cardCalculator = new CardPaymentCalculator(db);
+    const calculatedCards = await cardCalculator.calculateRealCardPayments(
+      shiftId,
+      { ...payments, ...cumulativeCardValues }
+    );
+
+    // Combinar: PIX/Dinheiro originais + Cartões calculados
+    finalPayments = {
+      cash: payments.cash,                    // Mantém original
+      pix: payments.pix,                      // Mantém original
+      stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+      stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+      pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+    };
+
+    // Salvar valores cumulativos também
+    await db.update(shiftPayments)
+      .set({
+        ...finalPayments,
+        stoneCardCumulative: cumulativeCardValues.stoneCardCumulative,
+        stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative,
+        pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative,
+        calculatedFromCumulative: true
+      })
+      .where(eq(shiftPayments.shiftId, shiftId));
+  }
+
+  // Cálculo de herança de dinheiro para próximo turno
+  const actualCash = parseFloat(req.body.finalCash) || 0;
+  const actualCoins = parseFloat(req.body.finalCoins) || 0;
+  const envelopeCash = parseFloat(req.body.envelopeCash) || 0;
+  const envelopeCoins = parseFloat(req.body.envelopeCoins) || 0;
+
+  const cashForNext = actualCash - envelopeCash;
+  const coinsForNext = actualCoins - envelopeCoins;
+
+  // Atualizar turno com valores finais
+  await db.update(shifts).set({
+    status: 'closed',
+    endTime: new Date().toISOString(),
+    finalCash: actualCash.toFixed(2),
+    finalCoins: actualCoins.toFixed(2),
+    cashForNextShift: cashForNext.toFixed(2),
+    coinsForNextShift: coinsForNext.toFixed(2),
+    // ... outros campos
+  }).where(eq(shifts.id, shiftId));
+});
+```
+
+### 2. ABERTURA DO NOVO TURNO
+
+```typescript
+// server/routes.ts - Endpoint de abertura
+app.post('/api/shifts', requireAuth, async (req, res) => {
+  // Buscar último turno fechado para herança
+  const lastClosedShift = await db.query.shifts.findFirst({
+    where: eq(shifts.status, 'closed'),
+    orderBy: [desc(shifts.id)],
+    with: { records: { with: { product: true } } }
+  });
+
+  // Cálculo de herança de dinheiro
+  let expectedCash = "200.00";  // Padrão
+  let expectedCoins = "50.00";
+
+  if (lastClosedShift) {
+    expectedCash = lastClosedShift.cashForNextShift || lastClosedShift.finalCash || "200.00";
+    expectedCoins = lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "50.00";
+  }
+
+  const informedCash = parseFloat(req.body.initialCash) || 0;
+  const informedCoins = parseFloat(req.body.initialCoins) || 0;
+  const expectedTotal = parseFloat(expectedCash) + parseFloat(expectedCoins);
+  const informedTotal = informedCash + informedCoins;
+
+  // Cálculo de divergência na abertura
+  const openingDiscrepancy = informedTotal - expectedTotal;
+
+  // Criar novo turno
+  const [newShift] = await db.insert(shifts).values({
+    userId: req.user.id,
+    startTime: new Date().toISOString(),
+    initialCash: informedCash.toFixed(2),
+    initialCoins: informedCoins.toFixed(2),
+    expectedCash: expectedCash,
+    expectedCoins: expectedCoins,
+    openingDiscrepancy: openingDiscrepancy.toFixed(2),
+    status: 'open'
+  }).returning();
+
+  // Herança de produtos (sobras do turno anterior)
+  if (lastClosedShift?.records) {
+    const inheritanceRecords = lastClosedShift.records
+      .filter(record => parseFloat(record.leftoverQty || '0') > 0)
+      .map(record => ({
+        shiftId: newShift.id,
+        productId: record.productId,
+        entryQty: record.leftoverQty,  // Sobra vira entrada
+        arrivalQty: "0",
+        discardQty: "0",
+        consumptionQty: "0",
+        leftoverQty: record.leftoverQty
+      }));
+
+    if (inheritanceRecords.length > 0) {
+      await db.insert(shiftRecords).values(inheritanceRecords);
+    }
+  }
+});
+```
+
+## EXEMPLOS PRÁTICOS DE CÁLCULO
+
+### Cenário: Dia Completo com 3 Turnos
+
+**TURNO 1 (06:00-14:00) - Primeiro do Dia:**
+```typescript
+// Funcionário informa valores das maquininhas:
+const cumulativeValues = {
+  stoneCardCumulative: "150.00",
+  stoneVoucherCumulative: "80.00",
+  pagBankCardCumulative: "0.00"
+};
+
+// Sistema calcula (primeiro turno = cumulative = real):
+const realValues = {
+  stoneCard: 150.00,     // 150.00 - 0 = 150.00
+  stoneVoucher: 80.00,   // 80.00 - 0 = 80.00
+  pagBankCard: 0.00      // 0.00 - 0 = 0.00
+};
+
+// Acumulado do dia até agora:
+const dayAccumulated = {
+  stoneCard: 150.00,
+  stoneVoucher: 80.00,
+  pagBankCard: 0.00
+};
+```
+
+**TURNO 2 (14:00-22:00) - Segundo do Dia:**
+```typescript
+// Funcionário informa novos valores das maquininhas:
+const cumulativeValues = {
+  stoneCardCumulative: "280.00",
+  stoneVoucherCumulative: "160.00",
+  pagBankCardCumulative: "120.00"
+};
+
+// Sistema calcula:
+const previousAccumulated = {
+  stoneCard: 150.00,    // Soma dos turnos anteriores hoje
+  stoneVoucher: 80.00,
+  pagBankCard: 0.00
+};
+
+const realValues = {
+  stoneCard: 130.00,     // 280.00 - 150.00 = 130.00
+  stoneVoucher: 80.00,   // 160.00 - 80.00 = 80.00
+  pagBankCard: 120.00    // 120.00 - 0.00 = 120.00
+};
+
+// Acumulado do dia até agora:
+const dayAccumulated = {
+  stoneCard: 280.00,     // 150.00 + 130.00
+  stoneVoucher: 160.00,  // 80.00 + 80.00
+  pagBankCard: 120.00    // 0.00 + 120.00
+};
+```
+
+**TURNO 3 (22:00-06:00) - Terceiro do Dia:**
+```typescript
+// Funcionário informa valores finais do dia:
+const cumulativeValues = {
+  stoneCardCumulative: "420.00",
+  stoneVoucherCumulative: "200.00",
+  pagBankCardCumulative: "180.00"
+};
+
+// Sistema calcula:
+const previousAccumulated = {
+  stoneCard: 280.00,    // Soma dos turnos 1 + 2
+  stoneVoucher: 160.00,
+  pagBankCard: 120.00
+};
+
+const realValues = {
+  stoneCard: 140.00,     // 420.00 - 280.00 = 140.00
+  stoneVoucher: 40.00,   // 200.00 - 160.00 = 40.00
+  pagBankCard: 60.00     // 180.00 - 120.00 = 60.00
+};
+
+// Total do dia:
+const dayTotal = {
+  stoneCard: 420.00,     // 150 + 130 + 140
+  stoneVoucher: 200.00,  // 80 + 80 + 40
+  pagBankCard: 180.00    // 0 + 120 + 60
+};
+```
+
+### Novo Dia - Reset dos Valores
+
+**TURNO 1 do DIA SEGUINTE (06:00):**
+```typescript
+// As maquininhas foram zeradas durante a madrugada
+const cumulativeValues = {
+  stoneCardCumulative: "45.00",
+  stoneVoucherCumulative: "25.00",
+  pagBankCardCumulative: "0.00"
+};
+
+// Sistema detecta que é primeiro turno do novo dia
+const isFirstShiftOfDay = true;
+
+// Cálculo: cumulative = real (sem subtração)
+const realValues = {
+  stoneCard: 45.00,      // Vendas reais do turno
+  stoneVoucher: 25.00,
+  pagBankCard: 0.00
+};
+```
+
+## INTERFACE DO USUÁRIO - ENTRADA DE DADOS
+
+### Componente Frontend: `cash-register.tsx`
+
+```typescript
+// client/src/components/employee/cash-register.tsx
+const handleCumulativeCardChange = async (values: CumulativeCardValues) => {
+  try {
+    // Chamada para cálculo em tempo real
+    const response = await api.post(`/api/shifts/${currentShift.id}/calculate-card-payments`, {
+      stoneCardCumulative: values.stoneCardCumulative || '0',
+      stoneVoucherCumulative: values.stoneVoucherCumulative || '0',
+      pagBankCardCumulative: values.pagBankCardCumulative || '0'
+    });
+
+    // Atualizar preview dos valores reais
+    setCumulativeCardValues(values);
+    setCalculatedCardPreview(response.data.realValues);
+
+  } catch (error) {
+    toast.error('Erro ao calcular valores dos cartões');
+  }
+};
+
+// Renderização da interface
+return (
+  <div className="space-y-4">
+    <h3>Valores das Maquininhas (Total do Visor)</h3>
+
+    <div>
+      <label>Stone Cartão - Total Acumulado:</label>
+      <input
+        type="number"
+        step="0.01"
+        value={cumulativeCardValues.stoneCardCumulative}
+        onChange={(e) => handleCumulativeCardChange({
+          ...cumulativeCardValues,
+          stoneCardCumulative: e.target.value
+        })}
+      />
+    </div>
+
+    {calculatedCardPreview && (
+      <div className="bg-blue-50 p-4 rounded">
+        <h4>Valores Calculados para Este Turno:</h4>
+        <p>Stone Cartão: R$ {calculatedCardPreview.stoneCard.toFixed(2)}</p>
+        <p>Stone Voucher: R$ {calculatedCardPreview.stoneVoucher.toFixed(2)}</p>
+        <p>PagBank: R$ {calculatedCardPreview.pagBankCard.toFixed(2)}</p>
+      </div>
+    )}
+  </div>
+);
+```
+
+### Endpoint de Cálculo em Tempo Real
+
+```typescript
+// server/routes.ts
+app.post('/api/shifts/:id/calculate-card-payments', requireAuth, async (req, res) => {
+  const shiftId = parseInt(req.params.id);
+  const cumulativeValues = req.body;
+
+  try {
+    const cardCalculator = new CardPaymentCalculator(db);
+    const result = await cardCalculator.calculateRealCardPayments(shiftId, cumulativeValues);
+
+    res.json({
+      realValues: result.realValues,
+      previousAccumulated: result.previousAccumulated,
+      isFirstShiftOfDay: result.previousAccumulated.stoneCard === 0
+    });
+  } catch (error) {
+    console.error('Erro no cálculo de cartões:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+## MIGRAÇÃO DE BANCO DE DADOS
+
+### Adição dos Campos Cumulativos
+
+```sql
+-- migrations/0004_add_cumulative_card_fields.sql
+
+-- Adicionar campos cumulativos para cada tipo de cartão
+ALTER TABLE shift_payments ADD COLUMN stone_card_cumulative TEXT DEFAULT '0';
+ALTER TABLE shift_payments ADD COLUMN stone_voucher_cumulative TEXT DEFAULT '0';
+ALTER TABLE shift_payments ADD COLUMN pagbank_card_cumulative TEXT DEFAULT '0';
+
+-- Adicionar flag de cálculo automático
+ALTER TABLE shift_payments ADD COLUMN calculated_from_cumulative BOOLEAN DEFAULT false;
+
+-- Migrar dados existentes: cumulative = real para registros antigos
+UPDATE shift_payments
+SET stone_card_cumulative = COALESCE(stone_card, '0')
+WHERE stone_card_cumulative IS NULL OR stone_card_cumulative = '0';
+
+UPDATE shift_payments
+SET stone_voucher_cumulative = COALESCE(stone_voucher, '0')
+WHERE stone_voucher_cumulative IS NULL OR stone_voucher_cumulative = '0';
+
+UPDATE shift_payments
+SET pagbank_card_cumulative = COALESCE(pagbank_card, '0')
+WHERE pagbank_card_cumulative IS NULL OR pagbank_card_cumulative = '0';
+
+-- Criar índices para performance
+CREATE INDEX idx_shifts_start_time_status ON shifts(start_time, status);
+CREATE INDEX idx_shift_payments_shift_id ON shift_payments(shift_id);
+```
+
+## TRATAMENTO DE CASOS EXTREMOS
+
+### Valores Negativos (Proteção)
+
+```typescript
+// Uso de Math.max(0, ...) para evitar valores negativos
+const realValues = {
+  stoneCard: Math.max(0, cumulative - previous),
+  // Cenário onde isso pode ocorrer:
+  // - Erro na digitação do funcionário
+  // - Maquininha foi zerada no meio do dia
+  // - Problemas técnicos na maquininha
+};
+```
+
+### Turnos Sobrepostos ou Fora de Ordem
+
+```typescript
+// Ordenação por ID e data para consistência
+const previousShifts = await db.query.shifts.findMany({
+  where: and(
+    gte(shifts.startTime, startOfDay.toISOString()),
+    lt(shifts.id, shiftId),  // Apenas turnos com ID menor
+    eq(shifts.status, 'closed')
+  ),
+  orderBy: [asc(shifts.id)]  // Ordem cronológica
+});
+```
+
+### Maquininhas Zeradas Durante o Dia
+
+```typescript
+// Se a maquininha foi zerada, os valores cumulativos recomeçam
+// O sistema detecta isso quando cumulative < previous
+if (parseFloat(cumulativeValues.stoneCardCumulative) < previousAccumulated.stoneCard) {
+  // Assumir que foi zerada e cumulative = real
+  realValues.stoneCard = parseFloat(cumulativeValues.stoneCardCumulative);
+}
+```
+
+## AUDITORIA E RASTREABILIDADE
+
+### Log de Cálculos
+
+```typescript
+// Cada cálculo é logado para auditoria
+await db.insert(timeline).values({
+  shiftId,
+  action: 'CARD_CALCULATION',
+  description: `Calculados valores reais: Stone=${realStone}, Voucher=${realVoucher}, PagBank=${realPagBank}`,
+  metadata: JSON.stringify({
+    cumulativeValues,
+    realValues,
+    previousAccumulated,
+    isFirstShiftOfDay
+  }),
+  createdAt: new Date().toISOString()
+});
+```
+
+### Histórico de Alterações
+
+```typescript
+// Manter histórico de todos os valores inseridos
+const auditRecord = {
+  shiftId,
+  originalCumulative: cumulativeValues,
+  calculatedReal: realValues,
+  calculationMethod: isFirstShiftOfDay ? 'FIRST_SHIFT' : 'DIFFERENTIAL',
+  timestamp: new Date().toISOString(),
+  userId: req.user.id
+};
+```
+
+## CONSIDERAÇÕES IMPORTANTES
+
+### Por que Dois Valores?
+
+1. **Valor Cumulativo**: Reflete exatamente o que aparece na maquininha, permitindo auditoria
+2. **Valor Real**: Usado para cálculos de receita e relatórios do turno específico
+3. **Rastreabilidade**: Histórico completo de como os valores foram calculados
+
+### Diferença para Dinheiro e PIX
+
+- **Dinheiro**: Valor físico, sem acumulação entre turnos
+- **PIX**: Transferência individual, sem acumulação
+- **Cartões**: Maquininhas acumulam valores durante o dia inteiro
+
+### Vantagens do Sistema
+
+1. **Precisão**: Elimina erros de cálculo manual
+2. **Auditoria**: Rastreabilidade completa dos valores
+3. **Flexibilidade**: Suporta diferentes cenários operacionais
+4. **Automação**: Reduz trabalho manual dos funcionários
+5. **Consistência**: Garante cálculos uniformes entre turnos
+
+Esta documentação apresenta o sistema completo de cálculo de cartão de crédito durante transições de turno, uma solução robusta que garante precisão financeira e facilita a operação diária do restaurante.

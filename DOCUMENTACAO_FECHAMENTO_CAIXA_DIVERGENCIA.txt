@@ -1,0 +1,1459 @@
+# DOCUMENTAÇÃO DETALHADA - FECHAMENTO DE CAIXA E DIVERGÊNCIA
+
+## VISÃO GERAL DO SISTEMA DE DIVERGÊNCIA
+
+O sistema de divergência de caixa é um dos componentes mais críticos da plataforma Pastel24h, responsável por identificar discrepâncias entre o dinheiro físico esperado e o dinheiro físico contado no fechamento do turno. Esta documentação explica minuciosamente como os valores de fechamento se relacionam com o campo de observação de divergência e como funciona a troca de turnos.
+
+## CONCEITOS FUNDAMENTAIS
+
+### 1. DIFERENÇA ENTRE DINHEIRO FÍSICO E PAGAMENTOS ELETRÔNICOS
+
+```typescript
+// Conceito fundamental: apenas DINHEIRO FÍSICO impacta o caixa
+const paymentImpactOnCash = {
+  cash: true,           // Impacta caixa físico diretamente
+  pix: false,           // Não impacta caixa físico
+  stoneCard: false,     // Não impacta caixa físico
+  stoneVoucher: false,  // Não impacta caixa físico
+  pagbank: false        // Não impacta caixa físico
+};
+
+// Fórmula base da divergência:
+// Divergência = Caixa Final Contado - Caixa Esperado
+// Onde: Caixa Esperado = Caixa Inicial + Vendas em Dinheiro - Sangrias
+```
+
+### 2. COMPONENTES DO CÁLCULO DE DIVERGÊNCIA
+
+```typescript
+// client/src/lib/calculations.ts
+export interface CashFlowComponents {
+  initialCash: number;      // Caixa inicial informado na abertura
+  finalCash: number;        // Caixa final contado no fechamento
+  cashSales: number;        // Total de vendas em dinheiro
+  cashWithdrawals: number;  // Total de sangrias realizadas
+  expectedCash: number;     // Caixa esperado calculado
+  divergence: number;       // Diferença entre esperado e contado
+}
+
+export const calculateCashDivergence = (components: Omit<CashFlowComponents, 'expectedCash' | 'divergence'>): CashFlowComponents => {
+  const expectedCash = components.initialCash + components.cashSales - components.cashWithdrawals;
+  const divergence = components.finalCash - expectedCash;
+
+  return {
+    ...components,
+    expectedCash,
+    divergence
+  };
+};
+
+// Exemplo prático:
+const example = calculateCashDivergence({
+  initialCash: 200.00,      // Funcionário abriu com R$ 200
+  finalCash: 480.00,        // Contou R$ 480 no fechamento
+  cashSales: 250.00,        // Vendeu R$ 250 em dinheiro
+  cashWithdrawals: 30.00    // Fez sangria de R$ 30
+});
+
+// Resultado:
+// expectedCash = 200 + 250 - 30 = 420
+// divergence = 480 - 420 = +60 (sobra de R$ 60)
+```
+
+## FLUXO DETALHADO: ABERTURA DE TURNO
+
+### 1. INTERFACE DE ABERTURA
+
+```typescript
+// client/src/components/employee/open-shift-modal.tsx
+export const OpenShiftModal: React.FC = () => {
+  const [formData, setFormData] = useState({
+    initialCash: '',
+    initialCoins: ''
+  });
+
+  const [expectedValues, setExpectedValues] = useState({
+    expectedCash: '200.00',
+    expectedCoins: '50.00'
+  });
+
+  const [calculatedDiscrepancy, setCalculatedDiscrepancy] = useState(0);
+
+  // Query para buscar valores esperados do último turno
+  const { data: lastShiftData } = useQuery({
+    queryKey: ['last-closed-shift'],
+    queryFn: () => api.get('/api/shifts/last-closed'),
+    onSuccess: (data) => {
+      if (data) {
+        setExpectedValues({
+          expectedCash: data.cashForNextShift || data.finalCash || '200.00',
+          expectedCoins: data.coinsForNextShift || data.finalCoins || '50.00'
+        });
+      }
+    }
+  });
+
+  // Calcular divergência na abertura em tempo real
+  useEffect(() => {
+    const informedCash = parseFloat(formData.initialCash) || 0;
+    const informedCoins = parseFloat(formData.initialCoins) || 0;
+    const expectedCashValue = parseFloat(expectedValues.expectedCash) || 0;
+    const expectedCoinsValue = parseFloat(expectedValues.expectedCoins) || 0;
+
+    const informedTotal = informedCash + informedCoins;
+    const expectedTotal = expectedCashValue + expectedCoinsValue;
+    const discrepancy = informedTotal - expectedTotal;
+
+    setCalculatedDiscrepancy(discrepancy);
+  }, [formData, expectedValues]);
+
+  // Mutation para abrir turno
+  const openShiftMutation = useMutation({
+    mutationFn: (data: OpenShiftData) => api.post('/api/shifts', data),
+    onSuccess: (newShift) => {
+      if (Math.abs(calculatedDiscrepancy) > 0.01) {
+        toast.warning(
+          `Turno aberto com divergência: R$ ${calculatedDiscrepancy.toFixed(2)}`,
+          {
+            description: 'Verifique os valores informados',
+            duration: 5000
+          }
+        );
+      } else {
+        toast.success('Turno aberto sem divergências');
+      }
+
+      queryClient.invalidateQueries(['current-shift']);
+    }
+  });
+
+  return (
+    <div className="space-y-6">
+      {/* Valores esperados baseados no turno anterior */}
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h3 className="font-medium text-blue-900 mb-2">Valores Esperados</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-sm text-blue-700">Caixa Esperado</label>
+            <p className="font-medium text-blue-900">R$ {expectedValues.expectedCash}</p>
+          </div>
+          <div>
+            <label className="text-sm text-blue-700">Moedas Esperadas</label>
+            <p className="font-medium text-blue-900">R$ {expectedValues.expectedCoins}</p>
+          </div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-blue-200">
+          <p className="text-sm text-blue-700">
+            Total Esperado: <span className="font-medium">
+              R$ {(parseFloat(expectedValues.expectedCash) + parseFloat(expectedValues.expectedCoins)).toFixed(2)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* Formulário de valores informados */}
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium mb-2">Caixa Inicial (Contado)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.initialCash}
+            onChange={(e) => setFormData(prev => ({ ...prev, initialCash: e.target.value }))}
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="0,00"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-2">Moedas Iniciais (Contadas)</label>
+          <input
+            type="number"
+            step="0.01"
+            value={formData.initialCoins}
+            onChange={(e) => setFormData(prev => ({ ...prev, initialCoins: e.target.value }))}
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="0,00"
+          />
+        </div>
+      </div>
+
+      {/* Divergência calculada */}
+      <div className={`p-4 rounded-lg ${
+        Math.abs(calculatedDiscrepancy) > 0.01
+          ? 'bg-yellow-50 border border-yellow-200'
+          : 'bg-green-50 border border-green-200'
+      }`}>
+        <h3 className={`font-medium mb-2 ${
+          Math.abs(calculatedDiscrepancy) > 0.01 ? 'text-yellow-800' : 'text-green-800'
+        }`}>
+          Divergência na Abertura
+        </h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-gray-600">Total Informado:</p>
+            <p className="font-medium">
+              R$ {((parseFloat(formData.initialCash) || 0) + (parseFloat(formData.initialCoins) || 0)).toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600">Total Esperado:</p>
+            <p className="font-medium">
+              R$ {(parseFloat(expectedValues.expectedCash) + parseFloat(expectedValues.expectedCoins)).toFixed(2)}
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 pt-3 border-t">
+          <p className={`font-medium ${
+            Math.abs(calculatedDiscrepancy) > 0.01
+              ? calculatedDiscrepancy > 0 ? 'text-yellow-800' : 'text-red-800'
+              : 'text-green-800'
+          }`}>
+            Divergência: R$ {calculatedDiscrepancy.toFixed(2)}
+            {calculatedDiscrepancy > 0 && ' (sobra)'}
+            {calculatedDiscrepancy < 0 && ' (falta)'}
+          </p>
+        </div>
+      </div>
+
+      <button
+        onClick={() => openShiftMutation.mutate(formData)}
+        disabled={openShiftMutation.isPending}
+        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50"
+      >
+        {openShiftMutation.isPending ? 'Abrindo Turno...' : 'Abrir Turno'}
+      </button>
+    </div>
+  );
+};
+```
+
+### 2. PROCESSAMENTO BACKEND DA ABERTURA
+
+```typescript
+// server/routes.ts - Endpoint de abertura de turno
+app.post('/api/shifts', requireAuth, async (req, res) => {
+  const { initialCash, initialCoins } = req.body;
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Buscar último turno fechado para herança
+      const lastClosedShift = await tx.query.shifts.findFirst({
+        where: eq(shifts.status, 'closed'),
+        orderBy: [desc(shifts.id)],
+        with: {
+          records: { with: { product: true } },
+          payments: true
+        }
+      });
+
+      // 2. Calcular valores esperados
+      let expectedCash = "200.00";  // Padrão do sistema
+      let expectedCoins = "50.00";
+
+      if (lastClosedShift) {
+        // Usar valores definidos para próximo turno
+        expectedCash = lastClosedShift.cashForNextShift || lastClosedShift.finalCash || "200.00";
+        expectedCoins = lastClosedShift.coinsForNextShift || lastClosedShift.finalCoins || "50.00";
+
+        console.log(`📋 Herdando valores do turno ${lastClosedShift.id}:`);
+        console.log(`   💰 Caixa esperado: R$ ${expectedCash}`);
+        console.log(`   🪙 Moedas esperadas: R$ ${expectedCoins}`);
+      }
+
+      // 3. Calcular divergência na abertura
+      const informedCash = parseFloat(initialCash) || 0;
+      const informedCoins = parseFloat(initialCoins) || 0;
+      const expectedCashValue = parseFloat(expectedCash);
+      const expectedCoinsValue = parseFloat(expectedCoins);
+
+      const expectedTotal = expectedCashValue + expectedCoinsValue;
+      const informedTotal = informedCash + informedCoins;
+      const openingDiscrepancy = informedTotal - expectedTotal;
+
+      console.log(`🧮 Calculando divergência de abertura:`);
+      console.log(`   📊 Esperado: R$ ${expectedTotal.toFixed(2)}`);
+      console.log(`   📋 Informado: R$ ${informedTotal.toFixed(2)}`);
+      console.log(`   ⚖️  Divergência: R$ ${openingDiscrepancy.toFixed(2)}`);
+
+      // 4. Criar novo turno
+      const [newShift] = await tx.insert(shifts).values({
+        userId: req.user.id,
+        startTime: new Date().toISOString(),
+        status: 'open',
+
+        // Valores informados
+        initialCash: informedCash.toFixed(2),
+        initialCoins: informedCoins.toFixed(2),
+
+        // Valores esperados (para referência)
+        expectedCash: expectedCash,
+        expectedCoins: expectedCoins,
+
+        // Divergência na abertura
+        openingDiscrepancy: openingDiscrepancy.toFixed(2)
+      }).returning();
+
+      // 5. Criar registro de pagamentos zerado
+      await tx.insert(shiftPayments).values({
+        shiftId: newShift.id,
+        cash: '0',
+        pix: '0',
+        stoneCard: '0',
+        stoneVoucher: '0',
+        pagBankCard: '0'
+      });
+
+      // 6. Herdar produtos (sobras do turno anterior)
+      if (lastClosedShift?.records) {
+        const inheritanceRecords = lastClosedShift.records
+          .filter(record => parseFloat(record.leftoverQty || '0') > 0)
+          .map(record => ({
+            shiftId: newShift.id,
+            productId: record.productId,
+            entryQty: record.leftoverQty,    // Sobra vira entrada
+            arrivalQty: "0",
+            discardQty: "0",
+            consumptionQty: "0",
+            leftoverQty: record.leftoverQty  // Inicialmente igual à entrada
+          }));
+
+        if (inheritanceRecords.length > 0) {
+          await tx.insert(shiftRecords).values(inheritanceRecords);
+          console.log(`📦 Herdados ${inheritanceRecords.length} produtos do turno anterior`);
+        }
+      }
+
+      // 7. Timeline de auditoria
+      await tx.insert(timeline).values({
+        shiftId: newShift.id,
+        userId: req.user.id,
+        action: 'SHIFT_OPENED',
+        description: `Turno aberto ${openingDiscrepancy !== 0 ? `com divergência de R$ ${openingDiscrepancy.toFixed(2)}` : 'sem divergência'}`,
+        metadata: JSON.stringify({
+          expectedCash: expectedCashValue,
+          expectedCoins: expectedCoinsValue,
+          informedCash,
+          informedCoins,
+          openingDiscrepancy,
+          inheritedFrom: lastClosedShift?.id || null,
+          inheritedProducts: lastClosedShift?.records?.length || 0
+        })
+      });
+
+      // 8. Notificar administradores se houver divergência significativa
+      if (Math.abs(openingDiscrepancy) > 10) {
+        notifyAdminClients('shift-opened-with-divergence', {
+          shiftId: newShift.id,
+          userId: req.user.id,
+          userName: req.user.name,
+          openingDiscrepancy,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      res.status(201).json({
+        ...newShift,
+        openingDiscrepancy
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao abrir turno:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+```
+
+## FLUXO DETALHADO: FECHAMENTO DE TURNO
+
+### 1. INTERFACE DE FECHAMENTO
+
+```typescript
+// client/src/components/employee/close-shift-modal.tsx
+export const CloseShiftModal: React.FC<{ shiftId: number }> = ({ shiftId }) => {
+  const [formData, setFormData] = useState({
+    finalCash: '',
+    finalCoins: '',
+    envelopeCash: '',
+    envelopeCoins: '',
+    observations: ''
+  });
+
+  const [calculatedValues, setCalculatedValues] = useState({
+    expectedCash: 0,
+    divergence: 0,
+    cashForNext: 0,
+    coinsForNext: 0
+  });
+
+  // Query para dados do turno atual
+  const { data: shiftData } = useQuery({
+    queryKey: ['shift-details', shiftId],
+    queryFn: () => api.get(`/api/shifts/${shiftId}/details`)
+  });
+
+  // Calcular valores em tempo real
+  useEffect(() => {
+    if (!shiftData) return;
+
+    const finalCash = parseFloat(formData.finalCash) || 0;
+    const finalCoins = parseFloat(formData.finalCoins) || 0;
+    const envelopeCash = parseFloat(formData.envelopeCash) || 0;
+    const envelopeCoins = parseFloat(formData.envelopeCoins) || 0;
+
+    // Buscar vendas em dinheiro
+    const cashSales = parseFloat(shiftData.payments?.cash || '0');
+
+    // Buscar sangrias
+    const cashWithdrawals = shiftData.cashAdjustments?.reduce((sum: number, adj: any) => {
+      return adj.type === 'withdrawal' ? sum + adj.amount : sum;
+    }, 0) || 0;
+
+    // Calcular caixa esperado
+    const initialCash = parseFloat(shiftData.initialCash || '0');
+    const expectedCash = initialCash + cashSales - cashWithdrawals;
+
+    // Calcular divergência
+    const divergence = finalCash - expectedCash;
+
+    // Calcular valores para próximo turno
+    const cashForNext = finalCash - envelopeCash;
+    const coinsForNext = finalCoins - envelopeCoins;
+
+    setCalculatedValues({
+      expectedCash,
+      divergence,
+      cashForNext,
+      coinsForNext
+    });
+  }, [formData, shiftData]);
+
+  return (
+    <div className="space-y-6">
+      {/* Resumo do turno */}
+      <div className="bg-gray-50 p-4 rounded-lg">
+        <h3 className="font-medium mb-3">Resumo do Turno</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-gray-600">Caixa Inicial:</p>
+            <p className="font-medium">R$ {shiftData?.initialCash || '0,00'}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Vendas em Dinheiro:</p>
+            <p className="font-medium">R$ {shiftData?.payments?.cash || '0,00'}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Sangrias:</p>
+            <p className="font-medium">
+              R$ {(shiftData?.cashAdjustments?.reduce((sum: number, adj: any) =>
+                adj.type === 'withdrawal' ? sum + adj.amount : sum, 0) || 0).toFixed(2)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-600">Caixa Esperado:</p>
+            <p className="font-medium text-blue-600">R$ {calculatedValues.expectedCash.toFixed(2)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Contagem final */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Contagem Final</h3>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Caixa Final (Contado)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.finalCash}
+              onChange={(e) => setFormData(prev => ({ ...prev, finalCash: e.target.value }))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="0,00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Moedas Finais (Contadas)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.finalCoins}
+              onChange={(e) => setFormData(prev => ({ ...prev, finalCoins: e.target.value }))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="0,00"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Envelope (dinheiro retirado) */}
+      <div className="space-y-4">
+        <h3 className="font-medium">Envelope (Dinheiro Retirado)</h3>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Caixa no Envelope</label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.envelopeCash}
+              onChange={(e) => setFormData(prev => ({ ...prev, envelopeCash: e.target.value }))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="0,00"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Moedas no Envelope</label>
+            <input
+              type="number"
+              step="0.01"
+              value={formData.envelopeCoins}
+              onChange={(e) => setFormData(prev => ({ ...prev, envelopeCoins: e.target.value }))}
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="0,00"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Divergência calculada */}
+      <div className={`p-4 rounded-lg border ${
+        Math.abs(calculatedValues.divergence) > 0.01
+          ? calculatedValues.divergence > 0
+            ? 'bg-yellow-50 border-yellow-200'  // Sobra
+            : 'bg-red-50 border-red-200'        // Falta
+          : 'bg-green-50 border-green-200'      // Balanceado
+      }`}>
+        <h3 className={`font-medium mb-3 ${
+          Math.abs(calculatedValues.divergence) > 0.01
+            ? calculatedValues.divergence > 0
+              ? 'text-yellow-800'
+              : 'text-red-800'
+            : 'text-green-800'
+        }`}>
+          Análise de Divergência
+        </h3>
+
+        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+          <div>
+            <p className="text-gray-600">Caixa Esperado:</p>
+            <p className="font-medium">R$ {calculatedValues.expectedCash.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">Caixa Contado:</p>
+            <p className="font-medium">R$ {(parseFloat(formData.finalCash) || 0).toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t">
+          <div className="flex justify-between items-center">
+            <span className="font-medium">Divergência:</span>
+            <span className={`font-bold text-lg ${
+              Math.abs(calculatedValues.divergence) > 0.01
+                ? calculatedValues.divergence > 0
+                  ? 'text-yellow-800'
+                  : 'text-red-800'
+                : 'text-green-800'
+            }`}>
+              R$ {calculatedValues.divergence.toFixed(2)}
+              {calculatedValues.divergence > 0 && ' (sobra)'}
+              {calculatedValues.divergence < 0 && ' (falta)'}
+              {Math.abs(calculatedValues.divergence) <= 0.01 && ' (balanceado)'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Valores para próximo turno */}
+      <div className="bg-blue-50 p-4 rounded-lg">
+        <h3 className="font-medium text-blue-900 mb-3">Valores para Próximo Turno</h3>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-blue-700">Caixa Restante:</p>
+            <p className="font-medium text-blue-900">R$ {calculatedValues.cashForNext.toFixed(2)}</p>
+          </div>
+          <div>
+            <p className="text-blue-700">Moedas Restantes:</p>
+            <p className="font-medium text-blue-900">R$ {calculatedValues.coinsForNext.toFixed(2)}</p>
+          </div>
+        </div>
+        <div className="mt-2 pt-2 border-t border-blue-200">
+          <p className="text-sm text-blue-700">
+            Total para próximo turno: <span className="font-medium">
+              R$ {(calculatedValues.cashForNext + calculatedValues.coinsForNext).toFixed(2)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* Campo de observações - especialmente importante para divergências */}
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Observações sobre Divergência
+          {Math.abs(calculatedValues.divergence) > 0.01 && (
+            <span className="text-red-600 ml-1">*</span>
+          )}
+        </label>
+        <textarea
+          value={formData.observations}
+          onChange={(e) => setFormData(prev => ({ ...prev, observations: e.target.value }))}
+          className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500"
+          rows={3}
+          placeholder={
+            Math.abs(calculatedValues.divergence) > 0.01
+              ? "Explique o motivo da divergência (obrigatório para divergências acima de R$ 0,01)"
+              : "Observações adicionais sobre o fechamento (opcional)"
+          }
+          required={Math.abs(calculatedValues.divergence) > 0.01}
+        />
+      </div>
+
+      {/* Botão de fechamento */}
+      <button
+        onClick={handleCloseShift}
+        disabled={closeShiftMutation.isPending || (Math.abs(calculatedValues.divergence) > 0.01 && !formData.observations.trim())}
+        className="w-full bg-red-600 text-white py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+      >
+        {closeShiftMutation.isPending
+          ? 'Fechando Turno...'
+          : `Fechar Turno${Math.abs(calculatedValues.divergence) > 0.01 ? ` (Divergência: R$ ${calculatedValues.divergence.toFixed(2)})` : ''}`
+        }
+      </button>
+    </div>
+  );
+};
+```
+
+### 2. PROCESSAMENTO BACKEND DO FECHAMENTO
+
+```typescript
+// server/routes.ts - Endpoint de fechamento
+app.post('/api/shifts/:id/close', requireAuth, async (req, res) => {
+  const shiftId = parseInt(req.params.id);
+  const {
+    finalCash,
+    finalCoins,
+    envelopeCash,
+    envelopeCoins,
+    payments,
+    cumulativeCardValues,
+    observations
+  } = req.body;
+
+  try {
+    await db.transaction(async (tx) => {
+      // 1. Buscar dados completos do turno
+      const shift = await tx.query.shifts.findFirst({
+        where: and(eq(shifts.id, shiftId), eq(shifts.status, 'open')),
+        with: {
+          user: true,
+          payments: true,
+          records: { with: { product: true } }
+        }
+      });
+
+      if (!shift) {
+        throw new Error('Turno não encontrado ou já fechado');
+      }
+
+      // 2. Processar pagamentos (incluindo cálculo de cartões se necessário)
+      let finalPayments = payments;
+
+      if (cumulativeCardValues) {
+        const cardCalculator = new CardPaymentCalculator(tx);
+        const calculatedCards = await cardCalculator.calculateRealCardPayments(
+          shiftId,
+          { ...payments, ...cumulativeCardValues }
+        );
+
+        finalPayments = {
+          cash: payments.cash,
+          pix: payments.pix,
+          stoneCard: calculatedCards.realValues.stoneCard.toFixed(2),
+          stoneVoucher: calculatedCards.realValues.stoneVoucher.toFixed(2),
+          pagBankCard: calculatedCards.realValues.pagBankCard.toFixed(2)
+        };
+
+        await tx.update(shiftPayments)
+          .set({
+            ...finalPayments,
+            stoneCardCumulative: cumulativeCardValues.stoneCardCumulative,
+            stoneVoucherCumulative: cumulativeCardValues.stoneVoucherCumulative,
+            pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative,
+            calculatedFromCumulative: true
+          })
+          .where(eq(shiftPayments.shiftId, shiftId));
+      } else {
+        await tx.update(shiftPayments)
+          .set(finalPayments)
+          .where(eq(shiftPayments.shiftId, shiftId));
+      }
+
+      // 3. Calcular todos os valores financeiros
+      const actualCash = parseFloat(finalCash) || 0;
+      const actualCoins = parseFloat(finalCoins) || 0;
+      const envelopeCashAmount = parseFloat(envelopeCash) || 0;
+      const envelopeCoinsAmount = parseFloat(envelopeCoins) || 0;
+
+      // Valores para próximo turno
+      const cashForNext = actualCash - envelopeCashAmount;
+      const coinsForNext = actualCoins - envelopeCoinsAmount;
+
+      // 4. CÁLCULO DETALHADO DA DIVERGÊNCIA
+      const initialCash = parseFloat(shift.initialCash || '0');
+      const cashSales = parseFloat(finalPayments.cash || '0');
+
+      // Buscar total de sangrias
+      const withdrawalsResult = await tx.select({ total: sum(cashAdjustments.amount) })
+        .from(cashAdjustments)
+        .where(and(
+          eq(cashAdjustments.shiftId, shiftId),
+          eq(cashAdjustments.type, 'withdrawal')
+        ));
+
+      const totalWithdrawals = withdrawalsResult[0]?.total || 0;
+
+      // Cálculo da divergência
+      const expectedCash = initialCash + cashSales - totalWithdrawals;
+      const cashDivergence = actualCash - expectedCash;
+
+      console.log('🧮 Calculando divergência de fechamento:');
+      console.log(`   🏦 Caixa inicial: R$ ${initialCash.toFixed(2)}`);
+      console.log(`   💰 Vendas em dinheiro: R$ ${cashSales.toFixed(2)}`);
+      console.log(`   📤 Sangrias: R$ ${totalWithdrawals.toFixed(2)}`);
+      console.log(`   🎯 Caixa esperado: R$ ${expectedCash.toFixed(2)}`);
+      console.log(`   📊 Caixa contado: R$ ${actualCash.toFixed(2)}`);
+      console.log(`   ⚖️  Divergência: R$ ${cashDivergence.toFixed(2)}`);
+
+      // 5. Fechar turno com todos os dados
+      await tx.update(shifts).set({
+        status: 'closed',
+        endTime: new Date().toISOString(),
+
+        // Valores finais contados
+        finalCash: actualCash.toFixed(2),
+        finalCoins: actualCoins.toFixed(2),
+
+        // Envelope
+        envelopeCash: envelopeCashAmount.toFixed(2),
+        envelopeCoins: envelopeCoinsAmount.toFixed(2),
+
+        // Valores para próximo turno
+        cashForNextShift: cashForNext.toFixed(2),
+        coinsForNextShift: coinsForNext.toFixed(2),
+
+        // Cálculos de divergência
+        expectedFinalCash: expectedCash.toFixed(2),
+        cashDivergence: cashDivergence.toFixed(2),
+
+        // Observações
+        closingObservations: observations || null
+      }).where(eq(shifts.id, shiftId));
+
+      // 6. Finalizar colaboradores
+      await tx.update(shiftCollaborators)
+        .set({
+          endTime: new Date().toISOString(),
+          hoursWorked: sql`(julianday(${new Date().toISOString()}) - julianday(start_time)) * 24`
+        })
+        .where(and(
+          eq(shiftCollaborators.shiftId, shiftId),
+          isNull(shiftCollaborators.endTime)
+        ));
+
+      // 7. Timeline detalhada de auditoria
+      await tx.insert(timeline).values({
+        shiftId,
+        userId: req.user.id,
+        action: 'SHIFT_CLOSED',
+        description: `Turno fechado ${Math.abs(cashDivergence) > 0.01
+          ? `com divergência de R$ ${cashDivergence.toFixed(2)}`
+          : 'sem divergência'}`,
+        metadata: JSON.stringify({
+          finalCash: actualCash,
+          finalCoins: actualCoins,
+          expectedCash,
+          cashDivergence,
+          cashSales,
+          totalWithdrawals,
+          envelopeCash: envelopeCashAmount,
+          envelopeCoins: envelopeCoinsAmount,
+          cashForNext,
+          coinsForNext,
+          payments: finalPayments,
+          cumulativeCardValues: cumulativeCardValues || null,
+          observations: observations || null,
+          closedBy: req.user.id,
+          closedAt: new Date().toISOString()
+        })
+      });
+
+      // 8. Notificações específicas baseadas na divergência
+      if (Math.abs(cashDivergence) > 0.01) {
+        // Divergência detectada - notificar administradores
+        notifyAdminClients('shift-closed-with-divergence', {
+          shiftId,
+          userId: shift.userId,
+          userName: shift.user.name,
+          cashDivergence,
+          expectedCash,
+          actualCash,
+          observations,
+          severity: Math.abs(cashDivergence) > 50 ? 'high' : 'medium',
+          closedAt: new Date().toISOString()
+        });
+
+        // Log especial para divergências
+        console.log(`⚠️  DIVERGÊNCIA DETECTADA - Turno ${shiftId}:`);
+        console.log(`   👤 Funcionário: ${shift.user.name}`);
+        console.log(`   💰 Divergência: R$ ${cashDivergence.toFixed(2)}`);
+        console.log(`   📝 Observações: ${observations || 'Nenhuma'}`);
+      } else {
+        // Fechamento balanceado
+        notifyAdminClients('shift-closed-balanced', {
+          shiftId,
+          userId: shift.userId,
+          userName: shift.user.name,
+          totalPayments: Object.values(finalPayments).reduce((sum, val) => sum + parseFloat(val), 0),
+          closedAt: new Date().toISOString()
+        });
+      }
+
+      res.json({
+        message: 'Turno fechado com sucesso',
+        shiftId,
+        cashDivergence,
+        expectedCash,
+        actualCash,
+        cashForNext,
+        coinsForNext
+      });
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao fechar turno:', error);
+    res.status(500).json({ error: error.message || 'Erro interno do servidor' });
+  }
+});
+```
+
+## TROCA DE TURNOS - HERANÇA DE VALORES
+
+### 1. LÓGICA DE HERANÇA DETALHADA
+
+```typescript
+// server/lib/shift-inheritance.ts
+export class ShiftInheritanceService {
+  constructor(private db: any) {}
+
+  async calculateInheritanceValues(lastClosedShiftId?: number): Promise<InheritanceData> {
+    if (!lastClosedShiftId) {
+      // Buscar último turno fechado
+      const lastShift = await this.db.query.shifts.findFirst({
+        where: eq(shifts.status, 'closed'),
+        orderBy: [desc(shifts.id)],
+        with: {
+          records: { with: { product: true } }
+        }
+      });
+
+      if (!lastShift) {
+        return this.getDefaultInheritanceValues();
+      }
+
+      lastClosedShiftId = lastShift.id;
+    }
+
+    const lastShift = await this.db.query.shifts.findFirst({
+      where: eq(shifts.id, lastClosedShiftId),
+      with: {
+        records: { with: { product: true } }
+      }
+    });
+
+    if (!lastShift) {
+      return this.getDefaultInheritanceValues();
+    }
+
+    // 1. HERANÇA DE DINHEIRO
+    const cashInheritance = this.calculateCashInheritance(lastShift);
+
+    // 2. HERANÇA DE PRODUTOS
+    const productInheritance = this.calculateProductInheritance(lastShift.records);
+
+    return {
+      cash: cashInheritance,
+      products: productInheritance,
+      source: {
+        shiftId: lastShift.id,
+        closedAt: lastShift.endTime,
+        closedBy: lastShift.userId
+      }
+    };
+  }
+
+  private calculateCashInheritance(lastShift: any): CashInheritanceData {
+    // Usar valores específicos para próximo turno se definidos
+    const cashForNext = parseFloat(lastShift.cashForNextShift || '0');
+    const coinsForNext = parseFloat(lastShift.coinsForNextShift || '0');
+
+    if (cashForNext > 0 || coinsForNext > 0) {
+      return {
+        expectedCash: cashForNext.toFixed(2),
+        expectedCoins: coinsForNext.toFixed(2),
+        source: 'calculated', // Calculado no fechamento anterior
+        calculation: {
+          finalCash: parseFloat(lastShift.finalCash || '0'),
+          finalCoins: parseFloat(lastShift.finalCoins || '0'),
+          envelopeCash: parseFloat(lastShift.envelopeCash || '0'),
+          envelopeCoins: parseFloat(lastShift.envelopeCoins || '0'),
+          remaining: {
+            cash: cashForNext,
+            coins: coinsForNext
+          }
+        }
+      };
+    }
+
+    // Fallback: usar valores finais do turno anterior
+    return {
+      expectedCash: lastShift.finalCash || '200.00',
+      expectedCoins: lastShift.finalCoins || '50.00',
+      source: 'fallback', // Usando valores finais como fallback
+      calculation: {
+        finalCash: parseFloat(lastShift.finalCash || '200'),
+        finalCoins: parseFloat(lastShift.finalCoins || '50'),
+        envelopeCash: 0,
+        envelopeCoins: 0,
+        remaining: {
+          cash: parseFloat(lastShift.finalCash || '200'),
+          coins: parseFloat(lastShift.finalCoins || '50')
+        }
+      }
+    };
+  }
+
+  private calculateProductInheritance(records: any[]): ProductInheritanceData[] {
+    return records
+      .filter(record => parseFloat(record.leftoverQty || '0') > 0)
+      .map(record => ({
+        productId: record.productId,
+        productName: record.product.name,
+        category: record.product.category,
+        leftoverQty: parseFloat(record.leftoverQty || '0'),
+        entryQtyForNext: parseFloat(record.leftoverQty || '0'), // Sobra vira entrada
+        lastShiftData: {
+          entryQty: parseFloat(record.entryQty || '0'),
+          arrivalQty: parseFloat(record.arrivalQty || '0'),
+          soldQty: this.calculateSoldQty(record),
+          discardQty: parseFloat(record.discardQty || '0'),
+          consumptionQty: parseFloat(record.consumptionQty || '0')
+        }
+      }));
+  }
+
+  private calculateSoldQty(record: any): number {
+    const entry = parseFloat(record.entryQty || '0');
+    const arrival = parseFloat(record.arrivalQty || '0');
+    const leftover = parseFloat(record.leftoverQty || '0');
+    const discard = parseFloat(record.discardQty || '0');
+    const consumption = parseFloat(record.consumptionQty || '0');
+
+    return entry + arrival - leftover - discard - consumption;
+  }
+
+  private getDefaultInheritanceValues(): InheritanceData {
+    return {
+      cash: {
+        expectedCash: '200.00',
+        expectedCoins: '50.00',
+        source: 'default',
+        calculation: {
+          finalCash: 200,
+          finalCoins: 50,
+          envelopeCash: 0,
+          envelopeCoins: 0,
+          remaining: { cash: 200, coins: 50 }
+        }
+      },
+      products: [],
+      source: null
+    };
+  }
+}
+```
+
+### 2. VALIDAÇÃO DE HERANÇA
+
+```typescript
+// server/lib/shift-validation.ts
+export class ShiftValidationService {
+  constructor(private db: any) {}
+
+  async validateShiftTransition(
+    lastShiftId: number,
+    newShiftData: { initialCash: number; initialCoins: number }
+  ): Promise<ValidationResult> {
+    const validationResult: ValidationResult = {
+      isValid: true,
+      warnings: [],
+      errors: [],
+      divergences: []
+    };
+
+    // 1. Buscar dados do último turno
+    const lastShift = await this.db.query.shifts.findFirst({
+      where: eq(shifts.id, lastShiftId),
+      with: { payments: true }
+    });
+
+    if (!lastShift) {
+      validationResult.warnings.push('Nenhum turno anterior encontrado para validação');
+      return validationResult;
+    }
+
+    // 2. Validar herança de dinheiro
+    const expectedCash = parseFloat(lastShift.cashForNextShift || lastShift.finalCash || '200');
+    const expectedCoins = parseFloat(lastShift.coinsForNextShift || lastShift.finalCoins || '50');
+
+    const cashDiscrepancy = newShiftData.initialCash - expectedCash;
+    const coinsDiscrepancy = newShiftData.initialCoins - expectedCoins;
+
+    if (Math.abs(cashDiscrepancy) > 0.01) {
+      validationResult.divergences.push({
+        type: 'cash',
+        expected: expectedCash,
+        actual: newShiftData.initialCash,
+        difference: cashDiscrepancy,
+        severity: Math.abs(cashDiscrepancy) > 10 ? 'high' : 'medium'
+      });
+    }
+
+    if (Math.abs(coinsDiscrepancy) > 0.01) {
+      validationResult.divergences.push({
+        type: 'coins',
+        expected: expectedCoins,
+        actual: newShiftData.initialCoins,
+        difference: coinsDiscrepancy,
+        severity: Math.abs(coinsDiscrepancy) > 5 ? 'high' : 'medium'
+      });
+    }
+
+    // 3. Validar timing entre turnos
+    const lastShiftEnd = new Date(lastShift.endTime);
+    const now = new Date();
+    const timeDifference = now.getTime() - lastShiftEnd.getTime();
+    const hoursDifference = timeDifference / (1000 * 60 * 60);
+
+    if (hoursDifference > 24) {
+      validationResult.warnings.push(
+        `Último turno foi fechado há ${hoursDifference.toFixed(1)} horas. Verifique se os valores ainda são válidos.`
+      );
+    }
+
+    // 4. Validar se último turno teve divergências
+    const lastDivergence = parseFloat(lastShift.cashDivergence || '0');
+    if (Math.abs(lastDivergence) > 0.01) {
+      validationResult.warnings.push(
+        `Turno anterior teve divergência de R$ ${lastDivergence.toFixed(2)}. Verificar se foi resolvida.`
+      );
+    }
+
+    // 5. Determinar se validação geral é válida
+    const hasHighSeverityIssues = validationResult.divergences.some(d => d.severity === 'high');
+    if (hasHighSeverityIssues) {
+      validationResult.isValid = false;
+      validationResult.errors.push('Divergências de alta severidade detectadas. Revisão necessária.');
+    }
+
+    return validationResult;
+  }
+}
+```
+
+## RELATÓRIOS DE DIVERGÊNCIA
+
+### 1. GERAÇÃO DE RELATÓRIO DETALHADO
+
+```typescript
+// server/lib/divergence-report.ts
+export class DivergenceReportService {
+  constructor(private db: any) {}
+
+  async generateDivergenceReport(
+    startDate: string,
+    endDate: string,
+    options: ReportOptions = {}
+  ): Promise<DivergenceReport> {
+
+    // 1. Buscar turnos com divergência no período
+    const shiftsWithDivergence = await this.db.query.shifts.findMany({
+      where: and(
+        gte(shifts.startTime, startDate),
+        lte(shifts.startTime, endDate),
+        ne(shifts.cashDivergence, '0.00')
+      ),
+      with: {
+        user: true,
+        payments: true
+      },
+      orderBy: [desc(shifts.startTime)]
+    });
+
+    // 2. Analisar padrões de divergência
+    const analysis = this.analyzeDivergencePatterns(shiftsWithDivergence);
+
+    // 3. Calcular estatísticas
+    const statistics = this.calculateDivergenceStatistics(shiftsWithDivergence);
+
+    // 4. Identificar funcionários com divergências recorrentes
+    const employeeAnalysis = this.analyzeEmployeeDivergences(shiftsWithDivergence);
+
+    return {
+      period: { start: startDate, end: endDate },
+      totalShifts: shiftsWithDivergence.length,
+      statistics,
+      patterns: analysis,
+      employeeAnalysis,
+      shifts: shiftsWithDivergence.map(shift => this.formatShiftForReport(shift)),
+      recommendations: this.generateRecommendations(analysis, employeeAnalysis)
+    };
+  }
+
+  private analyzeDivergencePatterns(shifts: any[]): DivergencePatterns {
+    const patterns: DivergencePatterns = {
+      byTimeOfDay: {},
+      byDayOfWeek: {},
+      byAmount: { small: 0, medium: 0, large: 0 },
+      trends: []
+    };
+
+    shifts.forEach(shift => {
+      const divergence = parseFloat(shift.cashDivergence || '0');
+      const shiftDate = new Date(shift.startTime);
+
+      // Padrão por hora do dia
+      const hour = shiftDate.getHours();
+      const timeSlot = this.getTimeSlot(hour);
+      patterns.byTimeOfDay[timeSlot] = (patterns.byTimeOfDay[timeSlot] || 0) + 1;
+
+      // Padrão por dia da semana
+      const dayOfWeek = shiftDate.getDay();
+      const dayName = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][dayOfWeek];
+      patterns.byDayOfWeek[dayName] = (patterns.byDayOfWeek[dayName] || 0) + 1;
+
+      // Padrão por magnitude da divergência
+      const absDiv = Math.abs(divergence);
+      if (absDiv <= 5) {
+        patterns.byAmount.small++;
+      } else if (absDiv <= 20) {
+        patterns.byAmount.medium++;
+      } else {
+        patterns.byAmount.large++;
+      }
+    });
+
+    return patterns;
+  }
+
+  private calculateDivergenceStatistics(shifts: any[]): DivergenceStatistics {
+    const divergences = shifts.map(s => parseFloat(s.cashDivergence || '0'));
+
+    const total = divergences.reduce((sum, div) => sum + Math.abs(div), 0);
+    const average = divergences.length > 0 ? total / divergences.length : 0;
+
+    const positive = divergences.filter(d => d > 0);
+    const negative = divergences.filter(d => d < 0);
+
+    return {
+      totalDivergence: total,
+      averageDivergence: average,
+      maxPositive: positive.length > 0 ? Math.max(...positive) : 0,
+      maxNegative: negative.length > 0 ? Math.min(...negative) : 0,
+      positiveCount: positive.length,
+      negativeCount: negative.length,
+      distribution: {
+        under5: divergences.filter(d => Math.abs(d) <= 5).length,
+        from5to20: divergences.filter(d => Math.abs(d) > 5 && Math.abs(d) <= 20).length,
+        over20: divergences.filter(d => Math.abs(d) > 20).length
+      }
+    };
+  }
+
+  private formatShiftForReport(shift: any): FormattedShiftDivergence {
+    const divergence = parseFloat(shift.cashDivergence || '0');
+
+    return {
+      id: shift.id,
+      date: shift.startTime,
+      employee: shift.user.name,
+      expectedCash: parseFloat(shift.expectedFinalCash || '0'),
+      actualCash: parseFloat(shift.finalCash || '0'),
+      divergence,
+      divergenceType: divergence > 0 ? 'sobra' : divergence < 0 ? 'falta' : 'balanceado',
+      severity: this.getDivergenceSeverity(Math.abs(divergence)),
+      observations: shift.closingObservations,
+      cashSales: parseFloat(shift.payments?.cash || '0'),
+      totalSales: this.calculateTotalSales(shift.payments)
+    };
+  }
+
+  private getDivergenceSeverity(absDivergence: number): 'low' | 'medium' | 'high' {
+    if (absDivergence <= 5) return 'low';
+    if (absDivergence <= 20) return 'medium';
+    return 'high';
+  }
+
+  private generateRecommendations(
+    patterns: DivergencePatterns,
+    employeeAnalysis: EmployeeAnalysis[]
+  ): string[] {
+    const recommendations: string[] = [];
+
+    // Recomendações baseadas em padrões temporais
+    const problematicTimes = Object.entries(patterns.byTimeOfDay)
+      .filter(([time, count]) => count > 3)
+      .map(([time]) => time);
+
+    if (problematicTimes.length > 0) {
+      recommendations.push(
+        `Revisar procedimentos nos horários: ${problematicTimes.join(', ')}. Maior incidência de divergências.`
+      );
+    }
+
+    // Recomendações baseadas em funcionários
+    const problematicEmployees = employeeAnalysis
+      .filter(emp => emp.averageDivergence > 10 || emp.divergenceRate > 0.3)
+      .map(emp => emp.employeeName);
+
+    if (problematicEmployees.length > 0) {
+      recommendations.push(
+        `Treinamento adicional recomendado para: ${problematicEmployees.join(', ')}.`
+      );
+    }
+
+    // Recomendações baseadas em magnitude
+    if (patterns.byAmount.large > patterns.byAmount.small) {
+      recommendations.push(
+        'Alto número de divergências grandes. Revisar processo de contagem e sangrias.'
+      );
+    }
+
+    return recommendations;
+  }
+}
+```
+
+## INTERFACE ADMINISTRATIVA DE DIVERGÊNCIAS
+
+### 1. PAINEL DE MONITORAMENTO
+
+```typescript
+// client/src/components/admin/divergence-dashboard.tsx
+export const DivergenceDashboard: React.FC = () => {
+  const [dateRange, setDateRange] = useState({
+    start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    end: new Date().toISOString().split('T')[0]
+  });
+
+  const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
+
+  // Query para relatório de divergências
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['divergence-report', dateRange.start, dateRange.end],
+    queryFn: () => api.get('/api/admin/reports/divergences', {
+      params: {
+        startDate: dateRange.start,
+        endDate: dateRange.end
+      }
+    })
+  });
+
+  // Query para alertas em tempo real
+  const { data: activeAlerts } = useQuery({
+    queryKey: ['divergence-alerts'],
+    queryFn: () => api.get('/api/admin/alerts/divergences'),
+    refetchInterval: 30000 // Atualizar a cada 30 segundos
+  });
+
+  const filteredShifts = useMemo(() => {
+    if (!reportData?.shifts) return [];
+
+    return reportData.shifts.filter((shift: any) => {
+      if (selectedSeverity === 'all') return true;
+      return shift.severity === selectedSeverity;
+    });
+  }, [reportData, selectedSeverity]);
+
+  return (
+    <div className="space-y-6">
+      {/* Header com controles */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold">Monitoramento de Divergências</h1>
+
+        <div className="flex space-x-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Período</label>
+            <div className="flex space-x-2">
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                className="border rounded px-3 py-1"
+              />
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                className="border rounded px-3 py-1"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Severidade</label>
+            <select
+              value={selectedSeverity}
+              onChange={(e) => setSelectedSeverity(e.target.value)}
+              className="border rounded px-3 py-2"
+            >
+              <option value="all">Todas</option>
+              <option value="low">Baixa</option>
+              <option value="medium">Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Alertas ativos */}
+      {activeAlerts && activeAlerts.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <h3 className="font-medium text-red-800 mb-2">Alertas Ativos</h3>
+          <div className="space-y-2">
+            {activeAlerts.map((alert: any) => (
+              <div key={alert.id} className="flex justify-between items-center">
+                <span className="text-red-700">{alert.message}</span>
+                <span className="text-xs text-red-600">
+                  {new Date(alert.createdAt).toLocaleString()}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Estatísticas resumidas */}
+      {reportData && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <StatCard
+            title="Total de Divergências"
+            value={reportData.totalShifts}
+            icon="⚠️"
+            color="yellow"
+          />
+          <StatCard
+            title="Divergência Média"
+            value={`R$ ${reportData.statistics.averageDivergence.toFixed(2)}`}
+            icon="📊"
+            color="blue"
+          />
+          <StatCard
+            title="Maior Sobra"
+            value={`R$ ${reportData.statistics.maxPositive.toFixed(2)}`}
+            icon="📈"
+            color="green"
+          />
+          <StatCard
+            title="Maior Falta"
+            value={`R$ ${Math.abs(reportData.statistics.maxNegative).toFixed(2)}`}
+            icon="📉"
+            color="red"
+          />
+        </div>
+      )}
+
+      {/* Gráficos de análise */}
+      {reportData && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <DivergenceByTimeChart data={reportData.patterns.byTimeOfDay} />
+          <DivergenceByEmployeeChart data={reportData.employeeAnalysis} />
+        </div>
+      )}
+
+      {/* Lista detalhada de turnos */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b">
+          <h3 className="font-medium">Turnos com Divergência</h3>
+          <p className="text-sm text-gray-600">
+            {filteredShifts.length} turnos encontrados
+          </p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Data</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Funcionário</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Esperado</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Contado</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Divergência</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Observações</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredShifts.map((shift: any) => (
+                <tr key={shift.id} className="border-b hover:bg-gray-50">
+                  <td className="px-4 py-3 text-sm">
+                    {new Date(shift.date).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium">
+                    {shift.employee}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    R$ {shift.expectedCash.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    R$ {shift.actualCash.toFixed(2)}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                      shift.divergence > 0
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : shift.divergence < 0
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-green-100 text-green-800'
+                    }`}>
+                      R$ {shift.divergence.toFixed(2)}
+                      {shift.divergence > 0 && ' (sobra)'}
+                      {shift.divergence < 0 && ' (falta)'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm max-w-xs truncate">
+                    {shift.observations || '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <button
+                      onClick={() => handleViewShiftDetails(shift.id)}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      Ver Detalhes
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+```
+
+Esta documentação apresenta um sistema completo e minucioso de controle de divergências de caixa, cobrindo desde a abertura até o fechamento de turnos, incluindo herança de valores, validações e relatórios administrativos detalhados.

@@ -93,11 +93,21 @@ export const shiftRecords = sqliteTable("shift_records", {
 export const shiftPayments = sqliteTable("shift_payments", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   shiftId: integer("shift_id").references(() => shifts.id).notNull(),
+
+  // Valores reais (usados nos cálculos) - cash e pix já corretos
   cash: text("cash").default("0"),
   pix: text("pix").default("0"),
   stoneCard: text("stone_card").default("0"),
   stoneVoucher: text("stone_voucher").default("0"),
   pagBankCard: text("pagbank_card").default("0"),
+
+  // Valores cumulativos das maquininhas (total mostrado na maquininha)
+  stoneCardCumulative: text("stone_card_cumulative").default("0"),
+  stoneVoucherCumulative: text("stone_voucher_cumulative").default("0"),
+  pagBankCardCumulative: text("pagbank_card_cumulative").default("0"),
+
+  // Flag para indicar cálculo automático
+  calculatedFromCumulative: integer("calculated_from_cumulative", { mode: "boolean" }).default(false),
 });
 
 export const weeklyReports = sqliteTable("weekly_reports", {
