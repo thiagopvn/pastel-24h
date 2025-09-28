@@ -171,7 +171,11 @@ export function CloseShiftModal({
   const initialCash = parseFloat(shift.initialCash || "200.00");
   const initialCoins = parseFloat(shift.initialCoins || "50.00");
   // Use livePayments if provided (real-time), otherwise fallback to API data
+  console.log("=== CLOSE SHIFT MODAL - PAYMENTS DEBUG ===");
+  console.log("livePayments recebido:", livePayments);
+  console.log("paymentData da API:", paymentData);
   const cashSales = livePayments?.cash ?? parseFloat((paymentData as any)?.cash || "0");
+  console.log("cashSales calculado:", cashSales);
 
   // Calculate total withdrawals made during this shift
   let totalWithdrawals = 0;
@@ -239,12 +243,14 @@ export function CloseShiftModal({
       console.log(`Modal Sales Check - Records Total: R$ ${totalRecordsValue.toFixed(2)}, Payments Total: R$ ${totalPayments.toFixed(2)}, Difference: R$ ${difference.toFixed(2)}`);
       
       // Only set if we don't have divergenceDetails from server (avoid overriding server response)
-      if (difference > 0.01) {
-        setSalesInconsistency(true);
-        setSalesDifference(difference);
-      } else {
-        setSalesInconsistency(false);
-        setSalesDifference(0);
+      if (!divergenceDetails) {
+        if (difference > 0.01) {
+          setSalesInconsistency(true);
+          setSalesDifference(difference);
+        } else {
+          setSalesInconsistency(false);
+          setSalesDifference(0);
+        }
       }
     }
   }, [isOpen, shiftRecords, paymentData, livePayments, divergenceDetails]); // Added divergenceDetails to dependencies

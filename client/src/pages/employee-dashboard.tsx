@@ -9,8 +9,8 @@ import CollaboratorsEnhanced from "@/components/employee/collaborators-enhanced"
 
 export default function EmployeeDashboard() {
   const { user, logoutMutation } = useAuth();
-  
-  // Centralized payments state
+
+  // CORREÇÃO: Centralizando o estado dos pagamentos aqui. Esta é a única fonte da verdade.
   const [paymentsData, setPaymentsData] = useState({
     cash: 0,
     pix: 0,
@@ -19,7 +19,11 @@ export default function EmployeeDashboard() {
     pagBankCard: 0,
   });
 
+  // CORREÇÃO: Função para ser passada aos filhos para atualizar o estado centralizado.
   const handlePaymentsChange = (newPayments: typeof paymentsData) => {
+    console.log("=== EMPLOYEE DASHBOARD - PAYMENTS UPDATE ===");
+    console.log("Estado anterior:", paymentsData);
+    console.log("Novo estado:", newPayments);
     setPaymentsData(newPayments);
   };
 
@@ -33,7 +37,6 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Mobile Header */}
       <header className="bg-white shadow-sm border-b sticky top-0 z-40">
         <div className="px-4 py-3">
           <div className="flex items-center justify-between">
@@ -59,12 +62,12 @@ export default function EmployeeDashboard() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="pb-4">
         <div className="p-4 space-y-4">
+          {/* CORREÇÃO: Passando o estado centralizado e a função de atualização para os filhos. */}
           <ShiftStatusCard paymentsData={paymentsData} />
           <ProductForm />
-          <CashRegister 
+          <CashRegister
             payments={paymentsData}
             onPaymentsChange={handlePaymentsChange}
           />

@@ -33,6 +33,7 @@ interface ShiftStatusCardProps {
 
 export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) {
   console.log(`%c--- ShiftStatusCard RENDERIZOU --- (${new Date().toLocaleTimeString()})`, 'color: orange; font-weight: bold;');
+  console.log("=== SHIFT STATUS CARD - PAYMENTS RECEBIDOS ===", paymentsData);
   const { user } = useAuth();
   const { toast } = useToast();
   const [isOpenDialogOpen, setIsOpenDialogOpen] = useState(false);
@@ -247,18 +248,13 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
         console.log("Valores cumulativos obtidos:", cumulativeCardValues);
       }
 
-      // Prepare closing data with counted values from the form
-      // USE paymentsData from props instead of fetching from API
+      // CORREÇÃO CRÍTICA: Não buscar pagamentos da API. Usar 'paymentsData' das props.
+      // O backend já espera que o frontend envie os valores corretos.
       const closeData = {
         shiftId: currentShift.id,
         records: records || [],
-        payments: {
-          cash: paymentsData.cash || 0,
-          pix: paymentsData.pix || 0,
-          stoneCard: paymentsData.stoneCard || 0,
-          stoneVoucher: paymentsData.stoneVoucher || 0,
-          pagBankCard: paymentsData.pagBankCard || 0
-        },
+        // CORREÇÃO: Usando o estado atualizado do pai.
+        payments: paymentsData,
         cumulativeCardValues: cumulativeCardValues, // Adicionar valores cumulativos
         notes: data.notes || "",
         countedFinalCash: data.countedFinalCash,
@@ -268,7 +264,10 @@ export default function ShiftStatusCard({ paymentsData }: ShiftStatusCardProps) 
         gasExchange: false
       };
 
-      console.log("Dados de fechamento preparados com pagamentos atualizados:", closeData);
+      console.log("=== DADOS DE FECHAMENTO COMPLETOS ===");
+      console.log("paymentsData recebido:", paymentsData);
+      console.log("closeData completo:", closeData);
+      console.log("payments dentro do closeData:", closeData.payments);
       closeShiftMutation.mutate(closeData);
     } catch (error) {
       console.error("Erro no handleCloseShift:", error);

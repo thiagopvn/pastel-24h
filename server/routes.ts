@@ -589,6 +589,9 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/shifts/close", requireAuth, async (req, res) => {
     try {
+      console.log("=== DEBUG FECHAR TURNO - BODY COMPLETO ===");
+      console.log("req.body:", req.body);
+
       const {
         shiftId,
         records,
@@ -602,6 +605,11 @@ export function registerRoutes(app: Express): Server {
         envelopeCoins
       } = req.body;
 
+      console.log("=== DADOS EXTRAÍDOS ===");
+      console.log("shiftId:", shiftId);
+      console.log("payments extraído:", payments);
+      console.log("records length:", records?.length);
+
       const shift = await storage.getShift(shiftId);
       if (!shift || shift.status !== 'open') {
         return res.status(400).json({ message: "Turno inválido ou já fechado" });
@@ -614,7 +622,15 @@ export function registerRoutes(app: Express): Server {
       // Calcular valores reais apenas para maquininhas de cartão
       let finalPayments = { ...payments };
 
-      if (cumulativeCardValues) {
+      // Só executar o cálculo de cartão se houver valores cumulativos reais (não zeros)
+      const hasRealCumulativeValues = cumulativeCardValues && (
+        parseFloat(cumulativeCardValues.stoneCardCumulative || '0') > 0 ||
+        parseFloat(cumulativeCardValues.stoneVoucherCumulative || '0') > 0 ||
+        parseFloat(cumulativeCardValues.pagBankCardCumulative || '0') > 0
+      );
+
+      if (hasRealCumulativeValues) {
+        console.log("Executando CardPaymentCalculator com valores cumulativos:", cumulativeCardValues);
         const CardPaymentCalculator = await import('./lib/card-payment-calculator').then(m => m.CardPaymentCalculator);
         const cardCalculator = new CardPaymentCalculator(db);
         const calculatedCards = await cardCalculator.calculateRealCardPayments(
@@ -645,13 +661,25 @@ export function registerRoutes(app: Express): Server {
             },
           });
         }
+      } else {
+        console.log("Não há valores cumulativos reais, mantendo payments originais:", payments);
       }
+
+      console.log("=== DEBUG FECHAMENTO - PAYMENTS ===");
+      console.log("finalPayments recebido no fechamento:", finalPayments);
+      console.log("cash:", finalPayments.cash, "type:", typeof finalPayments.cash);
+      console.log("pix:", finalPayments.pix, "type:", typeof finalPayments.pix);
+      console.log("stoneCard:", finalPayments.stoneCard, "type:", typeof finalPayments.stoneCard);
+      console.log("stoneVoucher:", finalPayments.stoneVoucher, "type:", typeof finalPayments.stoneVoucher);
+      console.log("pagBankCard:", finalPayments.pagBankCard, "type:", typeof finalPayments.pagBankCard);
 
       const totalSales = (parseFloat(finalPayments.cash) || 0) +
                         (parseFloat(finalPayments.pix) || 0) +
                         (parseFloat(finalPayments.stoneCard) || 0) +
                         (parseFloat(finalPayments.stoneVoucher) || 0) +
                         (parseFloat(finalPayments.pagBankCard) || 0);
+
+      console.log("totalSales calculado:", totalSales);
 
       const totalRecordsValue = records.reduce((sum: number, record: any) => {
         return sum + parseFloat(record.itemTotal || "0");
@@ -1187,14 +1215,20 @@ export function registerRoutes(app: Express): Server {
 
   app.post("/api/shift-payments", requireAuth, async (req, res) => {
     try {
+      console.log("=== DEBUG SALVAR PAGAMENTOS ===");
+      console.log("Body recebido:", req.body);
       const { shiftId, ...paymentFields } = req.body;
+      console.log("ShiftId:", shiftId);
+      console.log("PaymentFields:", paymentFields);
 
       if (!shiftId) {
         return res.status(400).json({ message: "shiftId is required" });
       }
 
       const paymentData = insertShiftPaymentSchema.parse(paymentFields);
+      console.log("PaymentData após parse:", paymentData);
       const payment = await storage.upsertShiftPayment({ ...paymentData, shiftId });
+      console.log("Payment salvo no banco:", payment);
       res.json(payment);
     } catch (error) {
       if (error instanceof z.ZodError) {

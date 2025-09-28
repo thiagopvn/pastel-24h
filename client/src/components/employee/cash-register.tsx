@@ -135,13 +135,18 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
     },
   });
 
-  const updatePayment = (field: string, value: number) => {
+  // CORREÇÃO: A função de atualização agora chama a prop 'onPaymentsChange' para notificar o componente pai.
+  const updatePayment = (field: keyof CashRegisterProps['payments'], value: number) => {
     onPaymentsChange({ ...payments, [field]: value });
   };
 
   // Função para calcular valores reais das maquininhas
   const calculateCardPayments = async () => {
     if (!currentShift?.id) return;
+
+    console.log("=== CASH REGISTER - CALCULATE CARD PAYMENTS ===");
+    console.log("cumulativeCardValues:", cumulativeCardValues);
+    console.log("payments estado atual:", payments);
 
     try {
       const response = await api.post(`/api/shifts/${currentShift.id}/calculate-card-payments`, {
@@ -150,15 +155,19 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
         pagBankCardCumulative: cumulativeCardValues.pagBankCardCumulative || '0'
       });
 
+      console.log("Resposta da API:", response);
+
       if (response.realValues) {
         setCalculatedCardValues(response.realValues);
-        // Atualizar valores de pagamento com os calculados
-        onPaymentsChange({
+        // CORREÇÃO: Propaga os valores calculados para o estado central no componente pai.
+        const newPayments = {
           ...payments,
           stoneCard: response.realValues.stoneCard,
           stoneVoucher: response.realValues.stoneVoucher,
           pagBankCard: response.realValues.pagBankCard
-        });
+        };
+        console.log("Propagando novos pagamentos:", newPayments);
+        onPaymentsChange(newPayments);
       }
     } catch (error) {
       console.error('Erro ao calcular valores de cartão:', error);
