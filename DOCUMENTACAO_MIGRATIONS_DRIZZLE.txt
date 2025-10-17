@@ -1,0 +1,372 @@
+# DOCUMENTAÇÃO TÉCNICA: Sistema de Migrations com Drizzle ORM
+
+## VISÃO GERAL
+
+Este projeto utiliza o Drizzle Kit para gerenciamento automatizado de migrations de banco de dados SQLite. O sistema é baseado em schema-first approach, onde todas as alterações na estrutura do banco são derivadas automaticamente das mudanças no schema TypeScript.
+
+## ARQUITETURA DE MIGRATIONS
+
+### Estrutura de Diretórios
+```
+/root/projetos/pastel24h/
+├── migrations/                 # Diretório principal de migrations
+│   ├── meta/                  # Metadados e controle de versioning
+│   │   ├── _journal.json      # Journal de todas as migrations aplicadas
+│   │   ├── 0000_snapshot.json # Snapshot do estado inicial do schema
+│   │   ├── 0001_snapshot.json # Snapshot após primeira migration
+│   │   └── ...
+│   ├── 0000_milky_starjammers.sql      # Migration inicial (schema completo)
+│   ├── 0001_add_sort_order.sql         # Adição de coluna sort_order
+│   ├── 0002_add_collaborator_consumption.sql
+│   ├── 0003_open_dragon_lord.sql
+│   └── 0004_add_cumulative_card_fields.sql
+├── shared/schema.ts           # Schema TypeScript (fonte da verdade)
+├── drizzle.config.ts         # Configuração do Drizzle Kit
+└── server/migrate.ts         # Script de execução das migrations
+```
+
+## CONFIGURAÇÃO PRINCIPAL
+
+### drizzle.config.ts
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  out: "./migrations",           // Diretório de saída das migrations
+  schema: "./shared/schema.ts",  // Arquivo schema TypeScript
+  dialect: "sqlite",            // Banco de dados SQLite
+  dbCredentials: {
+    url: "./data/local.db",     // Caminho do arquivo SQLite
+  },
+  verbose: true,               // Logs detalhados durante geração
+  strict: true,               // Validações rigorosas
+});
+```
+
+### server/migrate.ts (Executor de Migrations)
+```typescript
+import "dotenv/config";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database from "better-sqlite3";
+
+const dbPath = process.env.DATABASE_PATH || './data/local.db';
+const sqlite = new Database(dbPath);
+const db = drizzle(sqlite);
+
+migrate(db, { migrationsFolder: "./migrations" });
+sqlite.close();
+```
+
+## COMANDOS DISPONÍVEIS
+
+### Scripts NPM (package.json)
+```json
+{
+  "scripts": {
+    "db:generate": "drizzle-kit generate",  // Gera migrations baseadas no schema
+    "db:migrate": "tsx server/migrate.ts",  // Executa migrations pendentes
+    "start": "npm run db:migrate && node dist/index.js" // Auto-migrate na produção
+  }
+}
+```
+
+### Fluxo de Trabalho
+1. **Modificar Schema**: Alterar `shared/schema.ts`
+2. **Gerar Migration**: `npm run db:generate`
+3. **Aplicar Migration**: `npm run db:migrate`
+
+## ANATOMIA DAS MIGRATIONS
+
+### Migration Inicial (0000_milky_starjammers.sql)
+```sql
+-- Criação completa do schema inicial com todas as tabelas
+CREATE TABLE `users` (
+  `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  `email` text NOT NULL,
+  `password` text NOT NULL,
+  -- ... outras colunas
+);
+
+CREATE TABLE `shifts` (
+  `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  `user_id` integer NOT NULL,
+  -- ... foreign keys e constraints
+);
+```
+
+**Características:**
+- Contém schema completo inicial (15+ tabelas)
+- Estabelece todas as foreign keys e constraints
+- Define valores padrão e validações
+- Cria índices únicos necessários
+
+### Migration Incremental (0001_add_sort_order.sql)
+```sql
+-- Adição de nova coluna com valor padrão
+ALTER TABLE products ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+
+-- Atualização de dados existentes com lógica específica
+UPDATE products
+SET sort_order = (
+  SELECT COUNT(*)
+  FROM products p2
+  WHERE p2.category < products.category
+    OR (p2.category = products.category AND p2.name <= products.name)
+) - 1;
+```
+
+**Características:**
+- Operação específica e atômica
+- Preserva dados existentes
+- Inclui lógica de inicialização para novos campos
+- Não quebra compatibilidade com dados existentes
+
+### Migration de Campos Cumulativos (0004_add_cumulative_card_fields.sql)
+```sql
+-- Adiciona múltiplas colunas relacionadas
+ALTER TABLE shift_payments ADD COLUMN stone_card_cumulative TEXT DEFAULT '0';
+ALTER TABLE shift_payments ADD COLUMN stone_voucher_cumulative TEXT DEFAULT '0';
+ALTER TABLE shift_payments ADD COLUMN pagbank_card_cumulative TEXT DEFAULT '0';
+ALTER TABLE shift_payments ADD COLUMN calculated_from_cumulative INTEGER DEFAULT 0;
+
+-- Migra dados existentes para o novo formato
+UPDATE shift_payments
+SET
+  stone_card_cumulative = COALESCE(stone_card, '0'),
+  stone_voucher_cumulative = COALESCE(stone_voucher, '0'),
+  pagbank_card_cumulative = COALESCE(pagbank_card, '0'),
+  calculated_from_cumulative = 0
+WHERE stone_card_cumulative IS NULL;
+```
+
+## CONTROLE DE VERSIONING
+
+### Journal System (_journal.json)
+```json
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1754792691325,
+      "tag": "0000_milky_starjammers",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1755049018082,
+      "tag": "0001_add_sort_order",
+      "breakpoints": false
+    }
+  ]
+}
+```
+
+**Elementos do Journal:**
+- **idx**: Ordem sequencial das migrations
+- **version**: Versão do Drizzle Kit utilizada
+- **when**: Timestamp Unix de criação
+- **tag**: Nome identificador da migration
+- **breakpoints**: Indica se contém operações que podem falhar
+
+### Snapshots de Estado
+Cada migration gera um snapshot JSON completo do estado do schema, permitindo:
+- Rastreamento de mudanças incrementais
+- Rollback teórico para estados anteriores
+- Validação de consistência entre versões
+- Debug de incompatibilidades de schema
+
+## PROCESSO DE GERAÇÃO AUTOMÁTICA
+
+### 1. Detecção de Mudanças
+O Drizzle Kit compara:
+- Schema atual (`shared/schema.ts`)
+- Último snapshot armazenado (`migrations/meta/XXXX_snapshot.json`)
+- Identifica diferenças estruturais
+
+### 2. Geração de SQL
+```bash
+npm run db:generate
+```
+Produz:
+- Arquivo SQL com comandos DDL necessários
+- Novo snapshot JSON do estado resultante
+- Atualização do journal com metadados
+
+### 3. Nomeação Automática
+- Formato: `XXXX_random_adjective_noun.sql`
+- Exemplo: `0001_add_sort_order.sql`, `0003_open_dragon_lord.sql`
+- Numeração sequencial automática
+
+## TIPOS DE OPERAÇÕES SUPORTADAS
+
+### Criação de Tabelas
+```sql
+CREATE TABLE `nova_tabela` (
+  `id` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+  `campo` text NOT NULL
+);
+```
+
+### Modificação de Colunas
+```sql
+-- Adição (mais comum)
+ALTER TABLE tabela ADD COLUMN nova_coluna TEXT DEFAULT 'valor';
+
+-- SQLite não suporta DROP COLUMN diretamente
+-- Drizzle gera sequência de comandos:
+-- 1. CREATE TABLE nova_tabela_temp
+-- 2. INSERT dados da tabela original
+-- 3. DROP TABLE tabela_original
+-- 4. RENAME nova_tabela_temp TO tabela
+```
+
+### Índices e Constraints
+```sql
+CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+CREATE INDEX `idx_shifts_user_id` ON `shifts` (`user_id`);
+```
+
+### Foreign Keys
+```sql
+FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+```
+
+## EXECUÇÃO EM DIFERENTES AMBIENTES
+
+### Desenvolvimento
+```bash
+npm run db:generate  # Após mudanças no schema
+npm run db:migrate   # Aplicar na base local
+npm run dev         # Servidor com hot-reload
+```
+
+### Produção (Docker)
+```dockerfile
+# Dockerfile inclui migração automática
+RUN npm run db:migrate
+CMD ["npm", "start"]
+```
+
+### Deploy Automático
+```bash
+npm run start  # Executa db:migrate automaticamente antes do servidor
+```
+
+## SEGURANÇA E INTEGRIDADE
+
+### Transações Automáticas
+- Cada migration executa em transação isolada
+- Rollback automático em caso de erro
+- Estado consistente garantido
+
+### Validações
+```typescript
+// drizzle.config.ts
+strict: true  // Ativa validações rigorosas
+verbose: true // Logs detalhados para debug
+```
+
+### Backup Implícito
+- SQLite mantém journal automático
+- Possibilidade de rollback manual se necessário
+- Snapshots preservam histórico completo
+
+## BOAS PRÁTICAS IMPLEMENTADAS
+
+### 1. Schema como Fonte da Verdade
+```typescript
+// shared/schema.ts - definição única e centralizada
+export const products = sqliteTable("products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0), // Campo adicionado
+});
+```
+
+### 2. Migrations Atômicas
+- Uma migration = uma funcionalidade
+- Operações independentes e reversíveis
+- Não misturar mudanças estruturais com dados
+
+### 3. Preservação de Dados
+```sql
+-- Sempre incluir migração de dados existentes
+UPDATE tabela_existente SET novo_campo = valor_padrao WHERE novo_campo IS NULL;
+```
+
+### 4. Nomenclatura Consistente
+- Campos em snake_case no SQL
+- Conversão automática para camelCase no TypeScript
+- Foreign keys seguem padrão `tabela_id`
+
+## TROUBLESHOOTING COMUM
+
+### Erro: "Table already exists"
+**Causa**: Executar migration já aplicada
+**Solução**: Verificar journal, remover migration duplicada
+
+### Erro: "Column doesn't exist"
+**Causa**: Schema fora de sincronia com banco
+**Solução**:
+```bash
+rm -rf migrations/
+npm run db:generate  # Gera migration completa
+```
+
+### Erro: "Foreign key constraint failed"
+**Causa**: Dados existentes violam nova constraint
+**Solução**: Limpar dados incompatíveis antes da migration
+
+### Schema Drift
+**Causa**: Alterações manuais no banco não refletidas no schema
+**Solução**: Sempre alterar schema TypeScript primeiro
+
+## VANTAGENS DO SISTEMA ATUAL
+
+### 1. Type Safety
+- Schema TypeScript garante tipagem em compile-time
+- IntelliSense completo para queries
+- Detecção precoce de incompatibilidades
+
+### 2. Automação Completa
+- Zero configuração manual de migrations
+- Geração automática baseada em diff
+- Deploy sem intervenção manual
+
+### 3. Rastreabilidade
+- Histórico completo de mudanças
+- Snapshots permitem análise temporal
+- Journal com metadados precisos
+
+### 4. Segurança
+- Transações atômicas
+- Validações rigorosas
+- Rollback automático em erros
+
+## LIMITAÇÕES CONHECIDAS
+
+### SQLite Específicas
+- Não suporta DROP COLUMN nativo
+- Alterações de tipo requerem rebuild da tabela
+- Constraints não podem ser modificadas
+
+### Drizzle Kit
+- Não detecta renomeação de colunas (interpreta como drop + add)
+- Mudanças complexas podem requerer migration manual
+- Não gera seeds automaticamente
+
+## CONCLUSÃO
+
+O sistema de migrations Drizzle implementado no projeto oferece:
+- **Automatização completa** do processo de evolução de schema
+- **Type safety** garantida em tempo de compilação
+- **Rastreabilidade total** de mudanças estruturais
+- **Deployment seguro** com validações rigorosas
+- **Manutenção mínima** através de geração automática
+
+Esta abordagem elimina a necessidade de escrever migrations SQL manualmente, reduz erros humanos e garante sincronização perfeita entre schema TypeScript e estrutura do banco de dados em produção.
