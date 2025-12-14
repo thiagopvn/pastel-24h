@@ -587,6 +587,63 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // NOVO: Endpoint para salvar snapshot de meia-noite (turnos que cruzam a meia-noite)
+  // As maquininhas de cartão zeram seus valores à meia-noite. Este endpoint permite
+  // registrar os valores acumulados antes da virada do dia para cálculo correto.
+  app.post("/api/shifts/:shiftId/midnight-snapshot", requireAuth, async (req, res) => {
+    try {
+      const { shiftId } = req.params;
+      const { stoneCardCumulative, stoneVoucherCumulative, pagBankCardCumulative } = req.body;
+
+      const shift = await storage.getShift(parseInt(shiftId));
+      if (!shift || shift.status !== 'open') {
+        return res.status(400).json({ message: "Turno inválido ou já fechado" });
+      }
+
+      // Verificar se o usuário tem permissão (dono do turno ou admin)
+      if (shift.userId !== req.user!.id && req.user!.role !== 'admin') {
+        return res.status(403).json({ message: "Sem permissão para alterar este turno" });
+      }
+
+      // Criar objeto JSON com os valores de meia-noite
+      const midnightCardValues = JSON.stringify({
+        stoneCardCumulative: stoneCardCumulative || '0',
+        stoneVoucherCumulative: stoneVoucherCumulative || '0',
+        pagBankCardCumulative: pagBankCardCumulative || '0',
+        recordedAt: new Date().toISOString()
+      });
+
+      // Atualizar o turno com os valores de meia-noite
+      await db.update(shifts)
+        .set({ midnightCardValues })
+        .where(eq(shifts.id, parseInt(shiftId)));
+
+      // Registrar na timeline
+      await storage.addTimelineEntry({
+        userId: req.user!.id,
+        action: "midnight_snapshot_saved",
+        description: `Valores de meia-noite registrados - Stone D/C: R$ ${stoneCardCumulative}, Stone Voucher: R$ ${stoneVoucherCumulative}, PagBank: R$ ${pagBankCardCumulative}`,
+        metadata: {
+          shiftId: parseInt(shiftId),
+          midnightCardValues: {
+            stoneCardCumulative,
+            stoneVoucherCumulative,
+            pagBankCardCumulative
+          }
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Valores de meia-noite salvos com sucesso",
+        midnightCardValues: JSON.parse(midnightCardValues)
+      });
+    } catch (error) {
+      console.error("Erro ao salvar snapshot de meia-noite:", error);
+      res.status(500).json({ message: "Erro ao salvar registro de meia-noite" });
+    }
+  });
+
   app.post("/api/shifts/close", requireAuth, async (req, res) => {
     try {
       console.log("=== DEBUG FECHAR TURNO - BODY COMPLETO ===");

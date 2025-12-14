@@ -10,7 +10,17 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { CreditCard, AlertTriangle, Flame, Save, HelpCircle, Calculator, Coins, Banknote, DollarSign, Info } from "lucide-react";
+// NOVO: Imports para o Dialog do snapshot de meia-noite
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { CreditCard, AlertTriangle, Flame, Save, HelpCircle, Calculator, Coins, Banknote, DollarSign, Info, Moon, Clock } from "lucide-react";
 import type { Shift, ShiftPayment } from "@shared/schema";
 import { api } from "@/lib/apiClient";
 
@@ -50,6 +60,16 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
     stoneVoucher: 0,
     pagBankCard: 0
   });
+
+  // NOVO: Estados para o modal de snapshot de meia-noite
+  const [midnightDialogOpen, setMidnightDialogOpen] = useState(false);
+  const [midnightValues, setMidnightValues] = useState({
+    stoneCardCumulative: '',
+    stoneVoucherCumulative: '',
+    pagBankCardCumulative: ''
+  });
+  // NOVO: Estado para indicar se já foi registrado um snapshot de meia-noite
+  const [midnightSnapshotSaved, setMidnightSnapshotSaved] = useState(false);
 
   const { data: currentShift } = useQuery<Shift>({
     queryKey: ["/api/shifts/current"],
@@ -120,20 +140,70 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shift-payments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/shifts/current"] });
-      toast({ 
-        title: "Valores salvos com sucesso!", 
+      toast({
+        title: "Valores salvos com sucesso!",
         description: "Os valores serão carregados automaticamente no fechamento do turno."
       });
     },
     onError: (error: any) => {
       console.error("Erro ao salvar valores:", error);
-      toast({ 
-        title: "Erro ao salvar valores", 
+      toast({
+        title: "Erro ao salvar valores",
         description: "Verifique os valores e tente novamente.",
-        variant: "destructive" 
+        variant: "destructive"
       });
     },
   });
+
+  // NOVO: Mutação para salvar snapshot de meia-noite
+  const saveMidnightSnapshotMutation = useMutation({
+    mutationFn: async () => {
+      if (!currentShift?.id) throw new Error("Nenhum turno ativo");
+
+      const response = await api.post(`/api/shifts/${currentShift.id}/midnight-snapshot`, {
+        stoneCardCumulative: midnightValues.stoneCardCumulative || '0',
+        stoneVoucherCumulative: midnightValues.stoneVoucherCumulative || '0',
+        pagBankCardCumulative: midnightValues.pagBankCardCumulative || '0'
+      });
+      return response;
+    },
+    onSuccess: () => {
+      setMidnightDialogOpen(false);
+      setMidnightSnapshotSaved(true);
+      queryClient.invalidateQueries({ queryKey: ["/api/shifts/current"] });
+      toast({
+        title: "Registro de meia-noite salvo!",
+        description: "Os valores das maquininhas antes da meia-noite foram registrados com sucesso."
+      });
+    },
+    onError: (error: any) => {
+      console.error("Erro ao salvar snapshot de meia-noite:", error);
+      toast({
+        title: "Erro ao salvar registro",
+        description: "Verifique os valores e tente novamente.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  // NOVO: Verificar se já existe um snapshot de meia-noite salvo
+  useEffect(() => {
+    if (currentShift && (currentShift as any).midnightCardValues) {
+      try {
+        const savedValues = JSON.parse((currentShift as any).midnightCardValues);
+        if (savedValues.stoneCardCumulative || savedValues.stoneVoucherCumulative || savedValues.pagBankCardCumulative) {
+          setMidnightSnapshotSaved(true);
+          setMidnightValues({
+            stoneCardCumulative: savedValues.stoneCardCumulative || '',
+            stoneVoucherCumulative: savedValues.stoneVoucherCumulative || '',
+            pagBankCardCumulative: savedValues.pagBankCardCumulative || ''
+          });
+        }
+      } catch (e) {
+        // JSON inválido, ignorar
+      }
+    }
+  }, [currentShift]);
 
   // CORREÇÃO: A função de atualização agora chama a prop 'onPaymentsChange' para notificar o componente pai.
   const updatePayment = (field: keyof CashRegisterProps['payments'], value: number) => {
@@ -286,6 +356,124 @@ export default function CashRegister({ payments, onPaymentsChange }: CashRegiste
         </CardHeader>
 
         <CardContent className="space-y-6 p-6">
+          {/* NOVO: Botão para registro de meia-noite - turnos que cruzam a meia-noite */}
+          <Dialog open={midnightDialogOpen} onOpenChange={setMidnightDialogOpen}>
+            <div className="flex justify-end">
+              <DialogTrigger asChild>
+                <Button
+                  variant={midnightSnapshotSaved ? "outline" : "secondary"}
+                  size="sm"
+                  className={midnightSnapshotSaved
+                    ? "border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+                    : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"}
+                >
+                  <Moon className="h-4 w-4 mr-2" />
+                  {midnightSnapshotSaved ? "Meia-Noite Registrada ✓" : "Registrar Meia-Noite"}
+                </Button>
+              </DialogTrigger>
+            </div>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Moon className="h-5 w-5 text-indigo-600" />
+                  Registro de Meia-Noite
+                </DialogTitle>
+                <DialogDescription>
+                  <strong>Use este recurso apenas se seu turno cruzar a meia-noite.</strong>
+                  <br /><br />
+                  As maquininhas de cartão zeram seus valores à meia-noite.
+                  Registre aqui os valores acumulados <strong>antes</strong> da virada do dia
+                  para que o sistema calcule corretamente suas vendas.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <Alert className="bg-indigo-50 border-indigo-200">
+                  <Clock className="h-4 w-4 text-indigo-600" />
+                  <AlertDescription className="text-indigo-800">
+                    Registre os valores mostrados nas maquininhas <strong>às 23:59</strong> ou logo após a meia-noite.
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-orange-700">
+                      <CreditCard className="h-4 w-4" />
+                      Stone D/C (antes da meia-noite)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={midnightValues.stoneCardCumulative}
+                      onChange={(e) => setMidnightValues(prev => ({...prev, stoneCardCumulative: e.target.value}))}
+                      placeholder="Total acumulado na Stone D/C"
+                      className="text-center"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-green-700">
+                      <CreditCard className="h-4 w-4" />
+                      Stone Voucher (antes da meia-noite)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={midnightValues.stoneVoucherCumulative}
+                      onChange={(e) => setMidnightValues(prev => ({...prev, stoneVoucherCumulative: e.target.value}))}
+                      placeholder="Total acumulado na Stone Voucher"
+                      className="text-center"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2 text-sm font-medium text-blue-700">
+                      <CreditCard className="h-4 w-4" />
+                      PagBank D/C (antes da meia-noite)
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={midnightValues.pagBankCardCumulative}
+                      onChange={(e) => setMidnightValues(prev => ({...prev, pagBankCardCumulative: e.target.value}))}
+                      placeholder="Total acumulado na PagBank"
+                      className="text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setMidnightDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => saveMidnightSnapshotMutation.mutate()}
+                  disabled={saveMidnightSnapshotMutation.isPending}
+                  className="bg-indigo-600 hover:bg-indigo-700"
+                >
+                  {saveMidnightSnapshotMutation.isPending ? "Salvando..." : "Salvar Registro"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Indicador visual se snapshot foi salvo */}
+          {midnightSnapshotSaved && (
+            <Alert className="bg-indigo-50 border-indigo-200">
+              <Moon className="h-4 w-4 text-indigo-600" />
+              <AlertDescription className="text-indigo-800">
+                <strong>Turno com virada de dia:</strong> Valores de meia-noite registrados.
+                Stone D/C: R$ {midnightValues.stoneCardCumulative || '0'} |
+                Stone Voucher: R$ {midnightValues.stoneVoucherCumulative || '0'} |
+                PagBank: R$ {midnightValues.pagBankCardCumulative || '0'}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Seção de Contagem de Caixa */}
           <div className="space-y-4">
             <div className="flex items-center gap-2 mb-3">

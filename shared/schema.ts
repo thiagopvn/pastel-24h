@@ -64,7 +64,12 @@ export const shifts = sqliteTable("shifts", {
   cashForNextShift: text("cash_for_next_shift"), // Valor em notas que fica para próximo turno
   coinsForNextShift: text("coins_for_next_shift"), // Valor em moedas que fica para próximo turno
   openingDiscrepancy: text("opening_discrepancy"), // Diferença entre esperado e informado na abertura
-  
+
+  // NOVO: Campo para armazenar snapshot das maquininhas à meia-noite
+  // Usado em turnos que cruzam a meia-noite, quando as maquininhas zeram o acumulado
+  // Formato JSON: {"stoneCardCumulative": "500.00", "stoneVoucherCumulative": "150.00", "pagBankCardCumulative": "200.00", "recordedAt": "2024-01-01T00:00:00"}
+  midnightCardValues: text("midnight_card_values"),
+
   createdAt: integer("created_at", { mode: "timestamp_ms" }).default(new Date()),
 });
 
