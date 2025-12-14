@@ -47,11 +47,15 @@ export async function getProcessedShiftById(shiftId: number) {
     
     const records = recordsQuery.all(shiftId) as any[];
 
-    // 3. Buscar pagamentos
+    // 3. Buscar pagamentos (incluindo campos cumulativos para cálculo de cartão)
     const paymentsQuery = sqlite.prepare(`
-      SELECT * FROM shift_payments WHERE shift_id = ?
+      SELECT
+        id, shift_id, cash, pix, stone_card, stone_voucher, pagbank_card,
+        stone_card_cumulative, stone_voucher_cumulative, pagbank_card_cumulative,
+        calculated_from_cumulative
+      FROM shift_payments WHERE shift_id = ?
     `);
-    
+
     const payments = paymentsQuery.get(shiftId) as any;
 
     // 4. Buscar colaboradores
@@ -109,7 +113,9 @@ export async function getProcessedShiftById(shiftId: number) {
       coinsForNextShift: shift.coins_for_next_shift,
       openingDiscrepancy: shift.opening_discrepancy,
       createdAt: shift.created_at,
-      
+      // Campo para turnos que cruzam meia-noite (maquininhas zeram o acumulado)
+      midnightCardValues: shift.midnight_card_values,
+
       // Usuário
       user: shift.user_id_ref ? {
         id: shift.user_id_ref,
@@ -136,19 +142,28 @@ export async function getProcessedShiftById(shiftId: number) {
         }
       })),
       
-      // Pagamentos
+      // Pagamentos (incluindo campos cumulativos para cálculo de cartão entre turnos)
       payments: payments ? {
         cash: payments.cash,
         pix: payments.pix,
         stoneCard: payments.stone_card,
         stoneVoucher: payments.stone_voucher,
-        pagBankCard: payments.pagbank_card
+        pagBankCard: payments.pagbank_card,
+        // Campos cumulativos para cálculo de vendas reais de cartão
+        stoneCardCumulative: payments.stone_card_cumulative,
+        stoneVoucherCumulative: payments.stone_voucher_cumulative,
+        pagBankCardCumulative: payments.pagbank_card_cumulative,
+        calculatedFromCumulative: payments.calculated_from_cumulative
       } : {
         cash: "0.00",
         pix: "0.00",
         stoneCard: "0.00",
         stoneVoucher: "0.00",
-        pagBankCard: "0.00"
+        pagBankCard: "0.00",
+        stoneCardCumulative: "0",
+        stoneVoucherCumulative: "0",
+        pagBankCardCumulative: "0",
+        calculatedFromCumulative: false
       },
       
       // Colaboradores
