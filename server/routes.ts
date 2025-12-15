@@ -40,7 +40,10 @@ export function registerRoutes(app: Express): Server {
   setupAuth(app);
 
   // Health check endpoint (público, usado pelo Docker healthcheck)
+  // IMPORTANTE: Este endpoint deve ser simples, rápido e nunca cacheado
   app.get("/api/health", (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.set('Content-Type', 'application/json');
     res.status(200).json({
       status: "ok",
       timestamp: new Date().toISOString(),

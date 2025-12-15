@@ -64,7 +64,13 @@ async function main() {
 
     // Fallback para SPA: qualquer rota não capturada pela API ou por um arquivo estático,
     // serve o index.html do React para que o roteamento do lado do cliente funcione.
+    // IMPORTANTE: Excluir rotas /api para que retornem 404 ao invés de HTML
     app.get("*", (req, res) => {
+      // Se a rota começa com /api, não deve servir o index.html
+      // Isso permite que rotas API inexistentes retornem 404 corretamente
+      if (req.path.startsWith('/api')) {
+        return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+      }
       res.sendFile(path.resolve(publicPath, "index.html"));
     });
   }
