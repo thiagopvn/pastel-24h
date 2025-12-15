@@ -7,8 +7,8 @@ services:
         NODE_ENV: production
     container_name: pastel24h_app
     restart: unless-stopped
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     volumes:
       - ./data:/app/data
       - app_logs:/app/logs
@@ -25,24 +25,32 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    depends_on: []
 
-  # Nginx opcional - descomente se quiser usar proxy reverso
-  # nginx:
-  #   build:
-  #     context: .
-  #     dockerfile: nginx.dockerfile
-  #   container_name: pastel24h_nginx
-  #   restart: unless-stopped
-  #   ports:
-  #     - "80:80"
-  #   depends_on:
-  #     - app
-  #   networks:
-  #     - pastel24h-network
+  caddy:
+    image: caddy:2-alpine
+    container_name: pastel24h_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      - EMAIL=${EMAIL}
+    networks:
+      - pastel24h-network
+    depends_on:
+      app:
+        condition: service_healthy
 
 volumes:
   app_logs:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
     driver: local
 
 networks:

@@ -1,0 +1,8 @@
+{
+  email {$EMAIL}
+  acme_ca https://acme-v02.api.letsencrypt.org/directory
+}
+
+pastelaria24h.website, www.pastelaria24h.website {
+  reverse_proxy app:5000
+}

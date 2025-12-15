@@ -38,7 +38,16 @@ import { eq, and, isNull, isNotNull, desc, sql, or } from "drizzle-orm";
 
 export function registerRoutes(app: Express): Server {
   setupAuth(app);
-  
+
+  // Health check endpoint (público, usado pelo Docker healthcheck)
+  app.get("/api/health", (req, res) => {
+    res.status(200).json({
+      status: "ok",
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    });
+  });
+
   // Debug middleware to log all requests
   app.use((req, res, next) => {
     if (req.path.includes('shift-records') && req.method === 'POST') {
