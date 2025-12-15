@@ -1,22 +1,60 @@
 # Dependências
-node_modules
+node_modules/
 
 # Saída de Build
-dist
+dist/
 
 # Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
+pnpm-debug.log*
 
-# Banco de dados local
-/data/
+# Banco de dados SQLite
+data/*.db
+data/*.db-*
+data/*.db.*
+data/*.backup*
+data/*.bak
+*.sqlite
+*.sqlite3
 
 # Variáveis de Ambiente
 .env
 .env.*
+.env.local
+.env.development
+.env.production
 !.env.example
 
 # Arquivos de Sistema/Editor
 .DS_Store
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sourcemaps (produção)
+*.map
+
+# Arquivos temporários
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Arquivos de cache
+.cache/
+.npm/
+.eslintcache
+
+# Arquivos Zone.Identifier do Windows/WSL
+*:Zone.Identifier
+
+# Arquivos de coverage/test
+coverage/
+.nyc_output/
+
+# Typescript
+*.tsbuildinfo

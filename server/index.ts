@@ -91,9 +91,11 @@ async function main() {
   });
 
   // Usa a porta do ambiente ou 5000 como padrão
+  // Escuta em 0.0.0.0 para aceitar conexões externas (necessário em servidores de produção)
   const port = process.env.PORT || 5000;
-  server.listen(port, () => {
-    log(`Servidor rodando na porta ${port}`);
+  const host = process.env.HOST || "0.0.0.0";
+  server.listen(Number(port), host, () => {
+    log(`Servidor rodando em ${host}:${port}`);
   });
 }
 
